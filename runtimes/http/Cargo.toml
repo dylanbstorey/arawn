@@ -1,0 +1,9 @@
+[package]
+name = "runtime-http"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP fetch WASM runtime — makes HTTP requests based on config"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

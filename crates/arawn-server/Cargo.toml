@@ -1,0 +1,41 @@
+[package]
+name = "arawn-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP API and WebSocket server for Arawn"
+
+[dependencies]
+arawn-types = { workspace = true }
+arawn-agent = { workspace = true }
+arawn-memory = { workspace = true }
+arawn-mcp = { workspace = true }
+arawn-workstream = { workspace = true }
+
+tokio = { workspace = true }
+tokio-util = "0.7"
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tokio-tungstenite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+futures = "0.3"
+async-stream = "0.3"
+governor = "0.10"
+tower_governor = "0.8"
+
+[dev-dependencies]
+arawn-agent = { workspace = true }
+arawn-llm = { workspace = true }
+arawn-memory = { workspace = true }
+arawn-plugin = { workspace = true }
+reqwest = { workspace = true }
+anyhow = { workspace = true }
+tempfile = "3.10"
+uuid = { workspace = true }

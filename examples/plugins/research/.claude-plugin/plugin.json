@@ -1,0 +1,7 @@
+{
+  "name": "research",
+  "version": "0.1.0",
+  "description": "Research agents for web search, code analysis, and summarization",
+  "agents": "./agents/",
+  "system_prompt": "You have access to specialized research agents through the delegate tool.\n\nAvailable agents:\n- `web-researcher`: For finding information on the web\n- `code-analyzer`: For analyzing and explaining code\n- `summarizer`: For condensing long content into summaries\n\nUse `arawn agent list` to see all available agents and their capabilities."
+}

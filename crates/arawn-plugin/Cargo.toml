@@ -1,0 +1,29 @@
+[package]
+name = "arawn-plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Plugin system for Arawn: skills, hooks, agents, CLI tools, and prompt fragments"
+
+[dependencies]
+arawn-agent = { workspace = true }
+arawn-config = { workspace = true }
+arawn-llm = { workspace = true }
+arawn-types = { workspace = true }
+async-trait = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+toml = "0.8"
+tokio = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+dirs = "6.0"
+glob = "0.3"
+notify = "7"
+notify-debouncer-mini = "0.5"
+regex = "1"
+
+[dev-dependencies]
+tempfile = "3.10"

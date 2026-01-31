@@ -1,0 +1,37 @@
+[package]
+name = "arawn-memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Memory and knowledge storage for Arawn using sqlite-vec and graphqlite"
+
+[dependencies]
+arawn-types = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+sqlite-vec = "0.1.6"
+graphqlite = "0.3.2"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# UUID and time
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# For efficient vector byte conversion
+zerocopy = { version = "0.8", features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true }
+tempfile = "3.10"
+serial_test = "3.2"

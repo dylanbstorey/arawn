@@ -1,0 +1,43 @@
+# Build artifacts
+**/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# Data (keep structure, ignore contents)
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Model files (large)
+*.onnx
+*.bin
+models/
+
+# Python (angreal)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# WASM binaries
+*.wasm
+/openclaw/

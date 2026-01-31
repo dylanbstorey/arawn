@@ -1,0 +1,55 @@
+[package]
+name = "arawn-pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Workflow orchestration engine for Arawn, powered by Cloacina"
+
+[dependencies]
+# Internal crates
+arawn-config = { workspace = true }
+
+# Cloacina runtime
+cloacina = { version = "0.3.1", default-features = false, features = ["sqlite"] }
+cloacina-workflow = "0.3.1"
+
+# Async
+tokio = { workspace = true }
+async-trait = "0.1"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Workflow definitions
+toml = "0.8"
+
+# File watching
+notify = "7"
+notify-debouncer-mini = "0.5"
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Identity
+uuid = { workspace = true }
+
+# WASM sandbox
+wasmtime = "41"
+wasmtime-wasi = "41"
+
+# Hashing (for WASM cache)
+sha2 = "0.10"
+hex = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["full", "test-util"] }

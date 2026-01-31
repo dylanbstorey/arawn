@@ -1,0 +1,35 @@
+[package]
+name = "arawn-workstream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Workstream management: persistent conversational contexts with JSONL history and SQLite operational state"
+
+[dependencies]
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+refinery = { version = "0.9", features = ["rusqlite"] }
+
+# Identity & time
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# LLM (for compression)
+arawn-llm = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

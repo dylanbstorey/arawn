@@ -1,0 +1,50 @@
+[package]
+name = "arawn-llm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "LLM client abstraction for Arawn with multi-provider support"
+
+[features]
+default = []
+# Enable local embeddings via ONNX Runtime
+local-embeddings = ["ort", "tokenizers", "ndarray"]
+
+[dependencies]
+arawn-types = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
+
+# HTTP
+reqwest = { workspace = true }
+bytes = "1.9"
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Identity & time
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Filesystem
+dirs = "5"
+
+# Local embeddings (optional)
+ort = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+ndarray = { version = "0.16", optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = "3"

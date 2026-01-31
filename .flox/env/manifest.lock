@@ -1,0 +1,410 @@
+{
+  "lockfile-version": 1,
+  "manifest": {
+    "version": 1,
+    "install": {
+      "pkg-config": {
+        "pkg-path": "pkg-config"
+      },
+      "rustup": {
+        "pkg-path": "rustup"
+      },
+      "sqlite": {
+        "pkg-path": "sqlite"
+      }
+    },
+    "hook": {
+      "on-activate": "  rustup target add wasm32-wasip1 2>/dev/null\n"
+    },
+    "profile": {},
+    "options": {}
+  },
+  "packages": [
+    {
+      "attr_path": "pkg-config",
+      "broken": false,
+      "derivation": "/nix/store/199i10qz5sxlhlwnmwyq7cz7z07472gs-pkg-config-wrapper-0.29.2.drv",
+      "description": "Tool that allows packages to find out information about other packages (wrapper script)",
+      "install_id": "pkg-config",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "pkg-config-wrapper-0.29.2",
+      "pname": "pkg-config",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T04:36:00.830260Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.29.2",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/ciqhlvhb40flzfq406p6ds9isk5d86z4-pkg-config-wrapper-0.29.2-doc",
+        "man": "/nix/store/znrxsr46fxqmahinhld0gm3w9wn36w2n-pkg-config-wrapper-0.29.2-man",
+        "out": "/nix/store/h1zybrn86ifpb32xslaaf611h06d3vrn-pkg-config-wrapper-0.29.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pkg-config",
+      "broken": false,
+      "derivation": "/nix/store/i927l7fcarg683k87bgj1vd4nf98hws1-pkg-config-wrapper-0.29.2.drv",
+      "description": "Tool that allows packages to find out information about other packages (wrapper script)",
+      "install_id": "pkg-config",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "pkg-config-wrapper-0.29.2",
+      "pname": "pkg-config",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:06:02.996943Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.29.2",
+      "outputs_to_install": [
+        "man",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/nd285jjxkxhsb19d5asrlxy0b8zzgd1i-pkg-config-wrapper-0.29.2-doc",
+        "man": "/nix/store/p3hqvabkkwxm4qdyib2avgx9i0l1snag-pkg-config-wrapper-0.29.2-man",
+        "out": "/nix/store/acidxar7778cz6rb9xa9plhjpqsxap2k-pkg-config-wrapper-0.29.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pkg-config",
+      "broken": false,
+      "derivation": "/nix/store/nj2rj4wjny7ffz8asgwgvw3b1wwh9yg2-pkg-config-wrapper-0.29.2.drv",
+      "description": "Tool that allows packages to find out information about other packages (wrapper script)",
+      "install_id": "pkg-config",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "pkg-config-wrapper-0.29.2",
+      "pname": "pkg-config",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:33:44.126686Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.29.2",
+      "outputs_to_install": [
+        "man",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/5llrmzx5vpd0hj8cj6c0af2c3vzl5g2a-pkg-config-wrapper-0.29.2-doc",
+        "man": "/nix/store/m3xvrpz0p7nnx6ck748ryyhvj50hjjz5-pkg-config-wrapper-0.29.2-man",
+        "out": "/nix/store/hxzn7zygy0lxw4s89i86wsa5k0nhwjwk-pkg-config-wrapper-0.29.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "pkg-config",
+      "broken": false,
+      "derivation": "/nix/store/34y7xczwns3fcf35pjj6irgkjrm6kyx6-pkg-config-wrapper-0.29.2.drv",
+      "description": "Tool that allows packages to find out information about other packages (wrapper script)",
+      "install_id": "pkg-config",
+      "license": "GPL-2.0-or-later",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "pkg-config-wrapper-0.29.2",
+      "pname": "pkg-config",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T06:07:17.879024Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "0.29.2",
+      "outputs_to_install": [
+        "man",
+        "out",
+        "out"
+      ],
+      "outputs": {
+        "doc": "/nix/store/a29fiybw29zbd9awm6jdifpw9l5mrg1x-pkg-config-wrapper-0.29.2-doc",
+        "man": "/nix/store/0dslh0d5kbgh40208jlf03n0zkjyc7cl-pkg-config-wrapper-0.29.2-man",
+        "out": "/nix/store/rvp7qlpf5jqvdckjy1afjb6aha6j8dxg-pkg-config-wrapper-0.29.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "rustup",
+      "broken": false,
+      "derivation": "/nix/store/yizcxy6hhfs3zpy822anp4qp7ljxpy10-rustup-1.28.2.drv",
+      "description": "Rust toolchain installer",
+      "install_id": "rustup",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "rustup-1.28.2",
+      "pname": "rustup",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T04:36:52.367248Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.28.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/r0nacc31pp9jglw15wacjp8bzyjhi41b-rustup-1.28.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "rustup",
+      "broken": false,
+      "derivation": "/nix/store/hs5p86qzwm378l86gnh3khyyyrxxpyvc-rustup-1.28.2.drv",
+      "description": "Rust toolchain installer",
+      "install_id": "rustup",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "rustup-1.28.2",
+      "pname": "rustup",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:07:04.152065Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.28.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/jczizx7qz254wi11kj9flx1kyzvpxb3x-rustup-1.28.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "rustup",
+      "broken": false,
+      "derivation": "/nix/store/i9z8amynxfyq3j9wd67yqfnym20cqr8m-rustup-1.28.2.drv",
+      "description": "Rust toolchain installer",
+      "install_id": "rustup",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "rustup-1.28.2",
+      "pname": "rustup",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:34:33.734940Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.28.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/prxdrp8ffnsrmzfznjgiqvqm8j810c5v-rustup-1.28.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "rustup",
+      "broken": false,
+      "derivation": "/nix/store/7mvcl04v7nln6mp17mij6dq8w33sw518-rustup-1.28.2.drv",
+      "description": "Rust toolchain installer",
+      "install_id": "rustup",
+      "license": "[ Apache-2.0, MIT ]",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "rustup-1.28.2",
+      "pname": "rustup",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T06:08:21.784774Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "1.28.2",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "out": "/nix/store/8kys5yhdhiybfw4p4rdyfg7av8rldl6r-rustup-1.28.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "sqlite",
+      "broken": false,
+      "derivation": "/nix/store/h7mxlki0cbrr6q9j4zw705xvmrbmc2mz-sqlite-3.51.2.drv",
+      "description": "Self-contained, serverless, zero-configuration, transactional SQL database engine",
+      "install_id": "sqlite",
+      "license": "Public Domain",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "sqlite-3.51.2",
+      "pname": "sqlite",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T04:37:08.412752Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.51.2",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/25h87i04f812ydbmkx2fsbfk3h6ahvkq-sqlite-3.51.2-bin",
+        "dev": "/nix/store/bd2pljz7hw0iygf9rxgqq28p4i6snl12-sqlite-3.51.2-dev",
+        "doc": "/nix/store/kxa6w751kzbjxmp1f4kqkycn8p0790pp-sqlite-3.51.2-doc",
+        "man": "/nix/store/ga13w56hr55angkn8sd7d42j04hb44ly-sqlite-3.51.2-man",
+        "out": "/nix/store/dzj2h6c2kb3hizbk2w5r45kjk57mxxkh-sqlite-3.51.2"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "sqlite",
+      "broken": false,
+      "derivation": "/nix/store/3cbj25czswrs8fdaj2dlamdjx2pk8hk7-sqlite-3.51.2.drv",
+      "description": "Self-contained, serverless, zero-configuration, transactional SQL database engine",
+      "install_id": "sqlite",
+      "license": "Public Domain",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "sqlite-3.51.2",
+      "pname": "sqlite",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:07:22.868940Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.51.2",
+      "outputs_to_install": [
+        "bin",
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/1bi4xrs6jbpqwaykj4w0slfpfb0253vs-sqlite-3.51.2-bin",
+        "debug": "/nix/store/ndrjv00qqj6cpb61mr6p1crd7hpkspxc-sqlite-3.51.2-debug",
+        "dev": "/nix/store/dx1imkvdvkr03im68b57ma9plwbgyav3-sqlite-3.51.2-dev",
+        "doc": "/nix/store/99mz6yhf35z64vfz0fmz10kd6105b5sr-sqlite-3.51.2-doc",
+        "man": "/nix/store/7bsd9hcr21w4mshkxcp9h7zddkc1ss3c-sqlite-3.51.2-man",
+        "out": "/nix/store/mcwq5pax85mbpic10kzl03h0j6wqdr50-sqlite-3.51.2"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "sqlite",
+      "broken": false,
+      "derivation": "/nix/store/r26rm7pqlbdw5cb7m0q8agvjgz9ip3qh-sqlite-3.51.2.drv",
+      "description": "Self-contained, serverless, zero-configuration, transactional SQL database engine",
+      "install_id": "sqlite",
+      "license": "Public Domain",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "sqlite-3.51.2",
+      "pname": "sqlite",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T05:34:49.162547Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.51.2",
+      "outputs_to_install": [
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/kq48w155fqa4zryz8gxllfjhjwqfx2lj-sqlite-3.51.2-bin",
+        "dev": "/nix/store/j5j0nsdspwxbdbkz9aphphilg2js9ay9-sqlite-3.51.2-dev",
+        "doc": "/nix/store/flxpy3hknw99hpvks972qb7a5bjb4qc3-sqlite-3.51.2-doc",
+        "man": "/nix/store/2pcbkvyq1v51imf3m36yjsmq6nsa45ya-sqlite-3.51.2-man",
+        "out": "/nix/store/s2yjnam2n2chcflj2b4ihp231l3v32iz-sqlite-3.51.2"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "sqlite",
+      "broken": false,
+      "derivation": "/nix/store/92v98y0ik0kmigs2qxszgbi9vxilysmc-sqlite-3.51.2.drv",
+      "description": "Self-contained, serverless, zero-configuration, transactional SQL database engine",
+      "install_id": "sqlite",
+      "license": "Public Domain",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "name": "sqlite-3.51.2",
+      "pname": "sqlite",
+      "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+      "rev_count": 935279,
+      "rev_date": "2026-01-26T21:10:04Z",
+      "scrape_date": "2026-01-29T06:08:41.151257Z",
+      "stabilities": [
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "3.51.2",
+      "outputs_to_install": [
+        "bin",
+        "bin",
+        "man"
+      ],
+      "outputs": {
+        "bin": "/nix/store/ryc68h6m05msqkf2wqm306cwrvx2fqr2-sqlite-3.51.2-bin",
+        "debug": "/nix/store/p99lmc4ss85q9gnr4dq3w30jm8c0yql6-sqlite-3.51.2-debug",
+        "dev": "/nix/store/6k6dpcdv1bxcipcgdbi89g9fxws0vhvc-sqlite-3.51.2-dev",
+        "doc": "/nix/store/nhy8izfz9fp3i1dsg5vq8f2cx0p02kkl-sqlite-3.51.2-doc",
+        "man": "/nix/store/3lg4rpp0ygbzfan62jn6smmyy6k2mhsf-sqlite-3.51.2-man",
+        "out": "/nix/store/bn7m7qn8k7b27jy5lkq3bg4vcxnyjpq0-sqlite-3.51.2"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    }
+  ]
+}

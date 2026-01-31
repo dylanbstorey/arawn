@@ -1,0 +1,23 @@
+[book]
+title = "Arawn Technical Reference"
+authors = ["Arawn Contributors"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/your-org/arawn"
+edit-url-template = "https://github.com/your-org/arawn/edit/main/docs/{path}"
+
+[output.html.search]
+enable = true
+limit-results = 30
+
+[output.html.fold]
+enable = true
+level = 1

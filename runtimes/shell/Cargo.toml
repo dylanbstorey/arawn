@@ -1,0 +1,9 @@
+[package]
+name = "runtime-shell"
+version = "0.1.0"
+edition = "2021"
+description = "Shell command WASM runtime — executes commands and returns output"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

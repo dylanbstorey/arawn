@@ -1,0 +1,105 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/arawn",
+    "crates/arawn-config",
+    "crates/arawn-types",
+    "crates/arawn-memory",
+    "crates/arawn-llm",
+    "crates/arawn-agent",
+    "crates/arawn-server",
+    "crates/arawn-oauth",
+    "crates/arawn-workstream",
+    "crates/arawn-pipeline",
+    "crates/arawn-script-sdk",
+    "crates/arawn-plugin",
+    "crates/arawn-mcp",
+]
+exclude = [
+    "crates/orp-vendored",
+    "crates/gline-rs-vendored",
+    "runtimes/passthrough",
+    "runtimes/http",
+    "runtimes/file_read",
+    "runtimes/file_write",
+    "runtimes/shell",
+    "runtimes/transform",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/dstorey/arawn"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.43", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Database
+rusqlite = { version = "0.37", features = ["bundled", "vtab"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json", "stream", "blocking"] }
+axum = { version = "0.8", features = ["ws"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
+# WebSocket
+tokio-tungstenite = "0.26"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+rustyline = "15.0"
+console = "0.15"
+indicatif = "0.17"
+
+# Embeddings
+ort = { version = "2.0.0-rc.11", default-features = false }
+tokenizers = "0.21"
+
+# UUID
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Internal crates
+arawn-config = { path = "crates/arawn-config" }
+arawn-types = { path = "crates/arawn-types" }
+arawn-memory = { path = "crates/arawn-memory" }
+arawn-llm = { path = "crates/arawn-llm" }
+arawn-agent = { path = "crates/arawn-agent" }
+arawn-server = { path = "crates/arawn-server" }
+arawn-oauth = { path = "crates/arawn-oauth" }
+arawn-workstream = { path = "crates/arawn-workstream" }
+arawn-pipeline = { path = "crates/arawn-pipeline" }
+arawn-plugin = { path = "crates/arawn-plugin" }
+arawn-mcp = { path = "crates/arawn-mcp" }
+orp-vendored = { path = "crates/orp-vendored" }
+gline-rs-vendored = { path = "crates/gline-rs-vendored", default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+strip = false

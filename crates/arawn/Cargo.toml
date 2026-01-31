@@ -1,0 +1,47 @@
+[package]
+name = "arawn"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Arawn - Personal Research Agent for Edge Computing"
+
+[[bin]]
+name = "arawn"
+path = "src/main.rs"
+
+[dependencies]
+arawn-config = { workspace = true }
+arawn-types = { workspace = true }
+arawn-memory = { workspace = true }
+arawn-llm = { workspace = true }
+arawn-agent = { workspace = true }
+arawn-server = { workspace = true }
+arawn-oauth = { workspace = true }
+arawn-pipeline = { workspace = true }
+arawn-plugin = { workspace = true }
+arawn-mcp = { workspace = true }
+arawn-workstream = { workspace = true }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+tokio-tungstenite = { workspace = true }
+rustyline = { workspace = true }
+console = { workspace = true }
+indicatif = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+futures = "0.3"
+async-stream = "0.3"
+url = "2.5"
+dirs = "6.0"
+
+[features]
+gliner = ["arawn-agent/gliner"]

@@ -1,0 +1,31 @@
+[package]
+name = "arawn-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Configuration system for the Arawn agent framework"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = "0.8"
+dirs = "6.0"
+keyring = { version = "3", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", optional = true, features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3", optional = true, features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", optional = true, features = ["linux-native"] }
+
+[features]
+default = ["keyring"]
+keyring = ["dep:keyring"]
+
+[dev-dependencies]
+tempfile = "3.14"

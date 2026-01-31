@@ -1,0 +1,42 @@
+[package]
+name = "arawn-oauth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "OAuth 2.0 PKCE proxy for Claude MAX authentication"
+
+[dependencies]
+# Async
+tokio = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
+
+# HTTP
+reqwest = { workspace = true, features = ["stream"] }
+axum = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# OAuth/Crypto
+rand = "0.9"
+base64 = "0.22"
+sha2 = "0.10"
+urlencoding = "2"
+
+# Time
+chrono = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = "3.10"
+tower = { workspace = true }

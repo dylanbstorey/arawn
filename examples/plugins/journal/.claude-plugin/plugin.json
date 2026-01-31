@@ -1,0 +1,6 @@
+{
+  "name": "journal",
+  "version": "0.1.0",
+  "description": "Personal journaling and note-taking plugin",
+  "system_prompt": "You have access to journaling capabilities through the journal plugin.\n\nUse the `journal` tool to:\n- Create daily journal entries with mood, accomplishments, and goals\n- List and search past journal entries\n- Tag entries for organization\n\nWhen the user wants to journal or reflect, guide them through a structured entry."
+}
