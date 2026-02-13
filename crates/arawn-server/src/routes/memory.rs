@@ -7,7 +7,8 @@
 
 use axum::{
     Extension, Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
+    http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -65,6 +66,24 @@ pub struct ListNotesQuery {
     pub limit: Option<usize>,
 }
 
+/// Request to update a note.
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateNoteRequest {
+    /// New content for the note.
+    #[serde(default)]
+    pub content: Option<String>,
+    /// New tags for the note (replaces existing tags).
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+}
+
+/// Response for getting a single note.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetNoteResponse {
+    /// The note.
+    pub note: Note,
+}
+
 /// Response for listing notes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListNotesResponse {
@@ -120,6 +139,47 @@ pub struct MemorySearchResponse {
     pub query: String,
     /// Total results returned.
     pub count: usize,
+    /// Whether the search fell back to text-only mode (e.g., embedding/vector search failed).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub degraded: bool,
+}
+
+/// Request to store a memory directly.
+#[derive(Debug, Clone, Deserialize)]
+pub struct StoreMemoryRequest {
+    /// The memory content.
+    pub content: String,
+    /// Content type (fact, summary, insight, etc.).
+    #[serde(default = "default_content_type")]
+    pub content_type: String,
+    /// Optional session ID to associate with this memory.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    /// Optional metadata.
+    #[serde(default)]
+    pub metadata: HashMap<String, serde_json::Value>,
+    /// Confidence score (0.0 - 1.0).
+    #[serde(default = "default_confidence")]
+    pub confidence: f32,
+}
+
+fn default_content_type() -> String {
+    "fact".to_string()
+}
+
+fn default_confidence() -> f32 {
+    0.8
+}
+
+/// Response after storing a memory.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoreMemoryResponse {
+    /// The stored memory ID.
+    pub id: String,
+    /// Content type.
+    pub content_type: String,
+    /// Confirmation message.
+    pub message: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +190,16 @@ pub struct MemorySearchResponse {
 ///
 /// This uses a static to provide a simple in-memory note store.
 /// In a real implementation, this would use arawn-memory.
+///
+/// # Test Isolation Warning
+///
+/// This global singleton means tests sharing this module will see each other's
+/// notes. For test isolation, either:
+/// - Run note tests with `--test-threads=1`
+/// - Use unique note IDs per test
+/// - Clear the store at test start/end
+///
+/// A future refactor could inject NoteStore via AppState for better isolation.
 fn get_note_store() -> NoteStore {
     use std::sync::OnceLock;
     static NOTE_STORE: OnceLock<NoteStore> = OnceLock::new();
@@ -192,6 +262,67 @@ pub async fn list_notes_handler(
     Ok(Json(ListNotesResponse { notes, total }))
 }
 
+/// GET /api/v1/notes/:id - Get a single note.
+pub async fn get_note_handler(
+    State(_state): State<AppState>,
+    Extension(_identity): Extension<Identity>,
+    Path(note_id): Path<String>,
+) -> Result<Json<GetNoteResponse>, ServerError> {
+    let note_store = get_note_store();
+    let store = note_store.read().await;
+
+    let note = store
+        .get(&note_id)
+        .cloned()
+        .ok_or_else(|| ServerError::NotFound(format!("Note {} not found", note_id)))?;
+
+    Ok(Json(GetNoteResponse { note }))
+}
+
+/// PUT /api/v1/notes/:id - Update a note.
+pub async fn update_note_handler(
+    State(_state): State<AppState>,
+    Extension(_identity): Extension<Identity>,
+    Path(note_id): Path<String>,
+    Json(request): Json<UpdateNoteRequest>,
+) -> Result<Json<GetNoteResponse>, ServerError> {
+    let note_store = get_note_store();
+    let mut store = note_store.write().await;
+
+    let note = store
+        .get_mut(&note_id)
+        .ok_or_else(|| ServerError::NotFound(format!("Note {} not found", note_id)))?;
+
+    // Update content if provided
+    if let Some(content) = request.content {
+        note.content = content;
+    }
+
+    // Update tags if provided
+    if let Some(tags) = request.tags {
+        note.tags = tags;
+    }
+
+    let updated_note = note.clone();
+    Ok(Json(GetNoteResponse { note: updated_note }))
+}
+
+/// DELETE /api/v1/notes/:id - Delete a note.
+pub async fn delete_note_handler(
+    State(_state): State<AppState>,
+    Extension(_identity): Extension<Identity>,
+    Path(note_id): Path<String>,
+) -> Result<axum::http::StatusCode, ServerError> {
+    let note_store = get_note_store();
+    let mut store = note_store.write().await;
+
+    if store.remove(&note_id).is_some() {
+        Ok(axum::http::StatusCode::NO_CONTENT)
+    } else {
+        Err(ServerError::NotFound(format!("Note {} not found", note_id)))
+    }
+}
+
 /// GET /api/v1/memory/search - Search memories.
 ///
 /// Searches the MemoryStore (text match on indexed facts, summaries, etc.)
@@ -202,6 +333,7 @@ pub async fn memory_search_handler(
     Query(query): Query<MemorySearchQuery>,
 ) -> Result<Json<MemorySearchResponse>, ServerError> {
     let mut results: Vec<MemorySearchResult> = Vec::new();
+    let mut degraded = false;
 
     // Search the real MemoryStore if indexer is available
     if let Some(ref indexer) = state.indexer {
@@ -233,6 +365,7 @@ pub async fn memory_search_handler(
             }
             Err(e) => {
                 tracing::warn!(error = %e, "MemoryStore search failed, falling back to notes");
+                degraded = true;
             }
         }
     }
@@ -273,7 +406,75 @@ pub async fn memory_search_handler(
         results,
         query: query.q,
         count,
+        degraded,
     }))
+}
+
+/// POST /api/v1/memory - Store a memory directly.
+pub async fn store_memory_handler(
+    State(state): State<AppState>,
+    Extension(_identity): Extension<Identity>,
+    Json(request): Json<StoreMemoryRequest>,
+) -> Result<(StatusCode, Json<StoreMemoryResponse>), ServerError> {
+    // Check if we have a memory store available
+    let indexer = state.indexer.as_ref().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Memory storage not configured".to_string())
+    })?;
+
+    let store = indexer.store();
+
+    // Parse content type (default to Fact if invalid)
+    let content_type = arawn_memory::types::ContentType::from_str(&request.content_type)
+        .unwrap_or(arawn_memory::types::ContentType::Fact);
+    let mut memory = arawn_memory::types::Memory::new(content_type, &request.content);
+
+    // Set session ID if provided
+    if let Some(ref session_id) = request.session_id {
+        memory = memory.with_session(session_id);
+    }
+
+    // Set confidence
+    memory.confidence.score = request.confidence;
+
+    // Store the memory
+    store
+        .insert_memory(&memory)
+        .map_err(|e| ServerError::Internal(format!("Failed to store memory: {}", e)))?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(StoreMemoryResponse {
+            id: memory.id.to_string(),
+            content_type: request.content_type,
+            message: "Memory stored successfully".to_string(),
+        }),
+    ))
+}
+
+/// DELETE /api/v1/memory/:id - Delete a memory.
+pub async fn delete_memory_handler(
+    State(state): State<AppState>,
+    Extension(_identity): Extension<Identity>,
+    Path(memory_id): Path<String>,
+) -> Result<StatusCode, ServerError> {
+    // Check if we have a memory store available
+    let indexer = state.indexer.as_ref().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Memory storage not configured".to_string())
+    })?;
+
+    let store = indexer.store();
+
+    // Parse UUID and wrap in MemoryId
+    let uuid = uuid::Uuid::parse_str(&memory_id)
+        .map_err(|_| ServerError::BadRequest(format!("Invalid memory ID: {}", memory_id)))?;
+    let id = arawn_memory::MemoryId(uuid);
+
+    // Delete the memory
+    store
+        .delete_memory(id)
+        .map_err(|e| ServerError::Internal(format!("Failed to delete memory: {}", e)))?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

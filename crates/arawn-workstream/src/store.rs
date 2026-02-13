@@ -1,9 +1,10 @@
 use std::path::Path;
-use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
+use parking_lot::Mutex;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use tracing;
 use uuid::Uuid;
 
 use crate::{Result, WorkstreamError};
@@ -71,16 +72,16 @@ impl WorkstreamStore {
     }
 
     fn run_migrations(&mut self) -> Result<()> {
-        let conn = self.conn.get_mut().unwrap();
+        let conn = self.conn.get_mut();
         embedded::migrations::runner()
             .run(conn)
             .map_err(|e| WorkstreamError::Migration(e.to_string()))?;
         Ok(())
     }
 
-    /// Lock the connection for use. Panics if poisoned.
-    fn conn(&self) -> std::sync::MutexGuard<'_, Connection> {
-        self.conn.lock().unwrap()
+    /// Lock the connection for use.
+    fn conn(&self) -> parking_lot::MutexGuard<'_, Connection> {
+        self.conn.lock()
     }
 
     // ── Workstream CRUD ─────────────────────────────────────────────
@@ -178,35 +179,35 @@ impl WorkstreamStore {
     ) -> Result<()> {
         let now_str = Utc::now().to_rfc3339();
 
-        // Build dynamic SET clause
-        let mut sets = vec!["updated_at = ?1"];
+        // Build dynamic SET clause without leaking memory
+        let mut set_parts: Vec<String> = vec!["updated_at = ?1".to_string()];
         let mut param_idx = 2u32;
         let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(now_str)];
 
         if let Some(t) = title {
-            sets.push(leak_set("title", param_idx));
+            set_parts.push(format!("title = ?{}", param_idx));
             values.push(Box::new(t.to_string()));
             param_idx += 1;
         }
         if let Some(s) = summary {
-            sets.push(leak_set("summary", param_idx));
+            set_parts.push(format!("summary = ?{}", param_idx));
             values.push(Box::new(s.to_string()));
             param_idx += 1;
         }
         if let Some(st) = state {
-            sets.push(leak_set("state", param_idx));
+            set_parts.push(format!("state = ?{}", param_idx));
             values.push(Box::new(st.to_string()));
             param_idx += 1;
         }
         if let Some(m) = default_model {
-            sets.push(leak_set("default_model", param_idx));
+            set_parts.push(format!("default_model = ?{}", param_idx));
             values.push(Box::new(m.to_string()));
             param_idx += 1;
         }
 
         let sql = format!(
             "UPDATE workstreams SET {} WHERE id = ?{}",
-            sets.join(", "),
+            set_parts.join(", "),
             param_idx
         );
         values.push(Box::new(id.to_string()));
@@ -273,6 +274,27 @@ impl WorkstreamStore {
 
     pub fn create_session(&self, workstream_id: &str) -> Result<Session> {
         let id = Uuid::new_v4().to_string();
+        self.create_session_with_id(&id, workstream_id)
+    }
+
+    /// Create a session with a specific ID, or return existing if already exists.
+    pub fn create_session_with_id(&self, id: &str, workstream_id: &str) -> Result<Session> {
+        tracing::debug!(
+            session_id = %id,
+            workstream_id = %workstream_id,
+            "WorkstreamStore::create_session_with_id called"
+        );
+
+        // Check if session already exists
+        if let Ok(session) = self.get_session(id) {
+            tracing::debug!(
+                session_id = %id,
+                existing_workstream_id = %session.workstream_id,
+                "Session already exists, returning existing"
+            );
+            return Ok(session);
+        }
+
         let now = Utc::now();
         let now_str = now.to_rfc3339();
 
@@ -281,8 +303,14 @@ impl WorkstreamStore {
             params![id, workstream_id, now_str],
         )?;
 
+        tracing::info!(
+            session_id = %id,
+            workstream_id = %workstream_id,
+            "Created new session record in database"
+        );
+
         Ok(Session {
-            id,
+            id: id.to_string(),
             workstream_id: workstream_id.to_string(),
             started_at: now,
             ended_at: None,
@@ -340,6 +368,63 @@ impl WorkstreamStore {
         Ok(())
     }
 
+    /// Move a session to a different workstream.
+    pub fn reassign_session(&self, session_id: &str, new_workstream_id: &str) -> Result<Session> {
+        tracing::info!(
+            session_id = %session_id,
+            new_workstream_id = %new_workstream_id,
+            "WorkstreamStore::reassign_session called"
+        );
+
+        // Verify target workstream exists
+        match self.get_workstream(new_workstream_id) {
+            Ok(ws) => {
+                tracing::debug!(
+                    workstream_id = %ws.id,
+                    workstream_title = %ws.title,
+                    "Target workstream found"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    new_workstream_id = %new_workstream_id,
+                    error = %e,
+                    "Target workstream not found"
+                );
+                return Err(e);
+            }
+        }
+
+        // Update the session's workstream_id
+        let updated = self.conn().execute(
+            "UPDATE sessions SET workstream_id = ?1 WHERE id = ?2",
+            params![new_workstream_id, session_id],
+        )?;
+
+        tracing::info!(
+            session_id = %session_id,
+            rows_updated = %updated,
+            "UPDATE sessions executed"
+        );
+
+        if updated == 0 {
+            tracing::error!(
+                session_id = %session_id,
+                "No session found with this ID - cannot reassign"
+            );
+            return Err(WorkstreamError::NotFound(session_id.to_string()));
+        }
+
+        // Return the updated session
+        let session = self.get_session(session_id)?;
+        tracing::info!(
+            session_id = %session.id,
+            workstream_id = %session.workstream_id,
+            "Session reassigned successfully"
+        );
+        Ok(session)
+    }
+
     pub fn list_sessions(&self, workstream_id: &str) -> Result<Vec<Session>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
@@ -371,7 +456,14 @@ impl WorkstreamStore {
 fn parse_dt(s: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(s)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now())
+        .unwrap_or_else(|e| {
+            tracing::warn!(
+                input = %s,
+                error = %e,
+                "Failed to parse datetime, using current time as fallback"
+            );
+            Utc::now()
+        })
 }
 
 fn row_to_workstream(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workstream> {
@@ -399,10 +491,6 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<Session> {
     })
 }
 
-fn leak_set(col: &str, idx: u32) -> &'static str {
-    let s = format!("{col} = ?{idx}");
-    Box::leak(s.into_boxed_str())
-}
 
 #[cfg(test)]
 mod tests {

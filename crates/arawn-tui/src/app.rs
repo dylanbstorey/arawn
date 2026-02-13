@@ -1,6 +1,12 @@
 //! Application state and main loop.
 
 use crate::client::{ConnectionStatus, WsClient};
+
+/// Maximum number of chat messages to retain (prevents unbounded memory growth).
+const MAX_MESSAGES: usize = 10_000;
+
+/// Maximum number of tool executions to retain per response.
+const MAX_TOOLS: usize = 1_000;
 use crate::events::{Event, EventHandler};
 use crate::input::InputState;
 use crate::logs::LogBuffer;
@@ -15,7 +21,7 @@ use arawn_client::{ArawnClient, CreateWorkstreamRequest, UpdateWorkstreamRequest
 use chrono::{DateTime, Utc};
 
 /// Pending async actions to be executed in the main loop.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PendingAction {
     /// Create a new workstream with the given title.
     CreateWorkstream(String),
@@ -146,13 +152,18 @@ pub struct App {
     pub sidebar: Sidebar,
     /// Whether sidebar is in "move session to workstream" mode.
     pub moving_session_to_workstream: bool,
+    /// Tool pane scroll offset.
+    pub tool_scroll: usize,
     /// Pending async actions to process.
     pending_actions: Vec<PendingAction>,
 }
 
 impl App {
     /// Create a new App instance.
-    pub fn new(server_url: String, log_buffer: LogBuffer) -> Self {
+    ///
+    /// Returns an error if the HTTP API client cannot be constructed
+    /// (e.g., invalid server URL).
+    pub fn new(server_url: String, log_buffer: LogBuffer) -> Result<Self> {
         let ws_client = WsClient::new(&server_url);
 
         // Build HTTP API client, reading auth token from environment
@@ -160,11 +171,11 @@ impl App {
         if let Ok(token) = std::env::var("ARAWN_API_TOKEN") {
             builder = builder.auth_token(token);
         }
-        let api = builder.build().expect("Failed to build API client");
+        let api = builder.build()?;
 
         let sidebar = Sidebar::new();
 
-        Self {
+        Ok(Self {
             server_url: server_url.clone(),
             ws_client,
             api,
@@ -177,8 +188,8 @@ impl App {
             workstream: "scratch".to_string(),
             workstream_id: None, // Will be set when workstreams load
             session_id: None,
-            messages: Vec::new(),
-            tools: Vec::new(),
+            messages: Vec::with_capacity(1024),
+            tools: Vec::with_capacity(64),
             waiting: false,
             chat_scroll: 0,
             chat_auto_scroll: true,
@@ -190,8 +201,27 @@ impl App {
             show_logs: false,
             sidebar,
             moving_session_to_workstream: false,
+            tool_scroll: 0,
             pending_actions: Vec::new(),
+        })
+    }
+
+    /// Push a message, removing oldest messages if at capacity.
+    fn push_message(&mut self, message: ChatMessage) {
+        if self.messages.len() >= MAX_MESSAGES {
+            // Remove oldest 10% when at capacity for efficiency
+            let to_remove = MAX_MESSAGES / 10;
+            self.messages.drain(0..to_remove);
         }
+        self.messages.push(message);
+    }
+
+    /// Push a tool execution, removing oldest if at capacity.
+    fn push_tool(&mut self, tool: ToolExecution) {
+        if self.tools.len() >= MAX_TOOLS {
+            self.tools.drain(0..MAX_TOOLS / 10);
+        }
+        self.tools.push(tool);
     }
 
     /// Run the main application loop.
@@ -245,8 +275,12 @@ impl App {
 
     /// Process pending async actions.
     async fn process_pending_actions(&mut self) {
-        // Take all pending actions to process
-        let actions: Vec<_> = self.pending_actions.drain(..).collect();
+        // Take all pending actions and deduplicate to avoid redundant work
+        let mut actions: Vec<_> = self.pending_actions.drain(..).collect();
+
+        // Deduplicate while preserving order (keep first occurrence)
+        let mut seen = std::collections::HashSet::new();
+        actions.retain(|action| seen.insert(action.clone()));
 
         for action in actions {
             match action {
@@ -324,8 +358,8 @@ impl App {
                 tracing::info!("Renamed workstream to: {}", workstream.title);
                 self.status_message = Some(format!("Renamed to: {}", workstream.title));
 
-                // Update sidebar entry
-                if let Some(entry) = self.sidebar.workstreams.iter_mut().find(|ws| ws.name == id || ws.name == workstream.title) {
+                // Update sidebar entry - lookup by ID, not name
+                if let Some(entry) = self.sidebar.workstreams.iter_mut().find(|ws| ws.id == id) {
                     entry.name = workstream.title.clone();
                 }
 
@@ -589,7 +623,7 @@ impl App {
                         }
                     }
                     // Create new assistant message
-                    self.messages.push(ChatMessage {
+                    self.push_message(ChatMessage {
                         is_user: false,
                         content: chunk,
                         streaming: true,
@@ -600,7 +634,7 @@ impl App {
             ServerMessage::ToolStart {
                 tool_id, tool_name, ..
             } => {
-                self.tools.push(ToolExecution {
+                self.push_tool(ToolExecution {
                     id: tool_id,
                     name: tool_name,
                     output: String::new(),
@@ -658,7 +692,12 @@ impl App {
                 KeyCode::Char('c') => {
                     // Cancel current operation or quit if nothing running
                     if self.waiting {
-                        // TODO: Send cancel to server
+                        // Send cancel to server if we have a session
+                        if let Some(ref session_id) = self.session_id {
+                            if let Err(e) = self.ws_client.cancel(session_id.clone()) {
+                                tracing::warn!(error = %e, "Failed to send cancel to server");
+                            }
+                        }
                         self.waiting = false;
                         self.status_message = Some("Cancelled".to_string());
                     } else {
@@ -839,12 +878,19 @@ impl App {
     }
 
     /// Scroll chat up by the given number of lines.
+    ///
+    /// Disables auto-scroll so the user can read history without
+    /// being snapped back to the bottom during streaming. Auto-scroll
+    /// is only re-enabled when the user sends a new message.
     fn scroll_chat_up(&mut self, lines: usize) {
         self.chat_auto_scroll = false;
         self.chat_scroll = self.chat_scroll.saturating_sub(lines);
     }
 
     /// Scroll chat down by the given number of lines.
+    ///
+    /// Disables auto-scroll to preserve manual scroll position.
+    /// Use Ctrl+End or send a message to re-enable auto-scroll.
     fn scroll_chat_down(&mut self, lines: usize) {
         self.chat_auto_scroll = false;
         self.chat_scroll = self.chat_scroll.saturating_add(lines);
@@ -857,7 +903,7 @@ impl App {
         let message = self.input.submit();
 
         // Add user message to display
-        self.messages.push(ChatMessage {
+        self.push_message(ChatMessage {
             is_user: true,
             content: message.clone(),
             streaming: false,
@@ -1022,7 +1068,14 @@ impl App {
 
     /// Switch to a different session.
     fn switch_to_session(&mut self, session_id: &str) {
-        // Clear current messages and tools
+        // Subscribe to the new session FIRST to avoid missing messages
+        // that might arrive between subscribe and fetch
+        if let Err(e) = self.ws_client.subscribe(session_id.to_string()) {
+            self.status_message = Some(format!("Failed to switch session: {}", e));
+            return; // Don't clear state if we failed to subscribe
+        }
+
+        // Now clear current messages and tools
         self.messages.clear();
         self.tools.clear();
         self.session_id = Some(session_id.to_string());
@@ -1031,12 +1084,7 @@ impl App {
         self.chat_scroll = 0;
         self.chat_auto_scroll = true;
 
-        // Subscribe to the new session for real-time updates
-        if let Err(e) = self.ws_client.subscribe(session_id.to_string()) {
-            self.status_message = Some(format!("Failed to switch session: {}", e));
-        } else {
-            self.status_message = Some(format!("Loading session..."));
-        }
+        self.status_message = Some("Loading session...".to_string());
 
         // Queue fetch of message history
         self.pending_actions
@@ -1089,8 +1137,24 @@ impl App {
             KeyCode::Esc => {
                 self.focus = Focus::Input;
             }
-            KeyCode::Up | KeyCode::Down | KeyCode::PageUp | KeyCode::PageDown => {
-                // TODO: Scroll tool output
+            KeyCode::Up => {
+                self.tool_scroll = self.tool_scroll.saturating_sub(1);
+            }
+            KeyCode::Down => {
+                self.tool_scroll = self.tool_scroll.saturating_add(1);
+            }
+            KeyCode::PageUp => {
+                self.tool_scroll = self.tool_scroll.saturating_sub(10);
+            }
+            KeyCode::PageDown => {
+                self.tool_scroll = self.tool_scroll.saturating_add(10);
+            }
+            KeyCode::Home => {
+                self.tool_scroll = 0;
+            }
+            KeyCode::End => {
+                // Scroll to end - will be clamped in render
+                self.tool_scroll = usize::MAX;
             }
             _ => {}
         }
@@ -1275,21 +1339,24 @@ impl App {
                 }
             }
             KeyCode::Char('/') => {
-                // Start filtering
+                // Start filtering - clear existing filter and start fresh
                 self.sidebar.filter_clear();
-                // TODO: Enter filter mode with input
-                self.status_message = Some("Filter: type to search".to_string());
-            }
-            KeyCode::Char(c) if self.sidebar.filter.is_empty() => {
-                // Quick navigation by first letter
-                let _ = c;
+                self.status_message = Some("Filter: type to search (Backspace to clear)".to_string());
             }
             KeyCode::Char(c) => {
-                // Add to filter
+                // Add to filter for incremental search
                 self.sidebar.filter_push(c);
+                if !self.sidebar.filter.is_empty() {
+                    self.status_message = Some(format!("Filter: {}", self.sidebar.filter));
+                }
             }
             KeyCode::Backspace => {
                 self.sidebar.filter_pop();
+                if self.sidebar.filter.is_empty() {
+                    self.status_message = None;
+                } else {
+                    self.status_message = Some(format!("Filter: {}", self.sidebar.filter));
+                }
             }
             _ => {}
         }

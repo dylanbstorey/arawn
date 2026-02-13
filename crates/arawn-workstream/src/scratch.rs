@@ -1,4 +1,7 @@
 use std::fs;
+use std::io::ErrorKind;
+
+use tracing;
 
 use crate::message_store::MessageStore;
 use crate::store::WorkstreamStore;
@@ -63,7 +66,38 @@ impl<'a> ScratchManager<'a> {
             if let Some(parent) = new_dir.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::rename(&scratch_dir, &new_dir)?;
+
+            // Attempt rename with graceful error handling
+            match fs::rename(&scratch_dir, &new_dir) {
+                Ok(()) => {
+                    tracing::debug!(
+                        from = %scratch_dir.display(),
+                        to = %new_dir.display(),
+                        "Successfully moved scratch directory"
+                    );
+                }
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    // Directory disappeared between exists() check and rename
+                    // This is a TOCTOU race but benign - scratch was already empty
+                    tracing::warn!(
+                        path = %scratch_dir.display(),
+                        "Scratch directory disappeared during promotion (TOCTOU race)"
+                    );
+                }
+                Err(e) => {
+                    // Other errors should propagate, but clean up the new workstream
+                    tracing::error!(
+                        from = %scratch_dir.display(),
+                        to = %new_dir.display(),
+                        error = %e,
+                        "Failed to move scratch directory during promotion"
+                    );
+                    // Note: We've already created new_ws in the database.
+                    // A full rollback would require deleting it, but that's complex.
+                    // For now, propagate the error and let the caller handle cleanup.
+                    return Err(e.into());
+                }
+            }
         }
 
         // Reassign SQLite session records from scratch to new workstream

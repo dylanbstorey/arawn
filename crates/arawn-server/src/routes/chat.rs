@@ -79,14 +79,38 @@ pub struct UsageInfo {
 // Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Maximum message size in bytes (100KB).
+const MAX_MESSAGE_BYTES: usize = 100 * 1024;
+
 /// POST /api/v1/chat - Synchronous chat endpoint.
 ///
 /// Sends a message to the agent and waits for the complete response.
 pub async fn chat_handler(
     State(state): State<AppState>,
-    Extension(_identity): Extension<Identity>,
+    Extension(identity): Extension<Identity>,
     Json(request): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, ServerError> {
+    // Validate message length to prevent DoS
+    if request.message.len() > MAX_MESSAGE_BYTES {
+        return Err(ServerError::BadRequest(format!(
+            "Message too large: {} bytes (max {} bytes)",
+            request.message.len(),
+            MAX_MESSAGE_BYTES
+        )));
+    }
+
+    // Log chat request for audit trail
+    let identity_str = match &identity {
+        Identity::Token => "token".to_string(),
+        Identity::Tailscale { user } => format!("tailscale:{}", user),
+    };
+    tracing::debug!(
+        identity = %identity_str,
+        session_id = ?request.session_id,
+        message_len = request.message.len(),
+        "Chat request received"
+    );
+
     // Parse session ID if provided
     let session_id = request
         .session_id
@@ -97,22 +121,44 @@ pub async fn chat_handler(
     // Get or create session
     let session_id = state.get_or_create_session(session_id).await;
 
-    // Get session for turn
-    let response = {
-        let mut sessions = state.sessions.write().await;
-        let session = sessions.get_mut(&session_id).ok_or_else(|| {
-            ServerError::Internal("Session disappeared during processing".to_string())
-        })?;
+    // Get session from cache
+    let mut session = state
+        .session_cache
+        .get(&session_id)
+        .await
+        .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
 
-        // Execute turn
-        state
-            .agent
-            .turn(session, &request.message)
-            .await
-            .map_err(ServerError::Agent)?
-    };
+    // Execute turn
+    let response = state
+        .agent
+        .turn(&mut session, &request.message)
+        .await
+        .map_err(ServerError::Agent)?;
 
-    // Build response
+    // Get the completed turn for persistence before consuming the session
+    let completed_turn = session.current_turn().cloned();
+
+    // Update session back in cache
+    state.update_session(session_id, session).await;
+
+    // Persist the turn to workstream storage
+    if let Some(turn) = completed_turn {
+        if let Some(workstream_id) = state.session_cache.get_workstream_id(&session_id).await {
+            if let Err(e) = state.session_cache.save_turn(session_id, &turn, &workstream_id).await {
+                tracing::warn!("Failed to persist turn to workstream: {}", e);
+            }
+        }
+    }
+
+    // Build response - warn if tool calls/results don't match
+    if response.tool_calls.len() != response.tool_results.len() {
+        tracing::warn!(
+            tool_calls = response.tool_calls.len(),
+            tool_results = response.tool_results.len(),
+            "Tool calls and results count mismatch - some data may be missing"
+        );
+    }
+
     let tool_calls: Vec<ToolCallInfo> = response
         .tool_calls
         .iter()
@@ -141,9 +187,30 @@ pub async fn chat_handler(
 /// Sends a message to the agent and streams the response via Server-Sent Events.
 pub async fn chat_stream_handler(
     State(state): State<AppState>,
-    Extension(_identity): Extension<Identity>,
+    Extension(identity): Extension<Identity>,
     Json(request): Json<ChatRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, ServerError> {
+    // Validate message length to prevent DoS
+    if request.message.len() > MAX_MESSAGE_BYTES {
+        return Err(ServerError::BadRequest(format!(
+            "Message too large: {} bytes (max {} bytes)",
+            request.message.len(),
+            MAX_MESSAGE_BYTES
+        )));
+    }
+
+    // Log chat stream request for audit trail
+    let identity_str = match &identity {
+        Identity::Token => "token".to_string(),
+        Identity::Tailscale { user } => format!("tailscale:{}", user),
+    };
+    tracing::debug!(
+        identity = %identity_str,
+        session_id = ?request.session_id,
+        message_len = request.message.len(),
+        "Chat stream request received"
+    );
+
     // Parse session ID if provided
     let session_id = request
         .session_id
@@ -154,18 +221,21 @@ pub async fn chat_stream_handler(
     // Get or create session
     let session_id = state.get_or_create_session(session_id).await;
 
-    // Get the agent stream
-    let stream = {
-        let mut sessions = state.sessions.write().await;
-        let session = sessions.get_mut(&session_id).ok_or_else(|| {
-            ServerError::Internal("Session disappeared during processing".to_string())
-        })?;
+    // Get session from cache
+    let mut session = state
+        .session_cache
+        .get(&session_id)
+        .await
+        .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
 
-        let cancellation = CancellationToken::new();
-        state
-            .agent
-            .turn_stream(session, &request.message, cancellation)
-    };
+    // Get the agent stream
+    let cancellation = CancellationToken::new();
+    let stream = state
+        .agent
+        .turn_stream(&mut session, &request.message, cancellation);
+
+    // Note: Session state is updated as streaming progresses internally.
+    // The session object is owned by the stream now.
 
     // Convert agent stream to SSE events
     let sse_stream = async_stream::stream! {
@@ -414,8 +484,7 @@ mod tests {
         assert_eq!(chat_response.response, "First response");
 
         // Verify session has turn
-        let sessions = state.sessions.read().await;
-        let session = sessions.get(&session_id).unwrap();
+        let session = state.session_cache.get(&session_id).await.unwrap();
         assert_eq!(session.turn_count(), 1);
     }
 

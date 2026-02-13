@@ -1,5 +1,8 @@
 //! WebSocket handler for real-time bidirectional communication.
 
+use std::sync::Arc;
+use std::time::Duration;
+
 use axum::{
     extract::{
         State,
@@ -12,11 +15,13 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use std::sync::Arc;
-
-use arawn_agent::SessionId;
+use arawn_agent::{SessionId, ToolCall, ToolResultRecord, Turn, TurnId};
 
 use crate::state::AppState;
+
+/// Idle timeout for WebSocket connections (5 minutes).
+/// Connections that receive no messages for this duration will be closed.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Protocol Types
@@ -30,6 +35,8 @@ pub enum ClientMessage {
     Chat {
         /// Optional session ID. If not provided, a new session is created.
         session_id: Option<String>,
+        /// Optional workstream ID. If not provided, uses "scratch" workstream.
+        workstream_id: Option<String>,
         /// The message content.
         message: String,
     },
@@ -195,14 +202,37 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     tracing::debug!("WebSocket connection established");
 
-    while let Some(msg) = receiver.next().await {
+    loop {
+        // Wait for next message with idle timeout
+        let msg = match tokio::time::timeout(IDLE_TIMEOUT, receiver.next()).await {
+            Ok(Some(msg)) => msg,
+            Ok(None) => {
+                // Stream ended normally
+                break;
+            }
+            Err(_) => {
+                // Idle timeout exceeded
+                tracing::info!("WebSocket connection closed due to idle timeout");
+                let _ = send_message(
+                    &mut sender,
+                    ServerMessage::error("idle_timeout", "Connection closed due to inactivity"),
+                )
+                .await;
+                break;
+            }
+        };
+
+        // Parse incoming message. We accept both Text and Binary frames,
+        // but Binary frames must contain valid UTF-8 JSON. This provides
+        // flexibility for clients that may send JSON as binary.
         let msg = match msg {
             Ok(Message::Text(text)) => text.to_string(),
             Ok(Message::Binary(data)) => {
-                // Try to interpret binary as UTF-8 text
+                // Try to interpret binary as UTF-8 text (JSON payloads)
                 match String::from_utf8(data.to_vec()) {
                     Ok(text) => text,
                     Err(_) => {
+                        // Reject non-UTF-8 binary data with clear error
                         let _ = send_message(
                             &mut sender,
                             ServerMessage::error("invalid_message", "Binary data must be UTF-8"),
@@ -261,10 +291,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     // Index any sessions this connection was subscribed to
     for session_id in &conn_state.subscriptions {
         if let Some(indexer) = &state.indexer {
-            let session_opt = {
-                let sessions = state.sessions.read().await;
-                sessions.get(session_id).cloned()
-            };
+            let session_opt = state.session_cache.get(session_id).await;
             if let Some(session) = session_opt {
                 if !session.is_empty() {
                     let indexer = Arc::clone(indexer);
@@ -344,6 +371,7 @@ async fn handle_message(
 
         ClientMessage::Chat {
             session_id,
+            workstream_id,
             message,
         } => {
             if !conn_state.authenticated {
@@ -359,20 +387,42 @@ async fn handle_message(
                 .and_then(|s| Uuid::parse_str(s).ok())
                 .map(SessionId::from_uuid);
 
-            // Get or create session
-            let session_id = app_state.get_or_create_session(session_id).await;
+            // Resolve workstream ID (default to "scratch")
+            let ws_id = workstream_id.as_deref().unwrap_or("scratch");
+
+            // Get or create session using the session cache
+            let session_id = app_state
+                .get_or_create_session_in_workstream(session_id, ws_id)
+                .await;
             let session_id_str = session_id.to_string();
 
-            // Get the agent stream
+            // Store user message in workstream (if workstreams enabled)
+            // workstream_id=None routes to "scratch" workstream
+            // Pass agent session_id to link workstream messages to agent sessions
+            if let Some(ref ws_manager) = app_state.workstreams {
+                use arawn_workstream::MessageRole;
+                if let Err(e) = ws_manager.send_message(
+                    workstream_id.as_deref(),
+                    Some(&session_id_str),
+                    MessageRole::User,
+                    &message,
+                    None,
+                ) {
+                    tracing::warn!("Failed to store user message in workstream: {}", e);
+                }
+            }
+
+            // Get the agent stream - use session from cache, fall back to legacy store
             let stream_result = {
-                let mut sessions = app_state.sessions.write().await;
-                match sessions.get_mut(&session_id) {
-                    Some(session) => {
-                        let cancellation = conn_state.cancellation.clone();
-                        let stream = app_state.agent.turn_stream(session, &message, cancellation);
-                        Some(stream)
-                    }
-                    None => None,
+                // First try the session cache
+                if let Some(mut session) = app_state.session_cache.get(&session_id).await {
+                    let cancellation = conn_state.cancellation.clone();
+                    let stream = app_state.agent.turn_stream(&mut session, &message, cancellation);
+                    // Update session in cache after turn_stream modifies it
+                    app_state.update_session(session_id, session).await;
+                    Some(stream)
+                } else {
+                    None
                 }
             };
 
@@ -386,6 +436,11 @@ async fn handle_message(
                 }
             };
 
+            // Clone references for use in async stream
+            let workstream_id_for_stream = workstream_id.clone();
+            let session_cache = app_state.session_cache.clone();
+            let user_message = message.clone();
+
             // Create response stream
             let session_id_for_stream = session_id_str.clone();
             let response_stream = async_stream::stream! {
@@ -394,12 +449,19 @@ async fn handle_message(
                     session_id: session_id_for_stream.clone(),
                 };
 
+                // Accumulate the full assistant response and tool data for workstream storage
+                let mut full_response = String::new();
+                let mut tool_calls: Vec<ToolCall> = Vec::new();
+                let mut tool_results: Vec<ToolResultRecord> = Vec::new();
+                let mut current_tool_output: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
                 let mut stream = std::pin::pin!(stream);
                 while let Some(chunk) = stream.next().await {
                     use arawn_agent::StreamChunk;
 
                     match chunk {
                         StreamChunk::Text { content } => {
+                            full_response.push_str(&content);
                             yield ServerMessage::ChatChunk {
                                 session_id: session_id_for_stream.clone(),
                                 chunk: content,
@@ -407,6 +469,12 @@ async fn handle_message(
                             };
                         }
                         StreamChunk::ToolStart { id, name } => {
+                            // Track tool call
+                            tool_calls.push(ToolCall {
+                                id: id.clone(),
+                                name: name.clone(),
+                                arguments: serde_json::Value::Null, // Arguments not available in stream
+                            });
                             yield ServerMessage::ToolStart {
                                 session_id: session_id_for_stream.clone(),
                                 tool_id: id,
@@ -414,6 +482,11 @@ async fn handle_message(
                             };
                         }
                         StreamChunk::ToolOutput { id, content } => {
+                            // Accumulate tool output
+                            current_tool_output
+                                .entry(id.clone())
+                                .or_default()
+                                .push_str(&content);
                             yield ServerMessage::ToolOutput {
                                 session_id: session_id_for_stream.clone(),
                                 tool_id: id,
@@ -421,6 +494,13 @@ async fn handle_message(
                             };
                         }
                         StreamChunk::ToolEnd { id, success, .. } => {
+                            // Track tool result
+                            let output = current_tool_output.remove(&id).unwrap_or_default();
+                            tool_results.push(ToolResultRecord {
+                                tool_call_id: id.clone(),
+                                success,
+                                content: output,
+                            });
                             yield ServerMessage::ToolEnd {
                                 session_id: session_id_for_stream.clone(),
                                 tool_id: id,
@@ -428,6 +508,32 @@ async fn handle_message(
                             };
                         }
                         StreamChunk::Done { .. } => {
+                            // Persist the complete turn to workstream storage
+                            let workstream_id_str = workstream_id_for_stream
+                                .as_deref()
+                                .unwrap_or("scratch")
+                                .to_string();
+
+                            // Build a Turn to save
+                            let turn = Turn {
+                                id: TurnId::new(),
+                                user_message: user_message.clone(),
+                                assistant_response: if full_response.is_empty() {
+                                    None
+                                } else {
+                                    Some(full_response.clone())
+                                },
+                                tool_calls: tool_calls.clone(),
+                                tool_results: tool_results.clone(),
+                                started_at: chrono::Utc::now(),
+                                completed_at: Some(chrono::Utc::now()),
+                            };
+
+                            // Save via session cache
+                            if let Err(e) = session_cache.save_turn(session_id, &turn, &workstream_id_str).await {
+                                tracing::warn!("Failed to persist turn to workstream: {}", e);
+                            }
+
                             yield ServerMessage::ChatChunk {
                                 session_id: session_id_for_stream.clone(),
                                 chunk: String::new(),
@@ -481,12 +587,16 @@ mod tests {
         let json = r#"{"type": "chat", "message": "hello"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         assert!(
-            matches!(msg, ClientMessage::Chat { session_id: None, message } if message == "hello")
+            matches!(msg, ClientMessage::Chat { session_id: None, workstream_id: None, message } if message == "hello")
         );
 
         let json = r#"{"type": "chat", "session_id": "123", "message": "hello"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Chat { session_id: Some(id), .. } if id == "123"));
+        assert!(matches!(msg, ClientMessage::Chat { session_id: Some(id), workstream_id: None, .. } if id == "123"));
+
+        let json = r#"{"type": "chat", "workstream_id": "ws-456", "message": "hello"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        assert!(matches!(msg, ClientMessage::Chat { session_id: None, workstream_id: Some(ws_id), .. } if ws_id == "ws-456"));
 
         let json = r#"{"type": "subscribe", "session_id": "123"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();

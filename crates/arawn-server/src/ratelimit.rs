@@ -2,19 +2,21 @@
 //!
 //! Provides per-IP rate limiting for API endpoints to prevent abuse.
 
+use std::net::IpAddr;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use axum::{
     body::Body,
-    extract::{Request, State},
+    extract::{ConnectInfo, Request, State},
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use governor::{
     Quota, RateLimiter,
-    state::{InMemoryState, NotKeyed},
+    clock::DefaultClock,
+    state::keyed::DefaultKeyedStateStore,
 };
 use serde::Serialize;
 
@@ -24,9 +26,11 @@ use crate::state::AppState;
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Rate limiter type alias (uses default clock).
-pub type SharedRateLimiter =
-    Arc<RateLimiter<NotKeyed, InMemoryState, governor::clock::DefaultClock>>;
+/// Per-IP rate limiter type alias (keyed by IpAddr).
+pub type PerIpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock>;
+
+/// Shared per-IP rate limiter.
+pub type SharedRateLimiter = Arc<PerIpRateLimiter>;
 
 /// Rate limit configuration.
 #[derive(Debug, Clone)]
@@ -61,12 +65,50 @@ struct RateLimitError {
 // Rate Limiter Factory
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Create a rate limiter with the specified requests per minute.
+/// Create a per-IP rate limiter with the specified requests per minute.
 pub fn create_rate_limiter(requests_per_minute: u32) -> SharedRateLimiter {
     let quota = Quota::per_minute(
         NonZeroU32::new(requests_per_minute).unwrap_or(NonZeroU32::new(60).unwrap()),
     );
-    Arc::new(RateLimiter::direct(quota))
+    Arc::new(RateLimiter::keyed(quota))
+}
+
+/// Extract client IP address from request headers.
+///
+/// Checks in order:
+/// 1. X-Forwarded-For header (first IP if multiple)
+/// 2. X-Real-IP header
+/// 3. ConnectInfo socket address
+/// 4. Falls back to 127.0.0.1 if nothing found
+fn extract_client_ip(request: &Request<Body>) -> IpAddr {
+    // Check X-Forwarded-For first (common with reverse proxies)
+    if let Some(forwarded_for) = request.headers().get("x-forwarded-for") {
+        if let Ok(value) = forwarded_for.to_str() {
+            // Take the first IP (original client) if multiple are present
+            if let Some(first_ip) = value.split(',').next() {
+                if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+    }
+
+    // Check X-Real-IP header
+    if let Some(real_ip) = request.headers().get("x-real-ip") {
+        if let Ok(value) = real_ip.to_str() {
+            if let Ok(ip) = value.trim().parse::<IpAddr>() {
+                return ip;
+            }
+        }
+    }
+
+    // Try to get from ConnectInfo extension (set by axum when using into_make_service_with_connect_info)
+    if let Some(connect_info) = request.extensions().get::<ConnectInfo<std::net::SocketAddr>>() {
+        return connect_info.0.ip();
+    }
+
+    // Fallback to localhost
+    IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,9 +117,9 @@ pub fn create_rate_limiter(requests_per_minute: u32) -> SharedRateLimiter {
 
 /// Rate limiting middleware for API endpoints.
 ///
-/// Uses a global rate limiter (not per-IP) for simplicity.
-/// Per-IP rate limiting would require extracting client IP from headers
-/// which depends on reverse proxy configuration.
+/// Uses per-IP rate limiting to prevent individual bad actors from affecting
+/// other users. Extracts client IP from X-Forwarded-For, X-Real-IP headers,
+/// or falls back to the connection address.
 pub async fn rate_limit_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -88,11 +130,14 @@ pub async fn rate_limit_middleware(
         return next.run(request).await;
     }
 
-    // Get or create the rate limiter
-    let limiter = get_global_limiter();
+    // Extract client IP
+    let client_ip = extract_client_ip(&request);
 
-    // Check rate limit
-    match limiter.check() {
+    // Get or create the per-IP rate limiter
+    let limiter = get_per_ip_limiter();
+
+    // Check rate limit for this IP
+    match limiter.check_key(&client_ip) {
         Ok(_) => next.run(request).await,
         Err(_not_until) => {
             // Use a fixed retry-after of 1 second for simplicity
@@ -101,6 +146,7 @@ pub async fn rate_limit_middleware(
 
             tracing::warn!(
                 path = %request.uri().path(),
+                client_ip = %client_ip,
                 retry_after_seconds = retry_after,
                 "Rate limit exceeded"
             );
@@ -121,8 +167,8 @@ pub async fn rate_limit_middleware(
     }
 }
 
-/// Get the global rate limiter (120 requests per minute default).
-fn get_global_limiter() -> SharedRateLimiter {
+/// Get the per-IP rate limiter (120 requests per minute per IP).
+fn get_per_ip_limiter() -> SharedRateLimiter {
     use std::sync::OnceLock;
     static LIMITER: OnceLock<SharedRateLimiter> = OnceLock::new();
     LIMITER.get_or_init(|| create_rate_limiter(120)).clone()
@@ -268,8 +314,9 @@ mod tests {
     #[test]
     fn test_create_rate_limiter() {
         let limiter = create_rate_limiter(60);
-        // Should allow at least one request
-        assert!(limiter.check().is_ok());
+        // Should allow at least one request per IP
+        let test_ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 1, 1));
+        assert!(limiter.check_key(&test_ip).is_ok());
     }
 
     #[test]

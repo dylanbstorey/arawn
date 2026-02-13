@@ -143,6 +143,11 @@ impl Compressor {
     }
 
     /// Check if a workstream's current session exceeds the token threshold.
+    ///
+    /// Note: Uses character count as a rough approximation for tokens.
+    /// Actual token count varies by model (~4 chars/token for English text),
+    /// but character count provides a fast, conservative estimate without
+    /// requiring tokenization. The threshold is set accordingly (~8k tokens ≈ 32k chars).
     pub fn needs_compression(&self, messages: &[WorkstreamMessage]) -> bool {
         let total_chars: usize = messages.iter().map(|m| m.content.len()).sum();
         total_chars > self.config.token_threshold_chars
@@ -261,10 +266,11 @@ mod tests {
         let ws = mgr.create_workstream("Test", None, &[]).unwrap();
 
         // Send messages and end the session
-        mgr.send_message(Some(&ws.id), MessageRole::User, "What is Rust?", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "What is Rust?", None)
             .unwrap();
         mgr.send_message(
             Some(&ws.id),
+            None,
             MessageRole::Assistant,
             "Rust is a systems programming language.",
             None,
@@ -298,7 +304,7 @@ mod tests {
         let ws = mgr.create_workstream("Test", None, &[]).unwrap();
 
         // Create and end two sessions with summaries
-        mgr.send_message(Some(&ws.id), MessageRole::User, "msg1", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "msg1", None)
             .unwrap();
         let s1 = mgr.get_active_session(&ws.id).unwrap().unwrap();
         mgr.end_session(&s1.id).unwrap();
@@ -306,7 +312,7 @@ mod tests {
             .update_session_summary(&s1.id, "Session 1: discussed architecture")
             .unwrap();
 
-        mgr.send_message(Some(&ws.id), MessageRole::User, "msg2", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "msg2", None)
             .unwrap();
         let s2 = mgr.get_active_session(&ws.id).unwrap().unwrap();
         mgr.end_session(&s2.id).unwrap();
@@ -338,7 +344,7 @@ mod tests {
         let (_dir, mgr) = test_manager();
         let ws = mgr.create_workstream("Test", None, &[]).unwrap();
 
-        mgr.send_message(Some(&ws.id), MessageRole::User, "hi", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "hi", None)
             .unwrap();
         let session = mgr.get_active_session(&ws.id).unwrap().unwrap();
 

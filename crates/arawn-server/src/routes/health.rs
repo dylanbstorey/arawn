@@ -41,12 +41,31 @@ async fn health() -> Json<HealthResponse> {
 }
 
 /// Detailed health check (requires auth).
-async fn health_detailed(State(_state): State<AppState>) -> Json<DetailedHealthResponse> {
-    // TODO: Actually check agent health
+///
+/// Checks actual service dependencies to report accurate health status.
+async fn health_detailed(State(state): State<AppState>) -> Json<DetailedHealthResponse> {
+    // Agent is always present (not optional), so it's always ready
+    // In the future, we could add a ping/health method to Agent
+    let agent_ready = true;
+
+    // Check if workstream storage is available (if configured)
+    let storage_ready = state
+        .workstreams
+        .as_ref()
+        .map(|ws| ws.list_workstreams().is_ok())
+        .unwrap_or(true); // Not configured = no dependency
+
+    // Overall status is degraded if any critical service is down
+    let status = if agent_ready && storage_ready {
+        "ok"
+    } else {
+        "degraded"
+    };
+
     Json(DetailedHealthResponse {
-        status: "ok".to_string(),
+        status: status.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-        agent: AgentHealth { ready: true },
+        agent: AgentHealth { ready: agent_ready },
     })
 }
 
