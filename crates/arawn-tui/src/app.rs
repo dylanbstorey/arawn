@@ -1,5 +1,6 @@
 //! Application state and main loop.
 
+use crate::bounded::BoundedVec;
 use crate::client::{ConnectionStatus, WsClient};
 
 /// Maximum number of chat messages to retain (prevents unbounded memory growth).
@@ -7,6 +8,7 @@ const MAX_MESSAGES: usize = 10_000;
 
 /// Maximum number of tool executions to retain per response.
 const MAX_TOOLS: usize = 1_000;
+
 use crate::events::{Event, EventHandler};
 use crate::input::InputState;
 use crate::logs::LogBuffer;
@@ -126,10 +128,10 @@ pub struct App {
     pub workstream_id: Option<String>,
     /// Current session ID.
     pub session_id: Option<String>,
-    /// Chat messages.
-    pub messages: Vec<ChatMessage>,
-    /// Tool executions in current response.
-    pub tools: Vec<ToolExecution>,
+    /// Chat messages (bounded to prevent unbounded growth).
+    pub messages: BoundedVec<ChatMessage>,
+    /// Tool executions in current response (bounded).
+    pub tools: BoundedVec<ToolExecution>,
     /// Whether we're waiting for a response.
     pub waiting: bool,
     /// Chat scroll offset (lines from top).
@@ -188,8 +190,8 @@ impl App {
             workstream: "scratch".to_string(),
             workstream_id: None, // Will be set when workstreams load
             session_id: None,
-            messages: Vec::with_capacity(1024),
-            tools: Vec::with_capacity(64),
+            messages: BoundedVec::with_capacity(MAX_MESSAGES, 1024),
+            tools: BoundedVec::with_capacity(MAX_TOOLS, 64),
             waiting: false,
             chat_scroll: 0,
             chat_auto_scroll: true,
@@ -206,21 +208,13 @@ impl App {
         })
     }
 
-    /// Push a message, removing oldest messages if at capacity.
+    /// Push a message (BoundedVec handles eviction automatically).
     fn push_message(&mut self, message: ChatMessage) {
-        if self.messages.len() >= MAX_MESSAGES {
-            // Remove oldest 10% when at capacity for efficiency
-            let to_remove = MAX_MESSAGES / 10;
-            self.messages.drain(0..to_remove);
-        }
         self.messages.push(message);
     }
 
-    /// Push a tool execution, removing oldest if at capacity.
+    /// Push a tool execution (BoundedVec handles eviction automatically).
     fn push_tool(&mut self, tool: ToolExecution) {
-        if self.tools.len() >= MAX_TOOLS {
-            self.tools.drain(0..MAX_TOOLS / 10);
-        }
         self.tools.push(tool);
     }
 
@@ -488,7 +482,7 @@ impl App {
         match self.api.sessions().messages(session_id).await {
             Ok(response) => {
                 // Convert API messages to ChatMessages
-                self.messages = response
+                let chat_messages: Vec<_> = response
                     .messages
                     .iter()
                     .map(|m| ChatMessage {
@@ -497,6 +491,7 @@ impl App {
                         streaming: false,
                     })
                     .collect();
+                self.messages.replace_from_vec(chat_messages);
 
                 // Scroll to bottom to show latest messages
                 self.chat_auto_scroll = true;
