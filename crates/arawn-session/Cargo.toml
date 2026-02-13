@@ -1,0 +1,17 @@
+[package]
+name = "arawn-session"
+version.workspace = true
+edition = "2024"
+rust-version.workspace = true
+license.workspace = true
+description = "Session cache with LRU eviction and TTL support for Arawn"
+
+[dependencies]
+chrono = { workspace = true }
+lru = "0.12"
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

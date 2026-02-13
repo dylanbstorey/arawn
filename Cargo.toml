@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/arawn",
+    "crates/arawn-client",
     "crates/arawn-config",
     "crates/arawn-types",
     "crates/arawn-memory",
@@ -14,6 +15,8 @@ members = [
     "crates/arawn-script-sdk",
     "crates/arawn-plugin",
     "crates/arawn-mcp",
+    "crates/arawn-session",
+    "crates/arawn-tui",
 ]
 exclude = [
     "crates/orp-vendored",
@@ -72,6 +75,9 @@ indicatif = "0.17"
 ort = { version = "2.0.0-rc.11", default-features = false }
 tokenizers = "0.21"
 
+# Synchronization (non-poisoning locks)
+parking_lot = "0.12"
+
 # UUID
 uuid = { version = "1.11", features = ["v4", "serde"] }
 
@@ -79,6 +85,7 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # Internal crates
+arawn-client = { path = "crates/arawn-client" }
 arawn-config = { path = "crates/arawn-config" }
 arawn-types = { path = "crates/arawn-types" }
 arawn-memory = { path = "crates/arawn-memory" }
@@ -90,6 +97,8 @@ arawn-workstream = { path = "crates/arawn-workstream" }
 arawn-pipeline = { path = "crates/arawn-pipeline" }
 arawn-plugin = { path = "crates/arawn-plugin" }
 arawn-mcp = { path = "crates/arawn-mcp" }
+arawn-session = { path = "crates/arawn-session" }
+arawn-tui = { path = "crates/arawn-tui" }
 orp-vendored = { path = "crates/orp-vendored" }
 gline-rs-vendored = { path = "crates/gline-rs-vendored", default-features = false }
 
