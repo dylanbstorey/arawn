@@ -4,15 +4,15 @@ level: task
 title: "Bounded Collections Library"
 short_code: "ARAWN-T-0178"
 created_at: 2026-02-13T16:39:53.383709+00:00
-updated_at: 2026-02-13T16:39:53.383709+00:00
+updated_at: 2026-02-13T20:49:23.746708+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -41,11 +41,17 @@ Create reusable bounded collection types to prevent unbounded memory growth in m
 
 ## Acceptance Criteria
 
-- [ ] Evaluate existing crates (`bounded-vec`, `ringbuf`, `arrayvec`) vs custom implementation
-- [ ] If custom: Create `BoundedVec<T, const N: usize>` with push-and-evict semantics
-- [ ] If custom: Create `RingBuffer<T, const N: usize>` for message history
-- [ ] Replace ad-hoc bounds checking in TUI message vectors
-- [ ] Add unit tests for overflow behavior
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] Evaluate existing crates (`bounded-vec`, `ringbuf`, `arrayvec`) vs custom implementation
+- [x] Custom: Create `BoundedVec<T>` with push-and-evict semantics (runtime capacity)
+- [x] ~~Create `RingBuffer<T, const N: usize>`~~ (not needed - BoundedVec sufficient)
+- [x] Replace ad-hoc bounds checking in TUI message vectors
+- [x] Add unit tests for overflow behavior (10 tests)
 
 ## Implementation Notes
 
@@ -82,4 +88,25 @@ Start with existing `ringbuf` crate unless specific needs arise.
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 - 2026-02-13
+
+**Decision:** Custom implementation over external crates because:
+- `ringbuf` is overkill (lock-free features not needed)
+- `arrayvec` requires const generics for size (stack-allocated)
+- Simple ~120 lines of code avoids external dependency
+
+**Implementation:**
+- Created `crates/arawn-tui/src/bounded.rs` with `BoundedVec<T>`:
+  - Runtime-configurable max capacity
+  - Push evicts oldest 10% when at capacity
+  - `replace_from_vec()` for bulk loading
+  - Deref to `[T]` for slice methods
+  - Indexing support
+  - 10 unit tests covering eviction, edge cases
+
+**Integration:**
+- Updated `App.messages` and `App.tools` to use `BoundedVec`
+- Simplified `push_message()` and `push_tool()` (bounds now automatic)
+- Updated `do_fetch_session_messages()` to use `replace_from_vec()`
+
+**All 33 arawn-tui tests passing.**

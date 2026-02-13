@@ -4,15 +4,15 @@ level: task
 title: "WebSocket Protocol Module Split"
 short_code: "ARAWN-T-0181"
 created_at: 2026-02-13T16:39:56.125436+00:00
-updated_at: 2026-02-13T16:39:56.125436+00:00
+updated_at: 2026-02-13T21:21:36.756506+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -41,13 +41,19 @@ Split `ws.rs` into separate modules for protocol, connection lifecycle, and mess
 
 ## Acceptance Criteria
 
-- [ ] Create `routes/ws/` directory structure
-- [ ] Extract protocol types to `routes/ws/protocol.rs`
-- [ ] Extract connection lifecycle to `routes/ws/connection.rs`
-- [ ] Extract message handlers to `routes/ws/handlers.rs`
-- [ ] Keep `routes/ws/mod.rs` as thin router
-- [ ] No behavior changes - pure refactor
-- [ ] All WebSocket tests pass
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] Create `routes/ws/` directory structure
+- [x] Extract protocol types to `routes/ws/protocol.rs`
+- [x] Extract connection lifecycle to `routes/ws/connection.rs`
+- [x] Extract message handlers to `routes/ws/handlers.rs`
+- [x] Keep `routes/ws/mod.rs` as thin router
+- [x] No behavior changes - pure refactor
+- [x] All WebSocket tests pass
 
 ## Implementation Notes
 
@@ -84,4 +90,15 @@ Defer until ws.rs exceeds ~500 lines or new WebSocket features are needed.
 
 ## Status Updates
 
-*To be added during implementation*
+### Completed
+Split 644-line `ws.rs` into 4 focused modules:
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `protocol.rs` | 203 | ClientMessage, ServerMessage enums + tests |
+| `connection.rs` | 188 | ConnectionState, handle_socket, send_message |
+| `handlers.rs` | 312 | handle_message, handle_chat, handle_auth, etc. |
+| `mod.rs` | 35 | Re-exports, ws_handler entry point |
+
+- Added Cancel message type to protocol for completeness
+- All 57 arawn-server tests passing (3 ws::protocol tests)

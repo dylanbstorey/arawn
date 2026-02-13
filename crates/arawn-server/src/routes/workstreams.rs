@@ -8,7 +8,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use arawn_workstream::{WorkstreamError, WorkstreamManager};
+use arawn_workstream::WorkstreamManager;
 
 use crate::error::ServerError;
 use crate::state::AppState;
@@ -117,13 +117,6 @@ fn get_manager(state: &AppState) -> Result<&Arc<WorkstreamManager>, ServerError>
         .ok_or_else(|| ServerError::ServiceUnavailable("Workstreams not configured".to_string()))
 }
 
-fn workstream_error(e: WorkstreamError) -> ServerError {
-    match &e {
-        WorkstreamError::NotFound(msg) => ServerError::NotFound(msg.clone()),
-        _ => ServerError::Internal(e.to_string()),
-    }
-}
-
 fn to_workstream_response(
     ws: &arawn_workstream::store::Workstream,
     tags: Option<Vec<String>>,
@@ -164,7 +157,7 @@ pub async fn create_workstream_handler(
 
     let ws = mgr
         .create_workstream(&req.title, req.default_model.as_deref(), &req.tags)
-        .map_err(workstream_error)?;
+        ?;
 
     let tags = mgr.get_tags(&ws.id).ok();
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
@@ -176,7 +169,7 @@ pub async fn list_workstreams_handler(
 ) -> Result<Json<WorkstreamListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
-    let list = mgr.list_workstreams().map_err(workstream_error)?;
+    let list = mgr.list_workstreams()?;
     let workstreams: Vec<_> = list
         .iter()
         .map(|ws| to_workstream_response(ws, None))
@@ -192,7 +185,7 @@ pub async fn get_workstream_handler(
 ) -> Result<Json<WorkstreamResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
-    let ws = mgr.get_workstream(&id).map_err(workstream_error)?;
+    let ws = mgr.get_workstream(&id)?;
     let tags = mgr.get_tags(&ws.id).ok();
 
     Ok(Json(to_workstream_response(&ws, tags)))
@@ -205,7 +198,7 @@ pub async fn delete_workstream_handler(
 ) -> Result<StatusCode, ServerError> {
     let mgr = get_manager(&state)?;
 
-    mgr.archive_workstream(&id).map_err(workstream_error)?;
+    mgr.archive_workstream(&id)?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -226,11 +219,11 @@ pub async fn update_workstream_handler(
             req.summary.as_deref(),
             req.default_model.as_deref(),
         )
-        .map_err(workstream_error)?;
+        ?;
 
     // Update tags if provided
     if let Some(ref tags) = req.tags {
-        mgr.set_tags(&id, tags).map_err(workstream_error)?;
+        mgr.set_tags(&id, tags)?;
     }
 
     let tags = mgr.get_tags(&ws.id).ok();
@@ -244,7 +237,7 @@ pub async fn list_workstream_sessions_handler(
 ) -> Result<Json<SessionListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
-    let sessions = mgr.list_sessions(&id).map_err(workstream_error)?;
+    let sessions = mgr.list_sessions(&id)?;
     let sessions: Vec<_> = sessions
         .iter()
         .map(|s| SessionResponse {
@@ -279,7 +272,7 @@ pub async fn send_message_handler(
 
     let msg = mgr
         .send_message(Some(&id), None, role, &req.content, req.metadata.as_deref())
-        .map_err(workstream_error)?;
+        ?;
 
     Ok((StatusCode::CREATED, Json(to_message_response(&msg))))
 }
@@ -301,7 +294,7 @@ pub async fn list_messages_handler(
         mgr.get_messages(&id)
     };
 
-    let msgs = result.map_err(workstream_error)?;
+    let msgs = result?;
     let messages: Vec<_> = msgs.iter().map(to_message_response).collect();
 
     Ok(Json(MessageListResponse { messages }))
@@ -323,7 +316,7 @@ pub async fn promote_handler(
 
     let ws = mgr
         .promote_scratch(&req.title, &req.tags, req.default_model.as_deref())
-        .map_err(workstream_error)?;
+        ?;
 
     let tags = mgr.get_tags(&ws.id).ok();
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))

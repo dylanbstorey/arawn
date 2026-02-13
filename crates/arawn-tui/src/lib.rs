@@ -6,6 +6,7 @@ pub mod app;
 pub mod bounded;
 pub mod client;
 pub mod events;
+pub mod focus;
 pub mod input;
 pub mod logs;
 pub mod palette;

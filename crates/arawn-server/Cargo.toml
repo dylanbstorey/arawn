@@ -9,6 +9,7 @@ description = "HTTP API and WebSocket server for Arawn"
 [dependencies]
 arawn-types = { workspace = true }
 arawn-agent = { workspace = true }
+arawn-config = { workspace = true }
 arawn-memory = { workspace = true }
 arawn-mcp = { workspace = true }
 arawn-session = { workspace = true }

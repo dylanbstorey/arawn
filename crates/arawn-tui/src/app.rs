@@ -2,6 +2,7 @@
 
 use crate::bounded::BoundedVec;
 use crate::client::{ConnectionStatus, WsClient};
+use crate::focus::{FocusManager, FocusTarget};
 
 /// Maximum number of chat messages to retain (prevents unbounded memory growth).
 const MAX_MESSAGES: usize = 10_000;
@@ -56,26 +57,6 @@ pub enum InputMode {
 }
 use crossterm::event::{KeyCode, KeyModifiers};
 
-/// Focus determines which component handles input.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Focus {
-    /// Default - typing messages
-    #[default]
-    Input,
-    /// Sidebar navigation (workstreams + sessions)
-    Sidebar,
-    /// Session list overlay (legacy, for command palette)
-    Sessions,
-    /// Workstream list overlay (legacy, for command palette)
-    Workstreams,
-    /// Command palette (Ctrl+K)
-    CommandPalette,
-    /// Tool output pane (Ctrl+E)
-    ToolPane,
-    /// Logs panel (Ctrl+L)
-    Logs,
-}
-
 /// A chat message for display.
 #[derive(Debug, Clone)]
 pub struct ChatMessage {
@@ -112,8 +93,8 @@ pub struct App {
     pub api: ArawnClient,
     /// Current connection status.
     pub connection_status: ConnectionStatus,
-    /// Current focus state.
-    pub focus: Focus,
+    /// Focus manager for panel/overlay navigation.
+    pub focus: FocusManager,
     /// Whether the app should quit.
     pub should_quit: bool,
     /// Input state with history.
@@ -182,7 +163,7 @@ impl App {
             ws_client,
             api,
             connection_status: ConnectionStatus::Connecting,
-            focus: Focus::default(),
+            focus: FocusManager::new(),
             should_quit: false,
             input: InputState::new(),
             input_mode: InputMode::default(),
@@ -702,7 +683,7 @@ impl App {
                 }
                 KeyCode::Char('k') => {
                     self.palette.reset();
-                    self.focus = Focus::CommandPalette;
+                    self.focus.push_overlay(FocusTarget::CommandPalette);
                     return;
                 }
                 KeyCode::Char('s') => {
@@ -714,29 +695,25 @@ impl App {
                     if self.sidebar.is_open() {
                         // Close sidebar, return focus to input
                         self.sidebar.close();
-                        self.focus = Focus::Input;
+                        self.focus.return_to_input();
                     } else {
                         // Open sidebar and focus it
                         self.sidebar.open();
-                        self.focus = Focus::Sidebar;
+                        self.focus.focus(FocusTarget::Sidebar);
                     }
                     return;
                 }
                 KeyCode::Char('e') => {
-                    self.focus = if self.focus == Focus::ToolPane {
-                        Focus::Input
-                    } else {
-                        Focus::ToolPane
-                    };
+                    self.focus.toggle(FocusTarget::ToolPane);
                     return;
                 }
                 KeyCode::Char('l') => {
                     // Toggle logs panel
                     self.show_logs = !self.show_logs;
                     if self.show_logs {
-                        self.focus = Focus::Logs;
+                        self.focus.focus(FocusTarget::Logs);
                     } else {
-                        self.focus = Focus::Input;
+                        self.focus.return_to_input();
                     }
                     return;
                 }
@@ -745,14 +722,14 @@ impl App {
         }
 
         // Delegate to focused component
-        match self.focus {
-            Focus::Input => self.handle_input_key(key),
-            Focus::Sidebar => self.handle_sidebar_key(key),
-            Focus::Sessions => self.handle_sessions_key(key),
-            Focus::CommandPalette => self.handle_palette_key(key),
-            Focus::Workstreams => self.handle_overlay_key(key),
-            Focus::ToolPane => self.handle_tool_pane_key(key),
-            Focus::Logs => self.handle_logs_key(key),
+        match self.focus.current() {
+            FocusTarget::Input => self.handle_input_key(key),
+            FocusTarget::Sidebar => self.handle_sidebar_key(key),
+            FocusTarget::Sessions => self.handle_sessions_key(key),
+            FocusTarget::CommandPalette => self.handle_palette_key(key),
+            FocusTarget::Workstreams => self.handle_overlay_key(key),
+            FocusTarget::ToolPane => self.handle_tool_pane_key(key),
+            FocusTarget::Logs => self.handle_logs_key(key),
         }
     }
 
@@ -930,7 +907,7 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.sessions.reset();
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Enter => {
                 // Select the current session
@@ -939,7 +916,7 @@ impl App {
                     self.switch_to_session(&session_id);
                 }
                 self.sessions.reset();
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Up => {
                 self.sessions.select_prev();
@@ -957,7 +934,7 @@ impl App {
                 // Create new session
                 self.create_new_session();
                 self.sessions.reset();
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Char(c) => {
                 // Add to filter
@@ -975,18 +952,18 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.palette.reset();
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Enter => {
                 // Execute selected action
                 if let Some(action) = self.palette.selected_action() {
                     let action_id = action.id;
                     self.palette.reset();
-                    self.focus = Focus::Input;
+                    self.focus.pop_overlay();
                     self.execute_action(action_id);
                 } else {
                     self.palette.reset();
-                    self.focus = Focus::Input;
+                    self.focus.pop_overlay();
                 }
             }
             KeyCode::Up => {
@@ -1031,7 +1008,7 @@ impl App {
                     self.sidebar.open();
                     self.sidebar.section = SidebarSection::Workstreams;
                     self.moving_session_to_workstream = true;
-                    self.focus = Focus::Sidebar;
+                    self.focus.focus(FocusTarget::Sidebar);
                     self.status_message = Some("Select target workstream (Enter to move, Esc to cancel)".to_string());
                 } else {
                     tracing::warn!("Session move attempted with no active session");
@@ -1039,21 +1016,17 @@ impl App {
                 }
             }
             ActionId::WorkstreamsSwitch => {
-                self.focus = Focus::Workstreams;
+                self.focus.push_overlay(FocusTarget::Workstreams);
             }
             ActionId::WorkstreamsCreate => {
                 // Enter new workstream name mode
                 self.input_mode = InputMode::NewWorkstream;
                 self.input.clear();
-                self.focus = Focus::Input;
+                self.focus.return_to_input();
                 self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
             }
             ActionId::ViewToggleToolPane => {
-                self.focus = if self.focus == Focus::ToolPane {
-                    Focus::Input
-                } else {
-                    Focus::ToolPane
-                };
+                self.focus.toggle(FocusTarget::ToolPane);
             }
             ActionId::AppQuit => {
                 self.should_quit = true;
@@ -1099,7 +1072,7 @@ impl App {
     /// Open the sessions panel.
     fn open_sessions_panel(&mut self) {
         self.sessions.reset();
-        self.focus = Focus::Sessions;
+        self.focus.push_overlay(FocusTarget::Sessions);
 
         // Use sessions from sidebar (already loaded from API)
         self.sessions.set_items(self.sidebar.sessions.clone());
@@ -1109,11 +1082,11 @@ impl App {
     fn handle_overlay_key(&mut self, key: crossterm::event::KeyEvent) {
         match key.code {
             KeyCode::Esc => {
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Enter => {
                 // TODO: Select item
-                self.focus = Focus::Input;
+                self.focus.pop_overlay();
             }
             KeyCode::Up | KeyCode::Down => {
                 // TODO: Navigate list
@@ -1130,7 +1103,7 @@ impl App {
     fn handle_tool_pane_key(&mut self, key: crossterm::event::KeyEvent) {
         match key.code {
             KeyCode::Esc => {
-                self.focus = Focus::Input;
+                self.focus.return_to_input();
             }
             KeyCode::Up => {
                 self.tool_scroll = self.tool_scroll.saturating_sub(1);
@@ -1160,7 +1133,7 @@ impl App {
         match key.code {
             KeyCode::Esc => {
                 self.show_logs = false;
-                self.focus = Focus::Input;
+                self.focus.return_to_input();
             }
             KeyCode::Up => {
                 self.log_scroll = self.log_scroll.saturating_sub(1);
@@ -1197,7 +1170,7 @@ impl App {
                 // Close sidebar and return focus to input
                 self.sidebar.close();
                 self.moving_session_to_workstream = false;
-                self.focus = Focus::Input;
+                self.focus.return_to_input();
             }
             KeyCode::Tab => {
                 // Switch between workstreams and sessions sections
@@ -1229,7 +1202,7 @@ impl App {
                             }
                             self.moving_session_to_workstream = false;
                             self.sidebar.close();
-                            self.focus = Focus::Input;
+                            self.focus.return_to_input();
                         } else {
                             // Switch to selected workstream
                             if let Some(ws) = self.sidebar.selected_workstream() {
@@ -1251,13 +1224,13 @@ impl App {
                             // Create new session in the (now current) workstream
                             self.create_new_session();
                             self.sidebar.close();
-                            self.focus = Focus::Input;
+                            self.focus.return_to_input();
                         } else if let Some(session) = self.sidebar.selected_session() {
                             // Switch to selected session
                             let session_id = session.id.clone();
                             self.switch_to_session(&session_id);
                             self.sidebar.close();
-                            self.focus = Focus::Input;
+                            self.focus.return_to_input();
                         }
                     }
                 }
@@ -1270,7 +1243,7 @@ impl App {
                         self.input_mode = InputMode::NewWorkstream;
                         self.input.clear();
                         self.sidebar.close();
-                        self.focus = Focus::Input;
+                        self.focus.return_to_input();
                         self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
                     }
                     SidebarSection::Sessions => {
@@ -1284,7 +1257,7 @@ impl App {
                         // Create new session in the (now current) workstream
                         self.create_new_session();
                         self.sidebar.close();
-                        self.focus = Focus::Input;
+                        self.focus.return_to_input();
                     }
                 }
             }
@@ -1293,7 +1266,7 @@ impl App {
                 self.input_mode = InputMode::NewWorkstream;
                 self.input.clear();
                 self.sidebar.close();
-                self.focus = Focus::Input;
+                self.focus.return_to_input();
                 self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
             }
             KeyCode::Char('r') => {
@@ -1305,7 +1278,7 @@ impl App {
                         self.input.clear();
                         self.input.set_text(&name); // Pre-fill with current name
                         self.sidebar.close();
-                        self.focus = Focus::Input;
+                        self.focus.return_to_input();
                         self.status_message = Some("Rename workstream (Esc to cancel)".to_string());
                     }
                 } else {

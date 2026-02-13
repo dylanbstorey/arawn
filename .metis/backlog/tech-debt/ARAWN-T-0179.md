@@ -4,15 +4,15 @@ level: task
 title: "TUI Focus Management Extraction"
 short_code: "ARAWN-T-0179"
 created_at: 2026-02-13T16:39:54.329855+00:00
-updated_at: 2026-02-13T16:39:54.329855+00:00
+updated_at: 2026-02-13T21:12:32.389020+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -41,13 +41,15 @@ Extract focus management logic from `app.rs` into a dedicated `FocusManager` com
 
 ## Acceptance Criteria
 
-- [ ] Create `crates/arawn-tui/src/focus.rs` with `FocusManager` struct
-- [ ] Define `FocusTarget` enum for all focusable panels
-- [ ] Implement focus transition rules (what can focus from where)
-- [ ] Extract input routing logic based on current focus
-- [ ] Handle overlay state (command palette takes focus priority)
-- [ ] Update `app.rs` to use `FocusManager`
-- [ ] No behavior changes - pure refactor
+## Acceptance Criteria
+
+- [x] Create `crates/arawn-tui/src/focus.rs` with `FocusManager` struct
+- [x] Define `FocusTarget` enum for all focusable panels
+- [x] Implement focus transition rules (what can focus from where)
+- [x] Extract input routing logic based on current focus
+- [x] Handle overlay state (command palette takes focus priority)
+- [x] Update `app.rs` to use `FocusManager`
+- [x] No behavior changes - pure refactor
 
 ## Implementation Notes
 
@@ -87,4 +89,11 @@ Defer until TUI has more panels or focus logic becomes unwieldy. Current state i
 
 ## Status Updates
 
-*To be added during implementation*
+### Completed
+- Created `focus.rs` with `FocusTarget` enum and `FocusManager` struct
+- Implemented overlay stack for command palette, sessions, workstreams overlays
+- Added `push_overlay()` / `pop_overlay()` for proper overlay dismiss behavior
+- Added `toggle()`, `cycle_next()`, `cycle_prev()` for panel navigation
+- Refactored `app.rs` to use `FocusManager` instead of bare `Focus` enum
+- Updated `ui/layout.rs` to use `FocusTarget`
+- All 43 tests passing (12 new focus tests)

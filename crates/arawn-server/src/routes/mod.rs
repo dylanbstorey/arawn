@@ -1,14 +1,22 @@
 //! API routes.
 
+pub mod agents;
 pub mod chat;
+pub mod config;
 pub mod health;
 pub mod mcp;
 pub mod memory;
 pub mod sessions;
+pub mod tasks;
 pub mod workstreams;
 pub mod ws;
 
+pub use agents::{
+    AgentCapabilities, AgentDetail, AgentSummary, AgentToolInfo, ListAgentsResponse,
+    get_agent_handler, list_agents_handler,
+};
 pub use chat::{ChatRequest, ChatResponse, chat_handler, chat_stream_handler};
+pub use config::{ConfigFeatures, ConfigLimits, ConfigResponse, get_config_handler};
 pub use health::health_routes;
 pub use mcp::{
     AddServerRequest, AddServerResponse, ListServersResponse, ListToolsResponse,
@@ -17,15 +25,24 @@ pub use mcp::{
     remove_server_handler,
 };
 pub use memory::{
-    CreateNoteRequest, ListNotesResponse, MemorySearchResponse, Note, create_note_handler,
-    list_notes_handler, memory_search_handler,
+    CreateNoteRequest, GetNoteResponse, ListNotesResponse, MemorySearchResponse, Note,
+    StoreMemoryRequest, StoreMemoryResponse, UpdateNoteRequest, create_note_handler,
+    delete_memory_handler, delete_note_handler, get_note_handler, list_notes_handler,
+    memory_search_handler, store_memory_handler, update_note_handler,
 };
 pub use sessions::{
-    ListSessionsResponse, SessionDetail, SessionSummary, delete_session_handler,
-    get_session_handler, list_sessions_handler,
+    CreateSessionRequest, ListSessionsResponse, MessageInfo, SessionDetail,
+    SessionMessagesResponse, SessionSummary, UpdateSessionRequest, create_session_handler,
+    delete_session_handler, get_session_handler, get_session_messages_handler,
+    list_sessions_handler, update_session_handler,
+};
+pub use tasks::{
+    ListTasksResponse, TaskDetail, TaskSummary, cancel_task_handler, get_task_handler,
+    list_tasks_handler,
 };
 pub use workstreams::{
     create_workstream_handler, delete_workstream_handler, get_workstream_handler,
-    list_messages_handler, list_workstreams_handler, promote_handler, send_message_handler,
+    list_messages_handler, list_workstream_sessions_handler, list_workstreams_handler,
+    promote_handler, send_message_handler, update_workstream_handler,
 };
 pub use ws::{ClientMessage, ServerMessage, ws_handler};
