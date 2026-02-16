@@ -10,7 +10,7 @@ mod commands;
 
 use commands::{
     agent, ask, auth, chat, config, mcp, memory, notes, plugin, research, start, status, stop,
-    tasks,
+    tasks, tui,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,9 +31,13 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
-    /// Server URL (default: http://localhost:8080)
+    /// Server URL (overrides current context)
     #[arg(long, global = true, env = "ARAWN_SERVER_URL")]
     pub server: Option<String>,
+
+    /// Use a specific context instead of the current one
+    #[arg(long, global = true)]
+    pub context: Option<String>,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -82,6 +86,52 @@ pub enum Commands {
 
     /// MCP server management
     Mcp(mcp::McpArgs),
+
+    /// Launch Terminal UI
+    Tui(tui::TuiArgs),
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Server URL Resolution
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Resolve the server URL from various sources.
+///
+/// Priority order:
+/// 1. CLI `--server` flag (already checked by clap via `cli.server`)
+/// 2. `--context` flag → lookup in client config
+/// 3. Current context from client config
+/// 4. ARAWN_SERVER_URL environment variable (already checked by clap)
+/// 5. Default: http://localhost:8080
+fn resolve_server_url(server_flag: Option<&str>, context_flag: Option<&str>) -> String {
+    // 1. Explicit --server flag takes priority
+    if let Some(url) = server_flag {
+        return url.to_string();
+    }
+
+    // Try to load client config
+    let config = arawn_config::load_client_config().ok();
+
+    // 2. Explicit --context flag
+    if let Some(ctx_name) = context_flag {
+        if let Some(config) = &config {
+            if let Some(ctx) = config.get_context(ctx_name) {
+                return ctx.server.clone();
+            }
+            // Context not found — fall through to default
+            tracing::warn!("Context '{}' not found, using default", ctx_name);
+        }
+    }
+
+    // 3. Current context from config
+    if let Some(config) = &config {
+        if let Some(url) = config.current_server_url() {
+            return url;
+        }
+    }
+
+    // 4. Default
+    "http://localhost:8080".to_string()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,6 +141,9 @@ pub enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // Check if running TUI - need to skip console logging to avoid corrupting display
+    let is_tui = matches!(cli.command, Commands::Tui(_));
 
     // Initialize tracing — console (human-readable) + rotating JSON file
     let filter = if cli.verbose {
@@ -106,26 +159,31 @@ async fn main() -> Result<()> {
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     use tracing_subscriber::prelude::*;
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_target(true)
-                .with_filter(tracing_subscriber::EnvFilter::new(filter)),
-        )
-        .with(
-            tracing_subscriber::fmt::layer()
-                .json()
-                .with_writer(non_blocking)
-                .with_filter(tracing_subscriber::EnvFilter::new(
-                    "arawn=trace,arawn_agent=trace,arawn_llm=trace,arawn_server=trace,arawn_oauth=trace,arawn_config=trace,info"
-                )),
-        )
-        .init();
 
-    // Get server URL
-    let server_url = cli
-        .server
-        .unwrap_or_else(|| "http://localhost:8080".to_string());
+    if is_tui {
+        // TUI mode: tracing is set up by the TUI itself with a log buffer
+        // Don't initialize here - the TUI will handle it
+    } else {
+        // Normal mode: console + file logging
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(true)
+                    .with_filter(tracing_subscriber::EnvFilter::new(filter)),
+            )
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .with_writer(non_blocking)
+                    .with_filter(tracing_subscriber::EnvFilter::new(
+                        "arawn=trace,arawn_agent=trace,arawn_llm=trace,arawn_server=trace,arawn_oauth=trace,arawn_config=trace,info"
+                    )),
+            )
+            .init();
+    }
+
+    // Get server URL: CLI flag > context > env var > default
+    let server_url = resolve_server_url(cli.server.as_deref(), cli.context.as_deref());
 
     // Create context for commands
     let ctx = commands::Context {
@@ -150,5 +208,6 @@ async fn main() -> Result<()> {
         Commands::Plugin(args) => plugin::run(args, &ctx).await,
         Commands::Agent(args) => agent::run(args, &ctx).await,
         Commands::Mcp(args) => mcp::run(args, &ctx).await,
+        Commands::Tui(args) => tui::run(args, &ctx).await,
     }
 }

@@ -120,6 +120,8 @@ fn extract_client_ip(request: &Request<Body>) -> IpAddr {
 /// Uses per-IP rate limiting to prevent individual bad actors from affecting
 /// other users. Extracts client IP from X-Forwarded-For, X-Real-IP headers,
 /// or falls back to the connection address.
+///
+/// The rate limiter is created from `config.api_rpm` and stored in AppState.
 pub async fn rate_limit_middleware(
     State(state): State<AppState>,
     request: Request<Body>,
@@ -133,11 +135,8 @@ pub async fn rate_limit_middleware(
     // Extract client IP
     let client_ip = extract_client_ip(&request);
 
-    // Get or create the per-IP rate limiter
-    let limiter = get_per_ip_limiter();
-
-    // Check rate limit for this IP
-    match limiter.check_key(&client_ip) {
+    // Check rate limit for this IP using the configured limiter
+    match state.rate_limiter.check_key(&client_ip) {
         Ok(_) => next.run(request).await,
         Err(_not_until) => {
             // Use a fixed retry-after of 1 second for simplicity
@@ -147,6 +146,7 @@ pub async fn rate_limit_middleware(
             tracing::warn!(
                 path = %request.uri().path(),
                 client_ip = %client_ip,
+                api_rpm = %state.config.api_rpm,
                 retry_after_seconds = retry_after,
                 "Rate limit exceeded"
             );
@@ -165,13 +165,6 @@ pub async fn rate_limit_middleware(
                 .into_response()
         }
     }
-}
-
-/// Get the per-IP rate limiter (120 requests per minute per IP).
-fn get_per_ip_limiter() -> SharedRateLimiter {
-    use std::sync::OnceLock;
-    static LIMITER: OnceLock<SharedRateLimiter> = OnceLock::new();
-    LIMITER.get_or_init(|| create_rate_limiter(120)).clone()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -78,7 +78,7 @@ fi
 run_test "2.3 Chat - trigger tool use" \
     -X POST "$SERVER/api/v1/chat" \
     -H "Content-Type: application/json" \
-    -d '{"message": "List the files in the current directory using the glob tool."}'
+    -d '{"message": "Use the glob tool with pattern \"*.toml\" to find toml files in the current directory (not recursive)."}'
 
 run_test "2.4 List sessions" \
     "$SERVER/api/v1/sessions"

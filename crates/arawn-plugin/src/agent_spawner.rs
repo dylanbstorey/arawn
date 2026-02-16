@@ -187,6 +187,8 @@ pub struct AgentSpawner {
     parent_tools: Arc<ToolRegistry>,
     /// The LLM backend to use for subagents.
     backend: SharedBackend,
+    /// Default max_iterations from `[agent.default]` config (fallback for all agents).
+    default_max_iterations: Option<u32>,
 }
 
 impl AgentSpawner {
@@ -195,7 +197,17 @@ impl AgentSpawner {
         Self {
             parent_tools,
             backend,
+            default_max_iterations: None,
         }
+    }
+
+    /// Create a new agent spawner with a default max_iterations.
+    ///
+    /// The `default_max_iterations` is applied to all spawned agents unless
+    /// they specify their own `constraints.max_iterations`.
+    pub fn with_default_max_iterations(mut self, max_iterations: u32) -> Self {
+        self.default_max_iterations = Some(max_iterations);
+        self
     }
 
     /// Spawn an agent from a plugin agent configuration.
@@ -204,6 +216,11 @@ impl AgentSpawner {
     /// - A constrained tool registry (only tools listed in config)
     /// - The plugin agent's custom system prompt
     /// - Optional max_iterations cap
+    ///
+    /// The max_iterations resolution order is:
+    /// 1. Agent-specific `constraints.max_iterations` (highest priority)
+    /// 2. Global `default_max_iterations` from `[agent.default]` config
+    /// 3. `AgentConfig::default()` (hardcoded 10)
     pub fn spawn(&self, config: &PluginAgentConfig) -> Result<Agent> {
         // Build constrained tool registry
         let constrained_tools = self.constrain_tools(config);
@@ -211,10 +228,16 @@ impl AgentSpawner {
         // Build agent config
         let mut agent_config = AgentConfig::default();
 
+        // Apply global default from [agent.default] if set
+        if let Some(default_max) = self.default_max_iterations {
+            agent_config.max_iterations = default_max;
+        }
+
         if let Some(ref prompt) = config.agent.system_prompt {
             agent_config.system_prompt = Some(prompt.text.clone());
         }
 
+        // Agent-specific override takes precedence
         if let Some(ref constraints) = config.agent.constraints {
             if let Some(max_iter) = constraints.max_iterations {
                 agent_config.max_iterations = max_iter as u32;
@@ -357,6 +380,15 @@ impl PluginSubagentSpawner {
     pub fn with_compaction(mut self, backend: SharedBackend, config: CompactionConfig) -> Self {
         self.compaction_backend = Some(backend);
         self.compaction_config = config;
+        self
+    }
+
+    /// Set the default max_iterations for all spawned agents.
+    ///
+    /// This value is used as a fallback when an agent doesn't specify
+    /// its own `constraints.max_iterations`. Mirrors `[agent.default].max_iterations`.
+    pub fn with_default_max_iterations(mut self, max_iterations: u32) -> Self {
+        self.spawner = self.spawner.with_default_max_iterations(max_iterations);
         self
     }
 

@@ -96,6 +96,32 @@ impl WorkstreamManager {
             .update_workstream(id, None, None, Some("archived"), None)
     }
 
+    /// Update a workstream's title, summary, and/or default model.
+    pub fn update_workstream(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        summary: Option<&str>,
+        default_model: Option<&str>,
+    ) -> Result<Workstream> {
+        // First verify the workstream exists
+        self.store.get_workstream(id)?;
+
+        // Apply the update
+        self.store
+            .update_workstream(id, title, summary, None, default_model)?;
+
+        // Return the updated workstream
+        self.store.get_workstream(id)
+    }
+
+    /// Update tags for a workstream.
+    pub fn set_tags(&self, workstream_id: &str, tags: &[String]) -> Result<()> {
+        // Verify the workstream exists
+        self.store.get_workstream(workstream_id)?;
+        self.store.set_tags(workstream_id, tags)
+    }
+
     pub fn get_tags(&self, workstream_id: &str) -> Result<Vec<String>> {
         self.store.get_tags(workstream_id)
     }
@@ -103,19 +129,50 @@ impl WorkstreamManager {
     // ── Messaging ───────────────────────────────────────────────────
 
     /// Send a message to a workstream. If `workstream_id` is None, routes to scratch.
-    /// Ensures an active session exists.
+    /// If `session_id` is provided, ensures a session record exists for it; otherwise creates/gets one.
     pub fn send_message(
         &self,
         workstream_id: Option<&str>,
+        session_id: Option<&str>,
         role: MessageRole,
         content: &str,
         metadata: Option<&str>,
     ) -> Result<WorkstreamMessage> {
+        tracing::debug!(
+            workstream_id = ?workstream_id,
+            session_id = ?session_id,
+            role = ?role,
+            content_len = content.len(),
+            "WorkstreamManager::send_message called"
+        );
+
         let ws_id = self.resolve_workstream(workstream_id)?;
-        let session = self.session_manager().get_or_start_session(&ws_id)?;
+        tracing::debug!(resolved_workstream_id = %ws_id, "Resolved workstream ID");
+
+        // Use provided session_id (ensuring record exists) or get/create one for the workstream
+        let session_id = match session_id {
+            Some(id) => {
+                tracing::debug!(
+                    session_id = %id,
+                    workstream_id = %ws_id,
+                    "Ensuring session record exists for provided session_id"
+                );
+                // Ensure session record exists in database for this workstream
+                self.store.create_session_with_id(id, &ws_id)?;
+                id.to_string()
+            }
+            None => {
+                let session = self.session_manager().get_or_start_session(&ws_id)?;
+                tracing::debug!(
+                    session_id = %session.id,
+                    "Got/created session via session_manager"
+                );
+                session.id
+            }
+        };
 
         self.message_store
-            .append(&ws_id, Some(&session.id), role, content, metadata)
+            .append(&ws_id, Some(&session_id), role, content, metadata)
     }
 
     /// Push a message from a background agent/process into a workstream.
@@ -164,6 +221,33 @@ impl WorkstreamManager {
 
     pub fn list_sessions(&self, workstream_id: &str) -> Result<Vec<Session>> {
         self.store.list_sessions(workstream_id)
+    }
+
+    /// Move a session to a different workstream.
+    pub fn reassign_session(&self, session_id: &str, new_workstream_id: &str) -> Result<Session> {
+        tracing::info!(
+            session_id = %session_id,
+            new_workstream_id = %new_workstream_id,
+            "WorkstreamManager::reassign_session called"
+        );
+        let result = self.store.reassign_session(session_id, new_workstream_id);
+        match &result {
+            Ok(session) => {
+                tracing::info!(
+                    session_id = %session_id,
+                    result_workstream_id = %session.workstream_id,
+                    "WorkstreamManager::reassign_session succeeded"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %e,
+                    "WorkstreamManager::reassign_session failed"
+                );
+            }
+        }
+        result
     }
 
     /// Run a timeout check across all workstreams. Returns count of timed-out sessions.
@@ -259,13 +343,13 @@ mod tests {
         let ws = mgr.create_workstream("Chat", None, &[]).unwrap();
 
         let m1 = mgr
-            .send_message(Some(&ws.id), MessageRole::User, "hello", None)
+            .send_message(Some(&ws.id), None, MessageRole::User, "hello", None)
             .unwrap();
         assert_eq!(m1.role, MessageRole::User);
         assert_eq!(m1.workstream_id, ws.id);
 
         let m2 = mgr
-            .send_message(Some(&ws.id), MessageRole::Assistant, "hi there!", None)
+            .send_message(Some(&ws.id), None, MessageRole::Assistant, "hi there!", None)
             .unwrap();
         assert_eq!(m2.role, MessageRole::Assistant);
 
@@ -283,7 +367,7 @@ mod tests {
 
         // Send with no workstream_id → goes to scratch
         let msg = mgr
-            .send_message(None, MessageRole::User, "quick question", None)
+            .send_message(None, None, MessageRole::User, "quick question", None)
             .unwrap();
         assert_eq!(msg.workstream_id, SCRATCH_ID);
 
@@ -328,7 +412,7 @@ mod tests {
         let (_dir, mgr) = test_manager();
 
         // Ensure scratch exists
-        mgr.send_message(None, MessageRole::User, "hi", None)
+        mgr.send_message(None, None, MessageRole::User, "hi", None)
             .unwrap();
 
         let err = mgr.archive_workstream(SCRATCH_ID).unwrap_err();
@@ -340,7 +424,7 @@ mod tests {
         let (_dir, mgr) = test_manager();
 
         let err = mgr
-            .send_message(Some("nonexistent"), MessageRole::User, "hello", None)
+            .send_message(Some("nonexistent"), None, MessageRole::User, "hello", None)
             .unwrap_err();
         assert!(matches!(err, WorkstreamError::NotFound(_)));
     }
@@ -350,9 +434,9 @@ mod tests {
         let (_dir, mgr) = test_manager();
 
         // Send messages to scratch
-        mgr.send_message(None, MessageRole::User, "idea", None)
+        mgr.send_message(None, None, MessageRole::User, "idea", None)
             .unwrap();
-        mgr.send_message(None, MessageRole::Assistant, "tell me more", None)
+        mgr.send_message(None, None, MessageRole::Assistant, "tell me more", None)
             .unwrap();
 
         // Promote

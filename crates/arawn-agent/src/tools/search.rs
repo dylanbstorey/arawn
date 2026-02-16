@@ -71,6 +71,27 @@ impl GlobTool {
             self.base_dir.clone().unwrap_or_else(|| PathBuf::from("."))
         }
     }
+
+    /// Calculate the optimal walk depth for a pattern.
+    ///
+    /// - Patterns with `**` require full recursive walk
+    /// - Patterns like `*.txt` only need depth 1
+    /// - Patterns like `src/*.txt` only need depth 2
+    fn calculate_walk_depth(&self, pattern: &str) -> usize {
+        // If pattern contains `**`, we need full recursive walk
+        if pattern.contains("**") {
+            return self.max_depth;
+        }
+
+        // Count directory separators to determine required depth
+        // `*.txt` -> depth 1 (just current dir)
+        // `src/*.txt` -> depth 2
+        // `src/sub/*.txt` -> depth 3
+        let separators = pattern.chars().filter(|&c| c == '/' || c == '\\').count();
+
+        // Add 1 because depth 0 is just the root, depth 1 includes immediate children
+        (separators + 1).min(self.max_depth)
+    }
 }
 
 impl Default for GlobTool {
@@ -135,10 +156,14 @@ impl Tool for GlobTool {
             Err(e) => return Ok(ToolResult::error(format!("Invalid glob pattern: {}", e))),
         };
 
+        // Calculate optimal walk depth based on pattern
+        // This avoids walking the entire tree for patterns like `*.toml`
+        let walk_depth = self.calculate_walk_depth(pattern);
+
         // Walk directory and match files
         let mut matches = Vec::new();
         let walker = WalkDir::new(&search_dir)
-            .max_depth(self.max_depth)
+            .max_depth(walk_depth)
             .follow_links(false);
 
         for entry in walker.into_iter().filter_map(|e| e.ok()) {
@@ -499,6 +524,39 @@ mod tests {
         assert!(params["properties"].get("pattern").is_some());
     }
 
+    #[test]
+    fn test_calculate_walk_depth() {
+        let tool = GlobTool::new(); // max_depth defaults to 20
+
+        // Simple patterns should only walk depth 1
+        assert_eq!(tool.calculate_walk_depth("*.txt"), 1);
+        assert_eq!(tool.calculate_walk_depth("*.rs"), 1);
+        assert_eq!(tool.calculate_walk_depth("Cargo.toml"), 1);
+
+        // Patterns with one directory level should walk depth 2
+        assert_eq!(tool.calculate_walk_depth("src/*.rs"), 2);
+        assert_eq!(tool.calculate_walk_depth("tests/*.txt"), 2);
+
+        // Patterns with two directory levels should walk depth 3
+        assert_eq!(tool.calculate_walk_depth("src/bin/*.rs"), 3);
+
+        // Patterns with ** should use full max_depth
+        assert_eq!(tool.calculate_walk_depth("**/*.rs"), 20);
+        assert_eq!(tool.calculate_walk_depth("src/**/*.rs"), 20);
+        assert_eq!(tool.calculate_walk_depth("**/test.txt"), 20);
+    }
+
+    #[test]
+    fn test_calculate_walk_depth_respects_max() {
+        let tool = GlobTool::new().with_max_depth(5);
+
+        // Should cap at configured max_depth
+        assert_eq!(tool.calculate_walk_depth("**/*.rs"), 5);
+
+        // Very deep explicit paths should also cap
+        assert_eq!(tool.calculate_walk_depth("a/b/c/d/e/f/g/*.rs"), 5);
+    }
+
     #[tokio::test]
     async fn test_glob_find_files() {
         let temp_dir = TempDir::new().unwrap();
@@ -545,6 +603,31 @@ mod tests {
         let content = result.to_llm_content();
         assert!(content.contains("root.rs"));
         assert!(content.contains("nested.rs"));
+    }
+
+    #[tokio::test]
+    async fn test_glob_non_recursive_excludes_nested() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create nested structure with .rs files at both levels
+        let sub_dir = temp_dir.path().join("subdir");
+        fs::create_dir(&sub_dir).unwrap();
+        fs::write(temp_dir.path().join("root.rs"), "// root").unwrap();
+        fs::write(sub_dir.join("nested.rs"), "// nested").unwrap();
+
+        let tool = GlobTool::new().with_base_dir(temp_dir.path());
+        let ctx = ToolContext::default();
+
+        // Non-recursive pattern should only find root.rs
+        let result = tool
+            .execute(json!({"pattern": "*.rs"}), &ctx)
+            .await
+            .unwrap();
+
+        assert!(result.is_success());
+        let content = result.to_llm_content();
+        assert!(content.contains("root.rs"), "Should find root.rs");
+        assert!(!content.contains("nested.rs"), "Should NOT find nested.rs with non-recursive pattern");
     }
 
     #[tokio::test]

@@ -5,18 +5,120 @@ use std::sync::Arc;
 
 use arawn_agent::{Agent, Session, SessionId, SessionIndexer};
 use arawn_mcp::McpManager;
-use arawn_types::SharedHookDispatcher;
+use arawn_types::{HasSessionConfig, SharedHookDispatcher};
 use arawn_workstream::WorkstreamManager;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 use crate::config::ServerConfig;
-
-/// In-memory session store.
-pub type SessionStore = Arc<RwLock<HashMap<SessionId, Session>>>;
+use crate::ratelimit::{SharedRateLimiter, create_rate_limiter};
+use crate::session_cache::SessionCache;
 
 /// Thread-safe MCP manager.
 pub type SharedMcpManager = Arc<RwLock<McpManager>>;
+
+/// Task status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    /// Task is queued but not started.
+    Pending,
+    /// Task is currently running.
+    Running,
+    /// Task completed successfully.
+    Completed,
+    /// Task failed.
+    Failed,
+    /// Task was cancelled.
+    Cancelled,
+}
+
+/// A tracked task/operation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackedTask {
+    /// Task ID.
+    pub id: String,
+    /// Task type/name.
+    pub task_type: String,
+    /// Current status.
+    pub status: TaskStatus,
+    /// Progress percentage (0-100).
+    pub progress: Option<u8>,
+    /// Status message.
+    pub message: Option<String>,
+    /// Associated session ID.
+    pub session_id: Option<String>,
+    /// When the task was created.
+    pub created_at: DateTime<Utc>,
+    /// When the task started running.
+    pub started_at: Option<DateTime<Utc>>,
+    /// When the task completed.
+    pub completed_at: Option<DateTime<Utc>>,
+    /// Error message if failed.
+    pub error: Option<String>,
+}
+
+impl TrackedTask {
+    /// Create a new pending task.
+    pub fn new(id: impl Into<String>, task_type: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            task_type: task_type.into(),
+            status: TaskStatus::Pending,
+            progress: None,
+            message: None,
+            session_id: None,
+            created_at: Utc::now(),
+            started_at: None,
+            completed_at: None,
+            error: None,
+        }
+    }
+
+    /// Set the session ID.
+    pub fn with_session(mut self, session_id: impl Into<String>) -> Self {
+        self.session_id = Some(session_id.into());
+        self
+    }
+
+    /// Mark the task as running.
+    pub fn start(&mut self) {
+        self.status = TaskStatus::Running;
+        self.started_at = Some(Utc::now());
+    }
+
+    /// Update progress.
+    pub fn update_progress(&mut self, progress: u8, message: Option<String>) {
+        self.progress = Some(progress.min(100));
+        self.message = message;
+    }
+
+    /// Mark the task as completed.
+    pub fn complete(&mut self, message: Option<String>) {
+        self.status = TaskStatus::Completed;
+        self.progress = Some(100);
+        self.message = message;
+        self.completed_at = Some(Utc::now());
+    }
+
+    /// Mark the task as failed.
+    pub fn fail(&mut self, error: impl Into<String>) {
+        self.status = TaskStatus::Failed;
+        self.error = Some(error.into());
+        self.completed_at = Some(Utc::now());
+    }
+
+    /// Mark the task as cancelled.
+    pub fn cancel(&mut self) {
+        self.status = TaskStatus::Cancelled;
+        self.completed_at = Some(Utc::now());
+    }
+}
+
+/// In-memory task store.
+pub type TaskStore = Arc<RwLock<HashMap<String, TrackedTask>>>;
 
 /// Application state shared across all handlers.
 #[derive(Clone)]
@@ -27,8 +129,11 @@ pub struct AppState {
     /// Server configuration.
     pub config: Arc<ServerConfig>,
 
-    /// In-memory session store.
-    pub sessions: SessionStore,
+    /// Per-IP rate limiter (created from config.api_rpm).
+    pub rate_limiter: SharedRateLimiter,
+
+    /// Session cache - loads from workstream on cache miss, persists back on save.
+    pub session_cache: SessionCache,
 
     /// Workstream manager (optional — None if workstreams not configured).
     pub workstreams: Option<Arc<WorkstreamManager>>,
@@ -41,25 +146,35 @@ pub struct AppState {
 
     /// MCP manager for Model Context Protocol servers (optional — None if MCP disabled).
     pub mcp_manager: Option<SharedMcpManager>,
+
+    /// Task store for tracking long-running operations.
+    pub tasks: TaskStore,
 }
 
 impl AppState {
     /// Create a new application state.
     pub fn new(agent: Agent, config: ServerConfig) -> Self {
+        // Create rate limiter with configured RPM
+        let rate_limiter = create_rate_limiter(config.api_rpm);
+
         Self {
             agent: Arc::new(agent),
             config: Arc::new(config),
-            sessions: Arc::new(RwLock::new(HashMap::new())),
+            rate_limiter,
+            session_cache: SessionCache::new(None),
             workstreams: None,
             indexer: None,
             hook_dispatcher: None,
             mcp_manager: None,
+            tasks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     /// Create application state with workstream support.
     pub fn with_workstreams(mut self, manager: WorkstreamManager) -> Self {
-        self.workstreams = Some(Arc::new(manager));
+        let ws_arc = Arc::new(manager);
+        self.session_cache = SessionCache::new(Some(ws_arc.clone()));
+        self.workstreams = Some(ws_arc);
         self
     }
 
@@ -81,28 +196,47 @@ impl AppState {
         self
     }
 
+    /// Configure session cache using a config provider.
+    ///
+    /// This applies session cache settings (max sessions, TTL, etc.) from any
+    /// type implementing `HasSessionConfig`, enabling decoupled configuration.
+    pub fn with_session_config<C: HasSessionConfig>(mut self, config: &C) -> Self {
+        // Recreate session cache with config, preserving workstream manager
+        self.session_cache = SessionCache::from_session_config(
+            self.workstreams.clone(),
+            config,
+        );
+        self
+    }
+
     /// Get or create a session by ID.
     ///
     /// If session_id is None, creates a new session.
-    /// Returns the session ID and a mutable reference to the session.
+    /// Defaults to "scratch" workstream.
     pub async fn get_or_create_session(&self, session_id: Option<SessionId>) -> SessionId {
-        let (id, is_new) = {
-            let mut sessions = self.sessions.write().await;
+        self.get_or_create_session_in_workstream(session_id, "scratch")
+            .await
+    }
 
-            match session_id {
-                Some(id) if sessions.contains_key(&id) => (id, false),
-                Some(id) => {
-                    // Create session with the provided ID
-                    sessions.insert(id, Session::with_id(id));
-                    (id, true)
-                }
-                None => {
-                    // Create new session
-                    let session = Session::new();
-                    let id = session.id;
-                    sessions.insert(id, session);
-                    (id, true)
-                }
+    /// Get or create a session in a specific workstream.
+    ///
+    /// Sessions are loaded from workstream storage on cache miss and persisted back.
+    pub async fn get_or_create_session_in_workstream(
+        &self,
+        session_id: Option<SessionId>,
+        workstream_id: &str,
+    ) -> SessionId {
+        let result = self
+            .session_cache
+            .get_or_create(session_id, workstream_id)
+            .await;
+
+        let (id, is_new) = match result {
+            Ok((id, _, is_new)) => (id, is_new),
+            Err(e) => {
+                warn!("Session cache error: {}, creating new session", e);
+                let (id, _) = self.session_cache.create_session(workstream_id).await;
+                (id, true)
             }
         };
 
@@ -117,17 +251,12 @@ impl AppState {
         id
     }
 
-    /// Close a session: remove it from the store and trigger background indexing.
+    /// Close a session: remove it from the cache and trigger background indexing.
     ///
     /// Returns `true` if the session existed and was removed.
     /// Indexing runs asynchronously and does not block the caller.
     pub async fn close_session(&self, session_id: SessionId) -> bool {
-        let session = {
-            let mut sessions = self.sessions.write().await;
-            sessions.remove(&session_id)
-        };
-
-        let session = match session {
+        let session = match self.session_cache.remove(&session_id).await {
             Some(s) => s,
             None => return false,
         };
@@ -170,6 +299,24 @@ impl AppState {
         }
 
         true
+    }
+
+    /// Get session from cache (loading from workstream if needed).
+    pub async fn get_session(&self, session_id: SessionId, workstream_id: &str) -> Option<Session> {
+        match self.session_cache.get_or_load(session_id, workstream_id).await {
+            Ok((session, _)) => Some(session),
+            Err(_) => None,
+        }
+    }
+
+    /// Update session in cache.
+    pub async fn update_session(&self, session_id: SessionId, session: Session) {
+        let _ = self.session_cache.update(session_id, session).await;
+    }
+
+    /// Invalidate a cached session (e.g., after workstream reassignment).
+    pub async fn invalidate_session(&self, session_id: SessionId) {
+        self.session_cache.invalidate(&session_id).await;
     }
 }
 
@@ -267,14 +414,14 @@ mod tests {
         let state = create_test_state();
         let session_id = state.get_or_create_session(None).await;
 
-        // Session exists
-        assert!(state.sessions.read().await.contains_key(&session_id));
+        // Session exists in cache
+        assert!(state.session_cache.contains(&session_id).await);
 
         // Close it
         assert!(state.close_session(session_id).await);
 
         // Session removed
-        assert!(!state.sessions.read().await.contains_key(&session_id));
+        assert!(!state.session_cache.contains(&session_id).await);
     }
 
     #[tokio::test]
@@ -290,16 +437,17 @@ mod tests {
         let session_id = state.get_or_create_session(None).await;
 
         // Add a turn so the session isn't empty
-        {
-            let mut sessions = state.sessions.write().await;
-            let session = sessions.get_mut(&session_id).unwrap();
-            let turn = session.start_turn("Hello");
-            turn.complete("Hi!");
-        }
+        state
+            .session_cache
+            .with_session_mut(&session_id, |session| {
+                let turn = session.start_turn("Hello");
+                turn.complete("Hi!");
+            })
+            .await;
 
         // Should succeed even without indexer
         assert!(state.close_session(session_id).await);
-        assert!(!state.sessions.read().await.contains_key(&session_id));
+        assert!(!state.session_cache.contains(&session_id).await);
     }
 
     #[test]

@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub mod config;
 pub mod delegation;
 pub mod error;
 pub mod hooks;
@@ -18,6 +19,11 @@ pub use error::{Error, Result};
 pub use hooks::{
     HookAction, HookDef, HookDispatch, HookEvent, HookMatcherGroup, HookOutcome, HookType,
     HooksConfig, SharedHookDispatcher,
+};
+
+pub use config::{
+    defaults as config_defaults, AgentConfigProvider, ConfigProvider, HasAgentConfig,
+    HasRateLimitConfig, HasSessionConfig, HasToolConfig, SessionConfigProvider, ToolConfigProvider,
 };
 
 /// Unique identifier for sessions, tasks, memories, etc.

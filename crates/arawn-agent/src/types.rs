@@ -347,7 +347,7 @@ impl AgentConfig {
             model: model.into(),
             max_tokens: 4096,
             temperature: None,
-            max_iterations: 10,
+            max_iterations: 25,
             timeout: Duration::from_secs(300),
             system_prompt: None,
             workspace_path: None,
@@ -594,7 +594,7 @@ mod tests {
     fn test_agent_config_default() {
         let config = AgentConfig::default();
         assert_eq!(config.max_tokens, 4096);
-        assert_eq!(config.max_iterations, 10);
+        assert_eq!(config.max_iterations, 25);
         assert!(config.temperature.is_none());
     }
 

@@ -211,6 +211,7 @@ dependencies = [
 name = "arawn-config"
 version = "0.1.0"
 dependencies = [
+ "arawn-types",
  "dirs 6.0.0",
  "keyring",
  "serde",
@@ -367,6 +368,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arawn-agent",
+ "arawn-config",
  "arawn-llm",
  "arawn-mcp",
  "arawn-memory",

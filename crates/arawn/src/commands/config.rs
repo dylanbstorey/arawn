@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 
-use arawn_config::{self, Backend};
+use arawn_config::{self, Backend, Context as ClientContext};
 
 use super::Context;
 
@@ -46,6 +46,44 @@ pub enum ConfigCommand {
 
     /// Show configuration file path
     Path,
+
+    // ── Client Context Commands ──────────────────────────────────────────
+
+    /// Show the current context name
+    CurrentContext,
+
+    /// List available contexts
+    GetContexts,
+
+    /// Switch to a different context
+    UseContext {
+        /// Context name to switch to
+        name: String,
+    },
+
+    /// Create or update a context
+    SetContext {
+        /// Context name
+        name: String,
+
+        /// Server URL (e.g., http://localhost:8080)
+        #[arg(long)]
+        server: Option<String>,
+
+        /// Default workstream for this context
+        #[arg(long)]
+        workstream: Option<String>,
+
+        /// Connection timeout in seconds
+        #[arg(long)]
+        timeout: Option<u64>,
+    },
+
+    /// Delete a context
+    DeleteContext {
+        /// Context name to delete
+        name: String,
+    },
 }
 
 /// Run the config command.
@@ -58,6 +96,16 @@ pub async fn run(args: ConfigArgs, ctx: &Context) -> Result<()> {
         ConfigCommand::Edit => cmd_edit().await,
         ConfigCommand::Init { local } => cmd_init(local).await,
         ConfigCommand::Path => cmd_path().await,
+        ConfigCommand::CurrentContext => cmd_current_context().await,
+        ConfigCommand::GetContexts => cmd_get_contexts().await,
+        ConfigCommand::UseContext { name } => cmd_use_context(&name).await,
+        ConfigCommand::SetContext {
+            name,
+            server,
+            workstream,
+            timeout,
+        } => cmd_set_context(&name, server, workstream, timeout).await,
+        ConfigCommand::DeleteContext { name } => cmd_delete_context(&name).await,
     }
 }
 
@@ -341,4 +389,139 @@ fn key_status_for(backend: &Backend) -> &'static str {
     } else {
         "(no key)"
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client Context Commands
+// ─────────────────────────────────────────────────────────────────────────────
+
+async fn cmd_current_context() -> Result<()> {
+    let config = arawn_config::load_client_config()?;
+
+    match &config.current_context {
+        Some(name) => {
+            println!("{}", name);
+        }
+        None => {
+            println!("No current context set. Use 'arawn config use-context <name>' to set one.");
+        }
+    }
+
+    Ok(())
+}
+
+async fn cmd_get_contexts() -> Result<()> {
+    let config = arawn_config::load_client_config()?;
+
+    if config.contexts.is_empty() {
+        println!("No contexts configured.");
+        println!();
+        println!("Create one with:");
+        println!("  arawn config set-context local --server=http://localhost:8080");
+        return Ok(());
+    }
+
+    let current = config.current_context.as_deref();
+
+    println!("CURRENT   NAME            SERVER");
+    for ctx in &config.contexts {
+        let marker = if current == Some(ctx.name.as_str()) {
+            "*"
+        } else {
+            " "
+        };
+        println!(
+            "{}         {:<15} {}",
+            marker,
+            ctx.name,
+            ctx.server
+        );
+    }
+
+    Ok(())
+}
+
+async fn cmd_use_context(name: &str) -> Result<()> {
+    let mut config = arawn_config::load_client_config()?;
+
+    config.use_context(name)?;
+    arawn_config::save_client_config(&config)?;
+
+    println!("Switched to context \"{}\".", name);
+
+    Ok(())
+}
+
+async fn cmd_set_context(
+    name: &str,
+    server: Option<String>,
+    workstream: Option<String>,
+    timeout: Option<u64>,
+) -> Result<()> {
+    let mut config = arawn_config::load_client_config()?;
+
+    let is_new = config.get_context(name).is_none();
+
+    if is_new {
+        // Creating new context — server is required
+        let server_url = server.ok_or_else(|| {
+            anyhow::anyhow!("--server is required when creating a new context")
+        })?;
+
+        let mut ctx = ClientContext::new(name, server_url);
+        if let Some(ws) = workstream {
+            ctx = ctx.with_workstream(ws);
+        }
+        if let Some(t) = timeout {
+            ctx = ctx.with_timeout(t);
+        }
+
+        config.set_context(ctx);
+        println!("Context \"{}\" created.", name);
+    } else {
+        // Updating existing context
+        let ctx = config.get_context_mut(name).unwrap();
+
+        if let Some(url) = server {
+            ctx.server = url;
+        }
+        if let Some(ws) = workstream {
+            ctx.workstream = Some(ws);
+        }
+        if let Some(t) = timeout {
+            ctx.timeout = Some(t);
+        }
+
+        println!("Context \"{}\" modified.", name);
+    }
+
+    arawn_config::save_client_config(&config)?;
+
+    // If this is the first context, make it current
+    if config.current_context.is_none() && config.contexts.len() == 1 {
+        config.current_context = Some(name.to_string());
+        arawn_config::save_client_config(&config)?;
+        println!("Context \"{}\" set as current context.", name);
+    }
+
+    Ok(())
+}
+
+async fn cmd_delete_context(name: &str) -> Result<()> {
+    let mut config = arawn_config::load_client_config()?;
+
+    match config.remove_context(name) {
+        Some(_) => {
+            arawn_config::save_client_config(&config)?;
+            println!("Context \"{}\" deleted.", name);
+            if config.current_context.is_none() {
+                println!("Note: No current context. Use 'arawn config use-context <name>' to set one.");
+            }
+        }
+        None => {
+            println!("Context \"{}\" not found.", name);
+        }
+    }
+
+    Ok(())
 }

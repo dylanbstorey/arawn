@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use arawn_agent::{Session, SessionId, ToolCall, ToolResultRecord, Turn};
 use arawn_session::TtlTracker;
+use arawn_types::HasSessionConfig;
 use arawn_workstream::{ReconstructedSession, SessionLoader, WorkstreamManager};
 use lru::LruCache;
 use tokio::sync::RwLock;
@@ -74,6 +75,21 @@ impl SessionCache {
     /// Create a new session cache with default capacity and TTL.
     pub fn new(workstreams: Option<Arc<WorkstreamManager>>) -> Self {
         Self::with_config(workstreams, DEFAULT_MAX_SESSIONS, DEFAULT_SESSION_TTL)
+    }
+
+    /// Create a session cache from a configuration provider.
+    ///
+    /// This allows any type implementing `HasSessionConfig` to configure
+    /// the cache, enabling decoupled configuration passing.
+    pub fn from_session_config<C: HasSessionConfig>(
+        workstreams: Option<Arc<WorkstreamManager>>,
+        config: &C,
+    ) -> Self {
+        Self::with_config(
+            workstreams,
+            config.max_sessions(),
+            config.session_ttl(),
+        )
     }
 
     /// Create a new session cache with specified capacity.

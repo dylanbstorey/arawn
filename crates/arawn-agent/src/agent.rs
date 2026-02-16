@@ -17,6 +17,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::stream::{AgentStream, create_turn_stream};
 
+use crate::context::estimate_tokens;
 use crate::error::{AgentError, Result};
 use crate::prompt::SystemPromptBuilder;
 use crate::tool::{ToolContext, ToolRegistry, ToolResult};
@@ -122,6 +123,16 @@ impl Agent {
 
         // Build initial messages from session history
         let mut messages = self.build_messages(session);
+
+        // Log initial context size
+        let initial_context_tokens = self.estimate_messages_tokens(&messages);
+        tracing::debug!(
+            %session_id,
+            %turn_id,
+            message_count = messages.len(),
+            estimated_tokens = initial_context_tokens,
+            "Context: initial history loaded"
+        );
 
         // Active recall: inject relevant memories before first LLM call
         if let Some(context_msg) = self.perform_recall(user_message).await {
@@ -241,6 +252,16 @@ impl Agent {
 
                 messages.push(Message::tool_results(tool_result_blocks));
 
+                // Log context size after adding tool results
+                let context_tokens = self.estimate_messages_tokens(&messages);
+                tracing::debug!(
+                    %session_id,
+                    iteration = iterations,
+                    message_count = messages.len(),
+                    estimated_tokens = context_tokens,
+                    "Context: after tool results"
+                );
+
                 // Continue loop for next LLM call
                 continue;
             }
@@ -311,6 +332,44 @@ impl Agent {
             turn_id,
             cancellation,
         )
+    }
+
+    /// Estimate total tokens for a list of messages.
+    fn estimate_messages_tokens(&self, messages: &[Message]) -> usize {
+        messages
+            .iter()
+            .map(|m| self.estimate_message_tokens(m))
+            .sum()
+    }
+
+    /// Estimate tokens for a single message.
+    fn estimate_message_tokens(&self, message: &Message) -> usize {
+        // Base overhead for message structure
+        let mut tokens = 10;
+
+        // Add content tokens
+        for block in message.content.blocks() {
+            tokens += match block {
+                ContentBlock::Text { text, .. } => estimate_tokens(&text),
+                ContentBlock::ToolUse { name, input, .. } => {
+                    estimate_tokens(&name) + estimate_tokens(&input.to_string())
+                }
+                ContentBlock::ToolResult { content, .. } => {
+                    if let Some(c) = content {
+                        match c {
+                            arawn_llm::ToolResultContent::Text(text) => estimate_tokens(&text),
+                            arawn_llm::ToolResultContent::Blocks(blocks) => estimate_tokens(
+                                &serde_json::to_string(&blocks).unwrap_or_default(),
+                            ),
+                        }
+                    } else {
+                        0
+                    }
+                }
+            };
+        }
+
+        tokens
     }
 
     /// Build messages from session history.
@@ -472,6 +531,17 @@ impl Agent {
                 }
             }
 
+            // Log tool input
+            let input_str = tool_use.input.to_string();
+            let input_bytes = input_str.len();
+            tracing::debug!(
+                tool = %tool_use.name,
+                tool_call_id = %tool_use.id,
+                input_bytes,
+                input_tokens = estimate_tokens(&input_str),
+                "Tool: executing"
+            );
+
             // Execute the tool
             let result = match self
                 .tools
@@ -488,6 +558,19 @@ impl Agent {
                     ToolResult::error(e.to_string())
                 }
             };
+
+            // Log tool output size
+            let output_content = result.to_llm_content();
+            let output_bytes = output_content.len();
+            let output_tokens = estimate_tokens(&output_content);
+            tracing::debug!(
+                tool = %tool_use.name,
+                tool_call_id = %tool_use.id,
+                success = result.is_success(),
+                output_bytes,
+                output_tokens,
+                "Tool: completed"
+            );
 
             // Post-tool hook: informational only
             if let Some(ref dispatcher) = self.hook_dispatcher {

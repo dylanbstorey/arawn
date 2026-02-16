@@ -17,6 +17,9 @@ pub struct ServerConfig {
     /// Enable rate limiting.
     pub rate_limiting: bool,
 
+    /// Rate limit: requests per minute for API endpoints.
+    pub api_rpm: u32,
+
     /// Enable request logging.
     pub request_logging: bool,
 
@@ -31,6 +34,7 @@ impl Default for ServerConfig {
             auth_token: None,
             tailscale_users: None,
             rate_limiting: true,
+            api_rpm: 120,
             request_logging: true,
             cors_origins: Vec::new(),
         }
@@ -74,6 +78,12 @@ impl ServerConfig {
     /// Set CORS allowed origins.
     pub fn with_cors_origins(mut self, origins: Vec<String>) -> Self {
         self.cors_origins = origins;
+        self
+    }
+
+    /// Set the API rate limit (requests per minute).
+    pub fn with_api_rpm(mut self, rpm: u32) -> Self {
+        self.api_rpm = rpm;
         self
     }
 }

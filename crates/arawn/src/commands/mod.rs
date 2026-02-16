@@ -15,6 +15,7 @@ pub mod start;
 pub mod status;
 pub mod stop;
 pub mod tasks;
+pub mod tui;
 
 /// Shared context for all commands.
 #[derive(Debug, Clone)]

@@ -21,6 +21,10 @@ pub struct ResolvedLlm {
     pub api_key_source: Option<SecretSource>,
     /// How the config was resolved.
     pub resolved_from: ResolvedFrom,
+    /// Maximum retry attempts for failed requests.
+    pub retry_max: Option<u32>,
+    /// Backoff delay between retries in milliseconds.
+    pub retry_backoff_ms: Option<u64>,
 }
 
 /// Tracks how the LLM config was resolved for diagnostics.
@@ -100,6 +104,8 @@ pub fn resolve_for_agent(config: &ArawnConfig, agent_name: &str) -> Result<Resol
         api_key,
         api_key_source,
         resolved_from,
+        retry_max: llm_config.retry_max,
+        retry_backoff_ms: llm_config.retry_backoff_ms,
     })
 }
 

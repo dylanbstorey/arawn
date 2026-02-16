@@ -5,6 +5,26 @@
 
 use arawn_llm::{CompletionRequest, ContentBlock, Message, ToolResultBlock, ToolResultContent};
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Token Estimation Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Default characters per token ratio (rough estimate for English text).
+const CHARS_PER_TOKEN: usize = 4;
+
+/// Estimate token count for a string (rough approximation).
+///
+/// Uses a simple heuristic of ~4 characters per token, which is
+/// reasonable for English text with the Claude/GPT tokenizers.
+pub fn estimate_tokens(text: &str) -> usize {
+    text.len() / CHARS_PER_TOKEN
+}
+
+/// Estimate tokens for a byte count.
+pub fn estimate_tokens_from_bytes(bytes: usize) -> usize {
+    bytes / CHARS_PER_TOKEN
+}
+
 use crate::tool::ToolRegistry;
 use crate::types::{AgentConfig, Session, Turn};
 

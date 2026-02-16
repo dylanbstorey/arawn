@@ -50,6 +50,8 @@ impl MessageStore {
         let mut line = serde_json::to_string(&msg)?;
         line.push('\n');
         file.write_all(line.as_bytes())?;
+        // Ensure data is persisted to disk before returning success
+        file.sync_all()?;
 
         Ok(msg)
     }
@@ -85,6 +87,19 @@ impl MessageStore {
     ) -> Result<Vec<WorkstreamMessage>> {
         let all = self.read_all(workstream_id)?;
         Ok(all.into_iter().filter(|m| m.timestamp >= since).collect())
+    }
+
+    /// Read all messages for a specific session.
+    pub fn read_for_session(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Result<Vec<WorkstreamMessage>> {
+        let all = self.read_all(workstream_id)?;
+        Ok(all
+            .into_iter()
+            .filter(|m| m.session_id.as_deref() == Some(session_id))
+            .collect())
     }
 
     /// Path to a workstream's data directory.
@@ -203,5 +218,46 @@ mod tests {
 
         assert_eq!(store.read_all("ws-1").unwrap().len(), 1);
         assert_eq!(store.read_all("ws-2").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_read_for_session() {
+        let (_dir, store) = temp_store();
+
+        // Messages in session-1
+        store
+            .append("ws-1", Some("session-1"), MessageRole::User, "hello", None)
+            .unwrap();
+        store
+            .append(
+                "ws-1",
+                Some("session-1"),
+                MessageRole::Assistant,
+                "hi there",
+                None,
+            )
+            .unwrap();
+
+        // Messages in session-2
+        store
+            .append("ws-1", Some("session-2"), MessageRole::User, "different", None)
+            .unwrap();
+
+        // Messages with no session
+        store
+            .append("ws-1", None, MessageRole::User, "orphan", None)
+            .unwrap();
+
+        let session1_msgs = store.read_for_session("ws-1", "session-1").unwrap();
+        assert_eq!(session1_msgs.len(), 2);
+        assert_eq!(session1_msgs[0].content, "hello");
+        assert_eq!(session1_msgs[1].content, "hi there");
+
+        let session2_msgs = store.read_for_session("ws-1", "session-2").unwrap();
+        assert_eq!(session2_msgs.len(), 1);
+        assert_eq!(session2_msgs[0].content, "different");
+
+        let empty_msgs = store.read_for_session("ws-1", "nonexistent").unwrap();
+        assert!(empty_msgs.is_empty());
     }
 }

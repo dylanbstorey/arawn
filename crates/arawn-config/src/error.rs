@@ -45,4 +45,22 @@ pub enum ConfigError {
         "API key not found for backend '{backend}'. Set via keyring (arawn config set-secret), env var ({env_var}), or config file"
     )]
     ApiKeyNotFound { backend: String, env_var: String },
+
+    /// Context limit not configured for model.
+    #[error(
+        "max_context_tokens not configured for model '{model}'. Add max_context_tokens to your LLM config"
+    )]
+    MissingContextLimit { model: String },
+
+    /// Failed to parse YAML.
+    #[error("failed to parse YAML config: {0}")]
+    ParseYaml(String),
+
+    /// Context not found.
+    #[error("context '{0}' not found")]
+    ContextNotFound(String),
+
+    /// Other error.
+    #[error("{0}")]
+    Other(String),
 }

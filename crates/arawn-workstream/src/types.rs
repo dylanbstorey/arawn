@@ -8,6 +8,11 @@ pub enum MessageRole {
     User,
     Assistant,
     System,
+    /// A tool call made by the assistant.
+    /// Metadata should contain: tool_id, name, arguments (JSON).
+    ToolUse,
+    /// Result of a tool execution.
+    /// Metadata should contain: tool_call_id, success.
     ToolResult,
     AgentPush,
 }
@@ -18,6 +23,7 @@ impl MessageRole {
             Self::User => "user",
             Self::Assistant => "assistant",
             Self::System => "system",
+            Self::ToolUse => "tool_use",
             Self::ToolResult => "tool_result",
             Self::AgentPush => "agent_push",
         }

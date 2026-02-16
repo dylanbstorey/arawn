@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use clap::Args;
@@ -84,6 +85,10 @@ pub struct StartArgs {
     /// Path to config file (overrides default discovery)
     #[arg(long)]
     pub config: Option<PathBuf>,
+
+    /// Seed the server with test workstreams and sessions (dev mode)
+    #[arg(long)]
+    pub seed: bool,
 }
 
 /// Run the start command.
@@ -306,13 +311,33 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     // ── Build agent ─────────────────────────────────────────────────────
 
+    // Get tool configuration
+    let tools_cfg = config.tools.clone().unwrap_or_default();
+    tracing::debug!(
+        shell_timeout_secs = tools_cfg.shell.timeout_secs,
+        web_timeout_secs = tools_cfg.web.timeout_secs,
+        max_output_bytes = tools_cfg.output.max_size_bytes,
+        "Tool configuration loaded"
+    );
+
+    // Create shell tool with configured timeout
+    let shell_config = tools::ShellConfig::new()
+        .with_timeout(Duration::from_secs(tools_cfg.shell.timeout_secs));
+
+    // Create web fetch tool with configured timeout and max output size
+    let web_config = tools::WebFetchConfig {
+        timeout: Duration::from_secs(tools_cfg.web.timeout_secs),
+        max_text_length: tools_cfg.output.max_size_bytes,
+        ..Default::default()
+    };
+
     let mut tool_registry = ToolRegistry::new();
-    tool_registry.register(tools::ShellTool::new());
+    tool_registry.register(tools::ShellTool::with_config(shell_config));
     tool_registry.register(tools::FileReadTool::new());
     tool_registry.register(tools::FileWriteTool::new());
     tool_registry.register(tools::GlobTool::new());
     tool_registry.register(tools::GrepTool::new());
-    tool_registry.register(tools::WebFetchTool::new());
+    tool_registry.register(tools::WebFetchTool::with_config(web_config));
     tool_registry.register(tools::NoteTool::new());
 
     // Register workflow tool if pipeline is enabled.
@@ -755,6 +780,11 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
             plugin_agent_sources,
         );
 
+        // Wire default max_iterations from [agent.default] config
+        if let Some(max_iter) = config.agent.get("default").and_then(|a| a.max_iterations) {
+            spawner = spawner.with_default_max_iterations(max_iter);
+        }
+
         // Wire hook dispatcher for background subagent events
         if let Some(ref dispatcher) = shared_hook_dispatcher {
             spawner = spawner.with_hook_dispatcher(dispatcher.clone());
@@ -788,6 +818,11 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         .with_tools(tool_registry)
         .with_plugin_prompts(plugin_prompts)
         .with_model(&resolved.model);
+
+    // Wire max_iterations from [agent.default] config (fallback to hardcoded default in AgentConfig)
+    if let Some(max_iter) = config.agent.get("default").and_then(|a| a.max_iterations) {
+        builder = builder.with_max_iterations(max_iter);
+    }
 
     // Wire up hook dispatcher to the agent
     if let Some(ref dispatcher) = shared_hook_dispatcher {
@@ -931,10 +966,16 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     // ── Start server ────────────────────────────────────────────────────
 
+    // Use config values with defaults (rate_limiting=true, request_logging=true, api_rpm=120)
+    let rate_limiting = server_cfg.map(|s| s.rate_limiting).unwrap_or(true);
+    let request_logging = server_cfg.map(|s| s.request_logging).unwrap_or(true);
+    let api_rpm = server_cfg.map(|s| s.api_rpm).unwrap_or(120);
+
     let server_config = ServerConfig::new(auth_token)
         .with_bind_address(addr)
-        .with_rate_limiting(true)
-        .with_request_logging(true);
+        .with_rate_limiting(rate_limiting)
+        .with_request_logging(request_logging)
+        .with_api_rpm(api_rpm);
 
     let mut app_state = AppState::new(agent, server_config);
     if let Some(idx) = indexer {
@@ -963,6 +1004,11 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     match WorkstreamManager::new(&ws_config) {
         Ok(mgr) => {
+            // Seed test data if requested
+            if args.seed {
+                seed_test_data(&mgr, ctx.verbose);
+            }
+
             app_state = app_state.with_workstreams(mgr);
             if ctx.verbose {
                 println!(
@@ -976,6 +1022,15 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
             eprintln!("warning: failed to init workstreams: {}", e);
         }
     }
+
+    // Apply session cache configuration (must be after workstreams so cache is recreated with manager)
+    let session_cfg = config.session.clone().unwrap_or_default();
+    app_state = app_state.with_session_config(&session_cfg);
+    tracing::debug!(
+        max_sessions = session_cfg.max_sessions,
+        cleanup_interval_secs = session_cfg.cleanup_interval_secs,
+        "Session cache configured"
+    );
 
     let server = Server::from_state(app_state);
 
@@ -1036,6 +1091,8 @@ fn resolve_with_cli_overrides(
                 api_key,
                 api_key_source: None,
                 resolved_from: arawn_config::ResolvedFrom::GlobalDefault,
+                retry_max: None,
+                retry_backoff_ms: None,
             }
         }
     };
@@ -1068,7 +1125,13 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
                      set ANTHROPIC_API_KEY, or add api_key to config"
                 )
             })?;
-            let config = AnthropicConfig::new(api_key);
+            let mut config = AnthropicConfig::new(api_key);
+            if let Some(max) = resolved.retry_max {
+                config = config.with_max_retries(max);
+            }
+            if let Some(ms) = resolved.retry_backoff_ms {
+                config = config.with_retry_backoff(Duration::from_millis(ms));
+            }
             Ok(Arc::new(AnthropicBackend::new(config)?))
         }
         Backend::Openai => {
@@ -1083,6 +1146,12 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
                 config = config.with_base_url(base_url);
             }
             config = config.with_model(&resolved.model);
+            if let Some(max) = resolved.retry_max {
+                config = config.with_max_retries(max);
+            }
+            if let Some(ms) = resolved.retry_backoff_ms {
+                config = config.with_retry_backoff(Duration::from_millis(ms));
+            }
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
         Backend::Groq => {
@@ -1094,6 +1163,12 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
             })?;
             let mut config = OpenAiConfig::groq(api_key);
             config = config.with_model(&resolved.model);
+            if let Some(max) = resolved.retry_max {
+                config = config.with_max_retries(max);
+            }
+            if let Some(ms) = resolved.retry_backoff_ms {
+                config = config.with_retry_backoff(Duration::from_millis(ms));
+            }
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
         Backend::Ollama => {
@@ -1102,6 +1177,12 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
                 config = config.with_base_url(base_url);
             }
             config = config.with_model(&resolved.model);
+            if let Some(max) = resolved.retry_max {
+                config = config.with_max_retries(max);
+            }
+            if let Some(ms) = resolved.retry_backoff_ms {
+                config = config.with_retry_backoff(Duration::from_millis(ms));
+            }
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
         Backend::Custom => {
@@ -1116,6 +1197,12 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
                 config.api_key = Some(api_key.clone());
             } else {
                 config.api_key = None;
+            }
+            if let Some(max) = resolved.retry_max {
+                config = config.with_max_retries(max);
+            }
+            if let Some(ms) = resolved.retry_backoff_ms {
+                config = config.with_retry_backoff(Duration::from_millis(ms));
             }
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
@@ -1220,6 +1307,8 @@ fn resolve_profile(name: &str, llm_config: &LlmConfig) -> Result<ResolvedLlm> {
             agent: "profile".to_string(),
             profile: name.to_string(),
         },
+        retry_max: llm_config.retry_max,
+        retry_backoff_ms: llm_config.retry_backoff_ms,
     })
 }
 
@@ -1361,5 +1450,93 @@ async fn register_builtin_runtimes(
         if verbose {
             println!("Registered runtime '{}'", runtime_name);
         }
+    }
+}
+
+/// Seed the database with test workstreams and sessions for development.
+fn seed_test_data(manager: &WorkstreamManager, verbose: bool) {
+    use arawn_workstream::types::MessageRole;
+
+    let test_workstreams = [
+        ("Project Alpha", "Research project for quantum computing"),
+        ("Code Review", "Daily code review sessions"),
+        ("Documentation", "Writing and updating docs"),
+        ("Bug Fixes", "Tracking and fixing bugs"),
+    ];
+
+    let mut created_count = 0;
+
+    for (title, summary) in &test_workstreams {
+        // Check if workstream already exists by listing and checking titles
+        let existing = manager.list_workstreams().unwrap_or_default();
+        if existing.iter().any(|ws| ws.title == *title) {
+            if verbose {
+                println!("  Seed: workstream '{}' already exists, skipping", title);
+            }
+            continue;
+        }
+
+        match manager.create_workstream(title, None, &[]) {
+            Ok(ws) => {
+                // Update with summary
+                if let Err(e) = manager.update_workstream(&ws.id, None, Some(summary), None) {
+                    if verbose {
+                        eprintln!("  Seed: failed to set summary for '{}': {}", title, e);
+                    }
+                }
+
+                // Add some test messages (sessions are created automatically)
+                let test_conversations = [
+                    ("Hello! I'm starting work on this project.", "Great! I'm ready to help. What would you like to work on first?"),
+                    ("Can you help me understand the architecture?", "Of course! Let me explain the high-level structure..."),
+                    ("What are the next steps?", "Based on our discussion, I recommend we focus on the core components first."),
+                ];
+
+                for (user_msg, assistant_msg) in &test_conversations {
+                    // Send user message (creates session if needed)
+                    if let Err(e) = manager.send_message(
+                        Some(&ws.id),
+                        None, // No specific session for seed data
+                        MessageRole::User,
+                        user_msg,
+                        None,
+                    ) {
+                        if verbose {
+                            eprintln!("  Seed: failed to add user message: {}", e);
+                        }
+                        continue;
+                    }
+
+                    // Send assistant response
+                    if let Err(e) = manager.send_message(
+                        Some(&ws.id),
+                        None,
+                        MessageRole::Assistant,
+                        assistant_msg,
+                        None,
+                    ) {
+                        if verbose {
+                            eprintln!("  Seed: failed to add assistant message: {}", e);
+                        }
+                    }
+                }
+
+                created_count += 1;
+                if verbose {
+                    println!("  Seed: created workstream '{}' with test messages", title);
+                }
+            }
+            Err(e) => {
+                if verbose {
+                    eprintln!("  Seed: failed to create workstream '{}': {}", title, e);
+                }
+            }
+        }
+    }
+
+    if created_count > 0 {
+        println!("Seed: created {} test workstream(s)", created_count);
+    } else if verbose {
+        println!("Seed: no new workstreams created (already seeded)");
     }
 }

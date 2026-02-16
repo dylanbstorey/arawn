@@ -1,0 +1,38 @@
+[package]
+name = "arawn-client"
+version = "0.1.0"
+edition = "2021"
+description = "HTTP client SDK for the Arawn AI agent platform"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+
+# Async runtime
+tokio = { version = "1", features = ["sync"] }
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+
+# Utilities
+url = "2"
+tracing = "0.1"
+
+# SSE parsing for streaming
+eventsource-stream = "0.2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+wiremock = "0.6"
+
+[features]
+default = []
+# Enable blocking (sync) API in addition to async
+blocking = ["reqwest/blocking"]

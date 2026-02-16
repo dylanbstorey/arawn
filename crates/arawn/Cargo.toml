@@ -22,6 +22,7 @@ arawn-pipeline = { workspace = true }
 arawn-plugin = { workspace = true }
 arawn-mcp = { workspace = true }
 arawn-workstream = { workspace = true }
+arawn-tui = { workspace = true }
 
 tokio = { workspace = true }
 clap = { workspace = true }

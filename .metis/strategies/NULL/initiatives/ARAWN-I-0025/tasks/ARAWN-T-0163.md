@@ -4,14 +4,14 @@ level: task
 title: "TUI: Chat view with streaming"
 short_code: "ARAWN-T-0163"
 created_at: 2026-02-11T00:28:43.552077+00:00
-updated_at: 2026-02-11T00:28:43.552077+00:00
+updated_at: 2026-02-11T22:04:09.461291+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -27,12 +27,14 @@ Implement the main chat view that displays conversation history and handles stre
 
 ## Acceptance Criteria
 
-- [ ] User messages displayed with `> ` prefix
-- [ ] Assistant messages with word wrapping
-- [ ] Streaming text appends in real-time with cursor indicator `▌`
-- [ ] Auto-scroll to bottom during streaming
-- [ ] Manual scroll through history (arrow keys when not in input)
-- [ ] Message buffer manages memory for long conversations
+## Acceptance Criteria
+
+- [x] User messages displayed with `> ` prefix
+- [x] Assistant messages with word wrapping
+- [x] Streaming text appends in real-time with cursor indicator `▌`
+- [x] Auto-scroll to bottom during streaming
+- [x] Manual scroll through history (arrow keys when not in input)
+- [x] Message buffer manages memory for long conversations (Vec<ChatMessage> in App)
 
 ## Implementation Notes
 
@@ -79,4 +81,30 @@ fn handle_delta(&mut self, content: &str) {
 
 ## Status Updates
 
-*To be added during implementation*
+### 2026-02-11: Implementation Complete
+
+**Files Created:**
+- `crates/arawn-tui/src/ui/chat.rs` - Chat view rendering with streaming support
+
+**Files Modified:**
+- `crates/arawn-tui/src/ui/mod.rs` - Export chat module
+- `crates/arawn-tui/src/ui/layout.rs` - Use render_chat for content area
+- `crates/arawn-tui/src/app.rs` - Added chat_scroll and chat_auto_scroll fields, scroll handling
+
+**Features Implemented:**
+- User messages displayed with cyan `> ` prefix
+- Assistant messages with word wrapping
+- Streaming cursor `▌` shown while message is being received
+- Auto-scroll to bottom during streaming (enabled by default)
+- Manual scroll with:
+  - ↑/↓ when input is empty
+  - PageUp/PageDown always
+  - Ctrl+Home to scroll to top
+  - Ctrl+End to re-enable auto-scroll
+- Tool executions displayed with status indicators (◐ running, ✓ success, ✗ failure)
+- Welcome screen shown when no messages
+- Scroll state preserved when manually scrolling
+
+**Code passes:**
+- All tests (4/4 passing)
+- Clippy with no warnings

@@ -31,6 +31,7 @@ pub mod config;
 pub mod error;
 pub mod ratelimit;
 pub mod routes;
+pub mod session_cache;
 pub mod state;
 
 pub use auth::{AuthError, AuthIdentity, Identity, auth_middleware};
@@ -38,6 +39,7 @@ pub use config::ServerConfig;
 pub use error::{Result, ServerError};
 pub use ratelimit::{RateLimitConfig, rate_limit_middleware, request_logging_middleware};
 pub use routes::{ChatRequest, ChatResponse};
+pub use session_cache::SessionCache;
 pub use state::AppState;
 
 use std::net::SocketAddr;
@@ -105,17 +107,37 @@ impl Server {
             .route("/chat", post(routes::chat_handler))
             .route("/chat/stream", post(routes::chat_stream_handler))
             // Session endpoints
-            .route("/sessions", get(routes::list_sessions_handler))
+            .route(
+                "/sessions",
+                post(routes::create_session_handler).get(routes::list_sessions_handler),
+            )
             .route(
                 "/sessions/{id}",
-                get(routes::get_session_handler).delete(routes::delete_session_handler),
+                get(routes::get_session_handler)
+                    .patch(routes::update_session_handler)
+                    .delete(routes::delete_session_handler),
+            )
+            .route(
+                "/sessions/{id}/messages",
+                get(routes::get_session_messages_handler),
             )
             // Memory endpoints
+            .route(
+                "/memory",
+                post(routes::store_memory_handler),
+            )
             .route("/memory/search", get(routes::memory_search_handler))
+            .route("/memory/{id}", delete(routes::delete_memory_handler))
             // Notes endpoints
             .route(
                 "/notes",
                 post(routes::create_note_handler).get(routes::list_notes_handler),
+            )
+            .route(
+                "/notes/{id}",
+                get(routes::get_note_handler)
+                    .put(routes::update_note_handler)
+                    .delete(routes::delete_note_handler),
             )
             // Workstream endpoints
             .route(
@@ -124,13 +146,30 @@ impl Server {
             )
             .route(
                 "/workstreams/{id}",
-                get(routes::get_workstream_handler).delete(routes::delete_workstream_handler),
+                get(routes::get_workstream_handler)
+                    .patch(routes::update_workstream_handler)
+                    .delete(routes::delete_workstream_handler),
             )
             .route(
                 "/workstreams/{id}/messages",
                 post(routes::send_message_handler).get(routes::list_messages_handler),
             )
+            .route(
+                "/workstreams/{id}/sessions",
+                get(routes::list_workstream_sessions_handler),
+            )
             .route("/workstreams/{id}/promote", post(routes::promote_handler))
+            // Config endpoint
+            .route("/config", get(routes::get_config_handler))
+            // Agent endpoints
+            .route("/agents", get(routes::list_agents_handler))
+            .route("/agents/{id}", get(routes::get_agent_handler))
+            // Task endpoints
+            .route("/tasks", get(routes::list_tasks_handler))
+            .route(
+                "/tasks/{id}",
+                get(routes::get_task_handler).delete(routes::cancel_task_handler),
+            )
             // MCP endpoints
             .route(
                 "/mcp/servers",

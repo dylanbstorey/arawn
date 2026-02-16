@@ -63,6 +63,12 @@ pub struct ArawnConfig {
 
     /// Workstream configuration.
     pub workstream: Option<WorkstreamConfig>,
+
+    /// Session cache configuration.
+    pub session: Option<SessionConfig>,
+
+    /// Tool execution configuration.
+    pub tools: Option<ToolsConfig>,
 }
 
 impl ArawnConfig {
@@ -133,6 +139,14 @@ impl ArawnConfig {
 
         if other.workstream.is_some() {
             self.workstream = other.workstream;
+        }
+
+        if other.session.is_some() {
+            self.session = other.session;
+        }
+
+        if other.tools.is_some() {
+            self.tools = other.tools;
         }
     }
 
@@ -206,6 +220,8 @@ struct RawConfig {
     delegation: Option<DelegationConfig>,
     mcp: Option<McpConfig>,
     workstream: Option<WorkstreamConfig>,
+    session: Option<SessionConfig>,
+    tools: Option<ToolsConfig>,
 }
 
 /// The `[llm]` section which can contain both direct fields and named sub-tables.
@@ -220,6 +236,12 @@ struct RawLlmSection {
     base_url: Option<String>,
     /// Default API key (will warn if present).
     api_key: Option<String>,
+    /// Maximum retry attempts for failed requests.
+    retry_max: Option<u32>,
+    /// Backoff delay between retries in milliseconds.
+    retry_backoff_ms: Option<u64>,
+    /// Maximum context window size in tokens.
+    max_context_tokens: Option<usize>,
 
     /// Named profiles are captured via flatten.
     #[serde(flatten)]
@@ -236,6 +258,9 @@ impl From<RawConfig> for ArawnConfig {
                         model: section.model,
                         base_url: section.base_url,
                         api_key: section.api_key,
+                        retry_max: section.retry_max,
+                        retry_backoff_ms: section.retry_backoff_ms,
+                        max_context_tokens: section.max_context_tokens,
                     })
                 } else {
                     None
@@ -258,6 +283,8 @@ impl From<RawConfig> for ArawnConfig {
             delegation: raw.delegation,
             mcp: raw.mcp,
             workstream: raw.workstream,
+            session: raw.session,
+            tools: raw.tools,
         }
     }
 }
@@ -271,6 +298,9 @@ impl From<ArawnConfig> for RawConfig {
                 model: default.model,
                 base_url: default.base_url,
                 api_key: default.api_key,
+                retry_max: default.retry_max,
+                retry_backoff_ms: default.retry_backoff_ms,
+                max_context_tokens: default.max_context_tokens,
                 profiles: config.llm_profiles,
             })
         } else {
@@ -289,6 +319,8 @@ impl From<ArawnConfig> for RawConfig {
             delegation: config.delegation,
             mcp: config.mcp,
             workstream: config.workstream,
+            session: config.session,
+            tools: config.tools,
         }
     }
 }
@@ -309,6 +341,13 @@ pub struct LlmConfig {
     pub base_url: Option<String>,
     /// API key (prefer keyring or env var; warns if set here).
     pub api_key: Option<String>,
+    /// Maximum retry attempts for failed requests.
+    pub retry_max: Option<u32>,
+    /// Backoff delay between retries in milliseconds.
+    pub retry_backoff_ms: Option<u64>,
+    /// Maximum context window size in tokens.
+    /// If not specified, uses default for the model (see `effective_max_context_tokens`).
+    pub max_context_tokens: Option<usize>,
 }
 
 impl LlmConfig {
@@ -320,6 +359,16 @@ impl LlmConfig {
     /// Get the environment variable name for this backend's API key.
     pub fn api_key_env_var(&self) -> Option<&'static str> {
         self.backend.as_ref().map(|b| b.env_var())
+    }
+
+    /// Get the maximum context tokens, returning an error if not configured.
+    pub fn require_max_context_tokens(&self) -> crate::Result<usize> {
+        self.max_context_tokens.ok_or_else(|| {
+            let model = self.model.as_deref().unwrap_or("unknown");
+            crate::ConfigError::MissingContextLimit {
+                model: model.to_string(),
+            }
+        })
     }
 }
 
@@ -398,6 +447,8 @@ pub struct ServerConfig {
     pub bind: String,
     /// Enable rate limiting.
     pub rate_limiting: bool,
+    /// API rate limit: requests per minute per IP.
+    pub api_rpm: u32,
     /// Enable request logging.
     pub request_logging: bool,
     /// Path to bootstrap files directory.
@@ -412,6 +463,7 @@ impl Default for ServerConfig {
             port: 8080,
             bind: "127.0.0.1".to_string(),
             rate_limiting: true,
+            api_rpm: 120,
             request_logging: true,
             bootstrap_dir: None,
             workspace: None,
@@ -1215,6 +1267,140 @@ impl Default for WorkstreamConfig {
             data_dir: None,
             session_timeout_minutes: 60,
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Session cache configuration.
+///
+/// Controls behavior of the in-memory session cache including eviction
+/// and cleanup settings.
+///
+/// ```toml
+/// [session]
+/// max_sessions = 10000
+/// cleanup_interval_secs = 60
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SessionConfig {
+    /// Maximum number of sessions to keep in cache before eviction.
+    pub max_sessions: usize,
+    /// Interval in seconds between cache cleanup runs.
+    pub cleanup_interval_secs: u64,
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            max_sessions: 10000,
+            cleanup_interval_secs: 60,
+        }
+    }
+}
+
+impl arawn_types::ConfigProvider for SessionConfig {}
+
+impl arawn_types::HasSessionConfig for SessionConfig {
+    fn max_sessions(&self) -> usize {
+        self.max_sessions
+    }
+
+    fn cleanup_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.cleanup_interval_secs)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tools Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Tool execution configuration.
+///
+/// Controls timeouts and output limits for various tool types.
+///
+/// ```toml
+/// [tools]
+/// [tools.output]
+/// max_size_bytes = 102400
+///
+/// [tools.shell]
+/// timeout_secs = 30
+///
+/// [tools.web]
+/// timeout_secs = 30
+/// ```
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ToolsConfig {
+    /// Tool output configuration.
+    pub output: ToolOutputConfig,
+    /// Shell tool configuration.
+    pub shell: ShellToolConfig,
+    /// Web tool configuration.
+    pub web: WebToolConfig,
+}
+
+/// Tool output configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ToolOutputConfig {
+    /// Maximum size of tool output in bytes before truncation.
+    pub max_size_bytes: usize,
+}
+
+impl Default for ToolOutputConfig {
+    fn default() -> Self {
+        Self {
+            max_size_bytes: 102400, // 100KB
+        }
+    }
+}
+
+/// Shell tool configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ShellToolConfig {
+    /// Timeout for shell command execution in seconds.
+    pub timeout_secs: u64,
+}
+
+impl Default for ShellToolConfig {
+    fn default() -> Self {
+        Self { timeout_secs: 30 }
+    }
+}
+
+/// Web tool configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WebToolConfig {
+    /// Timeout for web requests in seconds.
+    pub timeout_secs: u64,
+}
+
+impl Default for WebToolConfig {
+    fn default() -> Self {
+        Self { timeout_secs: 30 }
+    }
+}
+
+impl arawn_types::ConfigProvider for ToolsConfig {}
+
+impl arawn_types::HasToolConfig for ToolsConfig {
+    fn shell_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.shell.timeout_secs)
+    }
+
+    fn web_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.web.timeout_secs)
+    }
+
+    fn max_output_bytes(&self) -> usize {
+        self.output.max_size_bytes
     }
 }
 
@@ -2306,5 +2492,80 @@ command = "other-server"
         // Override replaces entire section
         assert_eq!(mcp.servers.len(), 1);
         assert_eq!(mcp.servers[0].name, "other");
+    }
+
+    // ── Context Limit Tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_model_config_parses_max_context_tokens() {
+        let toml = r#"
+[llm]
+backend = "anthropic"
+model = "claude-sonnet-4-20250514"
+max_context_tokens = 200000
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let llm = config.llm.as_ref().unwrap();
+        assert_eq!(llm.max_context_tokens, Some(200_000));
+    }
+
+    #[test]
+    fn test_model_config_context_tokens_in_profile() {
+        let toml = r#"
+[llm.claude]
+backend = "anthropic"
+model = "claude-sonnet-4-20250514"
+max_context_tokens = 200000
+
+[llm.fast]
+backend = "groq"
+model = "llama-3.1-70b-versatile"
+max_context_tokens = 32000
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+
+        let claude = &config.llm_profiles["claude"];
+        assert_eq!(claude.max_context_tokens, Some(200_000));
+
+        let fast = &config.llm_profiles["fast"];
+        assert_eq!(fast.max_context_tokens, Some(32_000));
+    }
+
+    #[test]
+    fn test_require_max_context_tokens_success() {
+        let llm = LlmConfig {
+            model: Some("test-model".to_string()),
+            max_context_tokens: Some(100_000),
+            ..Default::default()
+        };
+        assert_eq!(llm.require_max_context_tokens().unwrap(), 100_000);
+    }
+
+    #[test]
+    fn test_require_max_context_tokens_error() {
+        let llm = LlmConfig {
+            model: Some("unknown-model".to_string()),
+            max_context_tokens: None,
+            ..Default::default()
+        };
+        let err = llm.require_max_context_tokens().unwrap_err();
+        assert!(matches!(err, crate::ConfigError::MissingContextLimit { .. }));
+    }
+
+    #[test]
+    fn test_model_context_roundtrip() {
+        let toml = r#"
+[llm]
+backend = "anthropic"
+model = "claude-sonnet-4-20250514"
+max_context_tokens = 200000
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let serialized = config.to_toml().unwrap();
+        let reparsed = ArawnConfig::from_toml(&serialized).unwrap();
+        assert_eq!(
+            reparsed.llm.as_ref().unwrap().max_context_tokens,
+            Some(200_000)
+        );
     }
 }

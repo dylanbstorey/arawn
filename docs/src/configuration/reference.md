@@ -10,6 +10,8 @@ Complete reference for Arawn configuration options.
 [llm]
 backend = "anthropic"      # anthropic, openai, groq, ollama
 model = "claude-sonnet-4-20250514"    # Model name for the backend
+retry_max = 3              # Max retry attempts for failed requests
+retry_backoff_ms = 500     # Initial backoff between retries (ms)
 ```
 
 ### Multiple Backends
@@ -53,6 +55,9 @@ include_graph = true       # Use graph expansion
 [server]
 port = 8080                # HTTP port
 bind = "127.0.0.1"         # Bind address
+rate_limiting = true       # Enable per-IP rate limiting
+api_rpm = 120              # Requests per minute per IP
+request_logging = true     # Enable request logging
 ```
 
 ### Authentication
@@ -89,14 +94,39 @@ headers = { "Authorization" = "Bearer $env:MCP_TOKEN" }
 ## Agent Configuration
 
 ```toml
-[agent]
-max_iterations = 25        # Max tool loop iterations
-tool_timeout = 30          # Tool execution timeout (seconds)
+[agent.default]
+max_iterations = 25        # Max tool loop iterations (default for all agents)
+llm = "claude"             # LLM profile to use
+
+[agent.summarizer]         # Named agent override
+max_iterations = 10
+llm = "fast"
 
 [agent.recall]
 enabled = true
 limit = 5
 threshold = 0.6
+```
+
+## Session Cache Configuration
+
+```toml
+[session]
+max_sessions = 10000           # Max sessions in cache before LRU eviction
+cleanup_interval_secs = 60     # Interval between cleanup runs
+```
+
+## Tool Configuration
+
+```toml
+[tools.output]
+max_size_bytes = 102400    # Max tool output size (100KB default)
+
+[tools.shell]
+timeout_secs = 30          # Shell command timeout
+
+[tools.web]
+timeout_secs = 30          # Web request timeout
 ```
 
 ## Workstream Configuration

@@ -76,6 +76,8 @@ fn map_role(role: MessageRole) -> ContextRole {
         MessageRole::User => ContextRole::User,
         MessageRole::Assistant | MessageRole::AgentPush => ContextRole::Assistant,
         MessageRole::System => ContextRole::System,
+        // Tool use and tool results are sent as assistant context (part of the agent's actions)
+        MessageRole::ToolUse => ContextRole::Assistant,
         MessageRole::ToolResult => ContextRole::User, // tool results sent as user context
     }
 }
@@ -133,9 +135,9 @@ mod tests {
         let (_dir, mgr) = test_manager();
         let ws = mgr.create_workstream("Chat", None, &[]).unwrap();
 
-        mgr.send_message(Some(&ws.id), MessageRole::User, "hello", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "hello", None)
             .unwrap();
-        mgr.send_message(Some(&ws.id), MessageRole::Assistant, "hi there", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::Assistant, "hi there", None)
             .unwrap();
 
         let assembler = ContextAssembler::new(&mgr);
@@ -160,7 +162,7 @@ mod tests {
                 MessageRole::Assistant
             };
             let content = format!("{:>100}", i); // 100 chars each
-            mgr.send_message(Some(&ws.id), role, &content, None)
+            mgr.send_message(Some(&ws.id), None, role, &content, None)
                 .unwrap();
         }
 
@@ -191,7 +193,7 @@ mod tests {
                 MessageRole::Assistant
             };
             let content = format!("{:>100}", i);
-            mgr.send_message(Some(&ws.id), role, &content, None)
+            mgr.send_message(Some(&ws.id), None, role, &content, None)
                 .unwrap();
         }
 
@@ -209,14 +211,14 @@ mod tests {
         let (_dir, mgr) = test_manager();
         let ws = mgr.create_workstream("Roles", None, &[]).unwrap();
 
-        mgr.send_message(Some(&ws.id), MessageRole::User, "q", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::User, "q", None)
             .unwrap();
-        mgr.send_message(Some(&ws.id), MessageRole::Assistant, "a", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::Assistant, "a", None)
             .unwrap();
         mgr.push_agent_message(&ws.id, "update", None).unwrap();
-        mgr.send_message(Some(&ws.id), MessageRole::System, "sys", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::System, "sys", None)
             .unwrap();
-        mgr.send_message(Some(&ws.id), MessageRole::ToolResult, "result", None)
+        mgr.send_message(Some(&ws.id), None, MessageRole::ToolResult, "result", None)
             .unwrap();
 
         let assembler = ContextAssembler::new(&mgr);

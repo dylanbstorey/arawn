@@ -138,6 +138,12 @@ impl OpenAiConfig {
         self.max_retries = retries;
         self
     }
+
+    /// Set retry backoff.
+    pub fn with_retry_backoff(mut self, backoff: Duration) -> Self {
+        self.retry_backoff = backoff;
+        self
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
