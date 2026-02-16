@@ -64,8 +64,8 @@ pub use tool::{
 // Re-export agent
 pub use agent::{Agent, AgentBuilder, RecallConfig};
 
-// Re-export context builder
-pub use context::ContextBuilder;
+// Re-export context types
+pub use context::{ContextBuilder, ContextStatus, ContextTracker};
 
 // Re-export prompt builder
 pub use prompt::{BootstrapContext, BootstrapFile, PromptMode, SystemPromptBuilder};

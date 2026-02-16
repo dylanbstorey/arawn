@@ -29,6 +29,187 @@ use crate::tool::ToolRegistry;
 use crate::types::{AgentConfig, Session, Turn};
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Context Tracker
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Status of context usage relative to thresholds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContextStatus {
+    /// Usage is below warning threshold.
+    Ok {
+        /// Current token count.
+        current: usize,
+        /// Maximum token capacity.
+        max: usize,
+    },
+    /// Usage is between warning and critical thresholds.
+    Warning {
+        /// Current token count.
+        current: usize,
+        /// Maximum token capacity.
+        max: usize,
+    },
+    /// Usage exceeds critical threshold.
+    Critical {
+        /// Current token count.
+        current: usize,
+        /// Maximum token capacity.
+        max: usize,
+    },
+}
+
+impl ContextStatus {
+    /// Returns true if status is Ok.
+    pub fn is_ok(&self) -> bool {
+        matches!(self, Self::Ok { .. })
+    }
+
+    /// Returns true if status is Warning or Critical.
+    pub fn is_warning(&self) -> bool {
+        matches!(self, Self::Warning { .. } | Self::Critical { .. })
+    }
+
+    /// Returns true if status is Critical.
+    pub fn is_critical(&self) -> bool {
+        matches!(self, Self::Critical { .. })
+    }
+
+    /// Get current token count.
+    pub fn current(&self) -> usize {
+        match self {
+            Self::Ok { current, .. }
+            | Self::Warning { current, .. }
+            | Self::Critical { current, .. } => *current,
+        }
+    }
+
+    /// Get maximum token capacity.
+    pub fn max(&self) -> usize {
+        match self {
+            Self::Ok { max, .. } | Self::Warning { max, .. } | Self::Critical { max, .. } => *max,
+        }
+    }
+
+    /// Get usage as percentage (0.0 - 1.0).
+    pub fn percent(&self) -> f32 {
+        let max = self.max();
+        if max == 0 {
+            return 0.0;
+        }
+        (self.current() as f32) / (max as f32)
+    }
+
+    /// Get remaining tokens.
+    pub fn remaining(&self) -> usize {
+        self.max().saturating_sub(self.current())
+    }
+}
+
+/// Tracks token usage for a session with configurable thresholds.
+///
+/// ContextTracker monitors context window usage and reports status based on
+/// warning and critical thresholds. This enables proactive context management
+/// such as triggering compaction before hitting hard limits.
+#[derive(Debug, Clone)]
+pub struct ContextTracker {
+    /// Maximum tokens available for context.
+    max_tokens: usize,
+    /// Current estimated token usage.
+    current_tokens: usize,
+    /// Threshold for warning status (0.0 - 1.0).
+    warning_threshold: f32,
+    /// Threshold for critical status (0.0 - 1.0).
+    critical_threshold: f32,
+}
+
+impl ContextTracker {
+    /// Default warning threshold (70% of max).
+    pub const DEFAULT_WARNING_THRESHOLD: f32 = 0.7;
+    /// Default critical threshold (90% of max).
+    pub const DEFAULT_CRITICAL_THRESHOLD: f32 = 0.9;
+
+    /// Create a new context tracker for a model with the given max tokens.
+    pub fn for_model(max_tokens: usize) -> Self {
+        Self {
+            max_tokens,
+            current_tokens: 0,
+            warning_threshold: Self::DEFAULT_WARNING_THRESHOLD,
+            critical_threshold: Self::DEFAULT_CRITICAL_THRESHOLD,
+        }
+    }
+
+    /// Set custom warning threshold (0.0 - 1.0).
+    pub fn with_warning_threshold(mut self, threshold: f32) -> Self {
+        self.warning_threshold = threshold.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Set custom critical threshold (0.0 - 1.0).
+    pub fn with_critical_threshold(mut self, threshold: f32) -> Self {
+        self.critical_threshold = threshold.clamp(0.0, 1.0);
+        self
+    }
+
+    /// Update the current token count.
+    pub fn update(&mut self, token_count: usize) {
+        self.current_tokens = token_count;
+    }
+
+    /// Add tokens to the current count.
+    pub fn add(&mut self, tokens: usize) {
+        self.current_tokens = self.current_tokens.saturating_add(tokens);
+    }
+
+    /// Get the current context status based on thresholds.
+    pub fn status(&self) -> ContextStatus {
+        let percent = self.usage_percent();
+        let current = self.current_tokens;
+        let max = self.max_tokens;
+
+        if percent >= self.critical_threshold {
+            ContextStatus::Critical { current, max }
+        } else if percent >= self.warning_threshold {
+            ContextStatus::Warning { current, max }
+        } else {
+            ContextStatus::Ok { current, max }
+        }
+    }
+
+    /// Get current usage as a percentage (0.0 - 1.0).
+    pub fn usage_percent(&self) -> f32 {
+        if self.max_tokens == 0 {
+            return 0.0;
+        }
+        (self.current_tokens as f32) / (self.max_tokens as f32)
+    }
+
+    /// Returns true if compaction should be triggered (critical threshold exceeded).
+    pub fn should_compact(&self) -> bool {
+        self.status().is_critical()
+    }
+
+    /// Get current token count.
+    pub fn current_tokens(&self) -> usize {
+        self.current_tokens
+    }
+
+    /// Get maximum tokens.
+    pub fn max_tokens(&self) -> usize {
+        self.max_tokens
+    }
+
+    /// Get remaining tokens before hitting max.
+    pub fn remaining_tokens(&self) -> usize {
+        self.max_tokens.saturating_sub(self.current_tokens)
+    }
+
+    /// Reset the tracker to zero usage.
+    pub fn reset(&mut self) {
+        self.current_tokens = 0;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Context Builder
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -452,5 +633,195 @@ mod tests {
 
         let tokens = builder.estimate_session_tokens(&session);
         assert!(tokens > 0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ContextTracker Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_context_tracker_for_model() {
+        let tracker = ContextTracker::for_model(100_000);
+        assert_eq!(tracker.max_tokens(), 100_000);
+        assert_eq!(tracker.current_tokens(), 0);
+        assert_eq!(tracker.warning_threshold, 0.7);
+        assert_eq!(tracker.critical_threshold, 0.9);
+    }
+
+    #[test]
+    fn test_context_tracker_custom_thresholds() {
+        let tracker = ContextTracker::for_model(100_000)
+            .with_warning_threshold(0.6)
+            .with_critical_threshold(0.8);
+
+        assert_eq!(tracker.warning_threshold, 0.6);
+        assert_eq!(tracker.critical_threshold, 0.8);
+    }
+
+    #[test]
+    fn test_context_tracker_threshold_clamping() {
+        let tracker = ContextTracker::for_model(100_000)
+            .with_warning_threshold(1.5)
+            .with_critical_threshold(-0.5);
+
+        assert_eq!(tracker.warning_threshold, 1.0);
+        assert_eq!(tracker.critical_threshold, 0.0);
+    }
+
+    #[test]
+    fn test_context_tracker_update() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        assert_eq!(tracker.current_tokens(), 0);
+
+        tracker.update(50_000);
+        assert_eq!(tracker.current_tokens(), 50_000);
+
+        tracker.update(75_000);
+        assert_eq!(tracker.current_tokens(), 75_000);
+    }
+
+    #[test]
+    fn test_context_tracker_add() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(10_000);
+
+        tracker.add(5_000);
+        assert_eq!(tracker.current_tokens(), 15_000);
+
+        tracker.add(5_000);
+        assert_eq!(tracker.current_tokens(), 20_000);
+    }
+
+    #[test]
+    fn test_context_tracker_usage_percent() {
+        let mut tracker = ContextTracker::for_model(100_000);
+
+        tracker.update(0);
+        assert_eq!(tracker.usage_percent(), 0.0);
+
+        tracker.update(50_000);
+        assert_eq!(tracker.usage_percent(), 0.5);
+
+        tracker.update(100_000);
+        assert_eq!(tracker.usage_percent(), 1.0);
+    }
+
+    #[test]
+    fn test_context_tracker_usage_percent_zero_max() {
+        let tracker = ContextTracker::for_model(0);
+        assert_eq!(tracker.usage_percent(), 0.0);
+    }
+
+    #[test]
+    fn test_context_tracker_status_ok() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(60_000); // 60% - below warning threshold
+
+        let status = tracker.status();
+        assert!(matches!(status, ContextStatus::Ok { current: 60_000, max: 100_000 }));
+        assert!(status.is_ok());
+        assert!(!status.is_warning());
+        assert!(!status.is_critical());
+        assert_eq!(status.current(), 60_000);
+        assert_eq!(status.max(), 100_000);
+        assert!((status.percent() - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_context_tracker_status_warning() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(75_000); // 75% - between warning (70%) and critical (90%)
+
+        let status = tracker.status();
+        assert!(matches!(status, ContextStatus::Warning { current: 75_000, max: 100_000 }));
+        assert!(!status.is_ok());
+        assert!(status.is_warning());
+        assert!(!status.is_critical());
+        assert_eq!(status.current(), 75_000);
+        assert_eq!(status.max(), 100_000);
+        assert!((status.percent() - 0.75).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_context_tracker_status_critical() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(95_000); // 95% - above critical threshold (90%)
+
+        let status = tracker.status();
+        assert!(matches!(status, ContextStatus::Critical { current: 95_000, max: 100_000 }));
+        assert!(!status.is_ok());
+        assert!(status.is_warning()); // Critical is also considered a warning
+        assert!(status.is_critical());
+        assert_eq!(status.current(), 95_000);
+        assert_eq!(status.max(), 100_000);
+        assert!((status.percent() - 0.95).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_context_tracker_should_compact() {
+        let mut tracker = ContextTracker::for_model(100_000);
+
+        tracker.update(60_000);
+        assert!(!tracker.should_compact());
+
+        tracker.update(75_000);
+        assert!(!tracker.should_compact());
+
+        tracker.update(95_000);
+        assert!(tracker.should_compact());
+    }
+
+    #[test]
+    fn test_context_tracker_remaining_tokens() {
+        let mut tracker = ContextTracker::for_model(100_000);
+
+        assert_eq!(tracker.remaining_tokens(), 100_000);
+
+        tracker.update(40_000);
+        assert_eq!(tracker.remaining_tokens(), 60_000);
+
+        tracker.update(100_000);
+        assert_eq!(tracker.remaining_tokens(), 0);
+    }
+
+    #[test]
+    fn test_context_tracker_reset() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(50_000);
+        assert_eq!(tracker.current_tokens(), 50_000);
+
+        tracker.reset();
+        assert_eq!(tracker.current_tokens(), 0);
+        assert!(tracker.status().is_ok());
+        assert_eq!(tracker.status().current(), 0);
+    }
+
+    #[test]
+    fn test_context_status_at_exact_thresholds() {
+        let mut tracker = ContextTracker::for_model(100_000);
+
+        // Exactly at warning threshold
+        tracker.update(70_000);
+        assert!(matches!(tracker.status(), ContextStatus::Warning { .. }));
+
+        // Exactly at critical threshold
+        tracker.update(90_000);
+        assert!(matches!(tracker.status(), ContextStatus::Critical { .. }));
+    }
+
+    #[test]
+    fn test_context_status_remaining() {
+        let mut tracker = ContextTracker::for_model(100_000);
+        tracker.update(75_000);
+
+        let status = tracker.status();
+        assert_eq!(status.remaining(), 25_000);
+    }
+
+    #[test]
+    fn test_context_status_percent_zero_max() {
+        // Edge case: zero max tokens
+        let status = ContextStatus::Ok { current: 0, max: 0 };
+        assert_eq!(status.percent(), 0.0);
     }
 }

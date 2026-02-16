@@ -195,6 +195,9 @@ pub struct Session {
     /// Use this to inject dynamic context (e.g., from a parent agent) that the LLM
     /// should see but that shouldn't pollute the conversation history.
     pub context_preamble: Option<String>,
+    /// Context tracker for monitoring token usage (runtime state, not persisted).
+    #[serde(skip)]
+    pub context_tracker: Option<crate::context::ContextTracker>,
 }
 
 impl Session {
@@ -208,6 +211,7 @@ impl Session {
             updated_at: now,
             metadata: HashMap::new(),
             context_preamble: None,
+            context_tracker: None,
         }
     }
 
@@ -221,7 +225,25 @@ impl Session {
             updated_at: now,
             metadata: HashMap::new(),
             context_preamble: None,
+            context_tracker: None,
         }
+    }
+
+    /// Initialize context tracking for this session with the given max tokens.
+    ///
+    /// Call this when you know the model's context limit (from config).
+    pub fn init_context_tracker(&mut self, max_tokens: usize) {
+        self.context_tracker = Some(crate::context::ContextTracker::for_model(max_tokens));
+    }
+
+    /// Get the context tracker, if initialized.
+    pub fn context_tracker(&self) -> Option<&crate::context::ContextTracker> {
+        self.context_tracker.as_ref()
+    }
+
+    /// Get the context tracker mutably, if initialized.
+    pub fn context_tracker_mut(&mut self) -> Option<&mut crate::context::ContextTracker> {
+        self.context_tracker.as_mut()
     }
 
     /// Set a context preamble that's included in system prompts but not in turn history.
@@ -656,6 +678,41 @@ mod tests {
         assert_eq!(session.turn_count(), 1);
         assert_eq!(session.turns[0].user_message, "Hello");
         assert!(!session.turns[0].user_message.contains("context"));
+    }
+
+    #[test]
+    fn test_session_context_tracker() {
+        let mut session = Session::new();
+
+        // Initially no tracker
+        assert!(session.context_tracker().is_none());
+
+        // Initialize tracker
+        session.init_context_tracker(100_000);
+        assert!(session.context_tracker().is_some());
+
+        // Check tracker values
+        let tracker = session.context_tracker().unwrap();
+        assert_eq!(tracker.max_tokens(), 100_000);
+        assert_eq!(tracker.current_tokens(), 0);
+
+        // Update via mutable accessor
+        session.context_tracker_mut().unwrap().update(50_000);
+        assert_eq!(session.context_tracker().unwrap().current_tokens(), 50_000);
+    }
+
+    #[test]
+    fn test_session_context_tracker_not_serialized() {
+        let mut session = Session::new();
+        session.init_context_tracker(100_000);
+        session.context_tracker_mut().unwrap().update(50_000);
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&session).unwrap();
+        let restored: Session = serde_json::from_str(&json).unwrap();
+
+        // Tracker should be None after deserialization (it's skipped)
+        assert!(restored.context_tracker().is_none());
     }
 }
 
