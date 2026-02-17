@@ -29,6 +29,7 @@
 //! - [`AgentResponse`]: Output from an agent turn
 
 pub mod agent;
+pub mod compaction;
 pub mod context;
 pub mod error;
 pub mod indexing;
@@ -63,6 +64,12 @@ pub use tool::{
 
 // Re-export agent
 pub use agent::{Agent, AgentBuilder, RecallConfig};
+
+// Re-export compaction types
+pub use compaction::{
+    CancellationToken, CompactionProgress, CompactionResult, CompactorConfig, ProgressCallback,
+    SessionCompactor,
+};
 
 // Re-export context types
 pub use context::{ContextBuilder, ContextStatus, ContextTracker};

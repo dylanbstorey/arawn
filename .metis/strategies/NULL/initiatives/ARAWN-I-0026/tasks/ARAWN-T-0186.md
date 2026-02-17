@@ -4,14 +4,14 @@ level: task
 title: "SessionCompactor implementation"
 short_code: "ARAWN-T-0186"
 created_at: 2026-02-16T18:54:49.937584+00:00
-updated_at: 2026-02-16T18:54:49.937584+00:00
+updated_at: 2026-02-17T01:04:51.307182+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -31,13 +31,15 @@ Implement SessionCompactor that summarizes older turns mid-session while preserv
 
 ## Acceptance Criteria
 
-- [ ] `SessionCompactor` struct wrapping existing Compressor
-- [ ] `compact(session)` method that summarizes old turns
-- [ ] Preserves last N turns verbatim (configurable, default: 3)
-- [ ] Returns `CompactionResult` with stats (turns compacted, tokens freed)
-- [ ] Progress callback for streaming status to clients
-- [ ] Handles partial compaction on cancellation
-- [ ] Unit tests for turn preservation logic
+## Acceptance Criteria
+
+- [x] `SessionCompactor` struct wrapping existing Compressor
+- [x] `compact(session)` method that summarizes old turns
+- [x] Preserves last N turns verbatim (configurable, default: 3)
+- [x] Returns `CompactionResult` with stats (turns compacted, tokens freed)
+- [x] Progress callback for streaming status to clients
+- [x] Handles partial compaction on cancellation
+- [x] Unit tests for turn preservation logic
 
 ## Implementation Notes
 
@@ -82,4 +84,27 @@ pub struct CompactionResult {
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 (2026-02-16)
+- Created `crates/arawn-agent/src/compaction.rs` with:
+  - `CompactorConfig` - configuration for model, max tokens, preserve count
+  - `CompactionResult` - stats with turns_compacted, tokens_before/after, summary
+  - `CompactionProgress` enum - Started, Summarizing, Completed, Cancelled
+  - `CancellationToken` - atomic bool for cooperative cancellation
+  - `SessionCompactor` - main compactor struct
+- Implemented key methods:
+  - `compact()` - simple compaction
+  - `compact_with_progress()` - with progress callback
+  - `compact_with_options()` - full options with cancellation support
+  - `needs_compaction()` - check if session exceeds threshold
+- Cancellation support:
+  - Checks for cancellation at start and between stages
+  - Reports cancellation via progress callback
+  - Returns `AgentError::Cancelled` on cancellation
+- Added 17 unit tests covering:
+  - Config defaults, result stats, compression ratio
+  - Turn preservation logic
+  - Progress callback invocation
+  - Cancellation handling
+- Exported all types from arawn-agent crate
+
+**All acceptance criteria complete.**
