@@ -5,6 +5,47 @@ use std::collections::VecDeque;
 /// Maximum number of history entries to keep.
 const MAX_HISTORY: usize = 100;
 
+/// Parsed command from input starting with '/'.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedCommand {
+    /// Command name (without the leading '/').
+    pub name: String,
+    /// Command arguments (text after the command name).
+    pub args: String,
+}
+
+impl ParsedCommand {
+    /// Parse a command from input text.
+    ///
+    /// Returns None if the input doesn't start with '/'.
+    pub fn parse(input: &str) -> Option<Self> {
+        let trimmed = input.trim();
+        if !trimmed.starts_with('/') {
+            return None;
+        }
+
+        // Remove the leading '/'
+        let rest = &trimmed[1..];
+
+        // Split into command name and args
+        let (name, args) = match rest.find(char::is_whitespace) {
+            Some(pos) => {
+                let name = rest[..pos].to_string();
+                let args = rest[pos..].trim().to_string();
+                (name, args)
+            }
+            None => (rest.to_string(), String::new()),
+        };
+
+        Some(Self { name, args })
+    }
+
+    /// Get the command name in lowercase for matching.
+    pub fn name_lower(&self) -> String {
+        self.name.to_lowercase()
+    }
+}
+
 /// Input state with text editing and history navigation.
 #[derive(Debug, Clone)]
 pub struct InputState {
@@ -51,6 +92,28 @@ impl InputState {
     /// Check if the input is empty.
     pub fn is_empty(&self) -> bool {
         self.content.is_empty()
+    }
+
+    /// Check if the input starts with a command prefix '/'.
+    pub fn is_command(&self) -> bool {
+        self.content.trim().starts_with('/')
+    }
+
+    /// Parse the input as a command if it starts with '/'.
+    pub fn parse_command(&self) -> Option<ParsedCommand> {
+        ParsedCommand::parse(&self.content)
+    }
+
+    /// Get the command prefix for autocomplete filtering.
+    /// Returns the text after '/' for filtering the command list.
+    pub fn command_prefix(&self) -> Option<&str> {
+        let trimmed = self.content.trim();
+        if !trimmed.starts_with('/') {
+            return None;
+        }
+        let rest = &trimmed[1..];
+        // Return everything up to the first space (the partial command name)
+        Some(rest.split_whitespace().next().unwrap_or(rest))
     }
 
     /// Count the number of lines in the input.
@@ -418,5 +481,77 @@ mod tests {
         // Return to draft
         assert!(input.history_next());
         assert_eq!(input.content(), "new");
+    }
+
+    #[test]
+    fn test_is_command() {
+        let mut input = InputState::new();
+
+        // Empty input is not a command
+        assert!(!input.is_command());
+
+        // Regular message is not a command
+        input.set_text("hello world");
+        assert!(!input.is_command());
+
+        // Slash at start is a command
+        input.set_text("/compact");
+        assert!(input.is_command());
+
+        // Slash with leading whitespace
+        input.set_text("  /help");
+        assert!(input.is_command());
+
+        // Slash not at start is not a command
+        input.set_text("hello /world");
+        assert!(!input.is_command());
+    }
+
+    #[test]
+    fn test_parse_command() {
+        // Simple command
+        let cmd = ParsedCommand::parse("/compact").unwrap();
+        assert_eq!(cmd.name, "compact");
+        assert_eq!(cmd.args, "");
+
+        // Command with args
+        let cmd = ParsedCommand::parse("/compact --force").unwrap();
+        assert_eq!(cmd.name, "compact");
+        assert_eq!(cmd.args, "--force");
+
+        // Command with multiple args
+        let cmd = ParsedCommand::parse("/search foo bar baz").unwrap();
+        assert_eq!(cmd.name, "search");
+        assert_eq!(cmd.args, "foo bar baz");
+
+        // Not a command
+        assert!(ParsedCommand::parse("hello").is_none());
+        assert!(ParsedCommand::parse("").is_none());
+
+        // Just slash
+        let cmd = ParsedCommand::parse("/").unwrap();
+        assert_eq!(cmd.name, "");
+        assert_eq!(cmd.args, "");
+    }
+
+    #[test]
+    fn test_command_prefix() {
+        let mut input = InputState::new();
+
+        // Not a command
+        input.set_text("hello");
+        assert!(input.command_prefix().is_none());
+
+        // Partial command
+        input.set_text("/com");
+        assert_eq!(input.command_prefix(), Some("com"));
+
+        // Full command with args
+        input.set_text("/compact --force");
+        assert_eq!(input.command_prefix(), Some("compact"));
+
+        // Just slash
+        input.set_text("/");
+        assert_eq!(input.command_prefix(), Some(""));
     }
 }

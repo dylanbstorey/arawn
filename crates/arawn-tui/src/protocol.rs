@@ -41,6 +41,14 @@ pub enum ClientMessage {
         /// Session ID to cancel.
         session_id: String,
     },
+    /// Execute a server command.
+    Command {
+        /// Command name (e.g., "compact").
+        command: String,
+        /// Command arguments as JSON.
+        #[serde(default)]
+        args: serde_json::Value,
+    },
 }
 
 /// Messages from server to client.
@@ -105,6 +113,25 @@ pub enum ServerMessage {
     },
     /// Pong response to ping.
     Pong,
+    /// Command execution progress.
+    CommandProgress {
+        /// Command name.
+        command: String,
+        /// Progress message.
+        message: String,
+        /// Progress percentage (0-100).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        percent: Option<u8>,
+    },
+    /// Command execution result.
+    CommandResult {
+        /// Command name.
+        command: String,
+        /// Whether the command succeeded.
+        success: bool,
+        /// Result data (on success) or error details (on failure).
+        result: serde_json::Value,
+    },
 }
 
 #[cfg(test)]
@@ -169,5 +196,74 @@ mod tests {
             ServerMessage::Error { code, message }
             if code == "test" && message == "Test error"
         ));
+    }
+
+    #[test]
+    fn test_command_message_serialization() {
+        // Command without args
+        let msg = ClientMessage::Command {
+            command: "compact".to_string(),
+            args: serde_json::Value::Null,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""type":"command""#));
+        assert!(json.contains(r#""command":"compact""#));
+
+        // Command with args
+        let msg = ClientMessage::Command {
+            command: "compact".to_string(),
+            args: serde_json::json!({"session_id": "123", "force": true}),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""session_id":"123""#));
+        assert!(json.contains(r#""force":true"#));
+    }
+
+    #[test]
+    fn test_command_response_deserialization() {
+        // Command progress
+        let json = r#"{"type":"command_progress","command":"compact","message":"Starting...","percent":50}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::CommandProgress { command, message, percent } => {
+                assert_eq!(command, "compact");
+                assert_eq!(message, "Starting...");
+                assert_eq!(percent, Some(50));
+            }
+            _ => panic!("Expected CommandProgress"),
+        }
+
+        // Command progress without percent
+        let json = r#"{"type":"command_progress","command":"compact","message":"Working..."}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::CommandProgress { percent, .. } => {
+                assert!(percent.is_none());
+            }
+            _ => panic!("Expected CommandProgress"),
+        }
+
+        // Command result success
+        let json = r#"{"type":"command_result","command":"compact","success":true,"result":{"compacted":true}}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::CommandResult { command, success, result } => {
+                assert_eq!(command, "compact");
+                assert!(success);
+                assert_eq!(result["compacted"], true);
+            }
+            _ => panic!("Expected CommandResult"),
+        }
+
+        // Command result failure
+        let json = r#"{"type":"command_result","command":"compact","success":false,"result":{"error":"Session not found"}}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::CommandResult { success, result, .. } => {
+                assert!(!success);
+                assert_eq!(result["error"], "Session not found");
+            }
+            _ => panic!("Expected CommandResult"),
+        }
     }
 }

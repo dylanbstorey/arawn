@@ -143,6 +143,13 @@ impl WsClient {
             .send(ClientMessage::Cancel { session_id })
             .context("Failed to send cancel")
     }
+
+    /// Send a command to the server.
+    pub fn send_command(&self, command: String, args: serde_json::Value) -> Result<()> {
+        self.tx
+            .send(ClientMessage::Command { command, args })
+            .context("Failed to send command")
+    }
 }
 
 /// Connection loop that handles reconnection with exponential backoff.

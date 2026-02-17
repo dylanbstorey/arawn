@@ -71,6 +71,11 @@ pub fn render(app: &App, frame: &mut Frame) {
     render_input(app, frame, chunks[2]);
     render_status_bar(app, frame, chunks[3]);
 
+    // Render command popup above input if visible
+    if app.command_popup.is_visible() {
+        app.command_popup.render(frame, chunks[2]);
+    }
+
     // Render logs panel if visible
     if let Some(logs_area) = logs_area {
         let logs_chunks = Layout::vertical([

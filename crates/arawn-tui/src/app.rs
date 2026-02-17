@@ -14,6 +14,7 @@ use crate::events::{Event, EventHandler};
 use crate::input::InputState;
 use crate::logs::LogBuffer;
 use crate::palette::{ActionId, CommandPalette};
+use crate::ui::CommandPopup;
 use crate::protocol::ServerMessage;
 use crate::sessions::{SessionList, SessionSummary};
 use crate::sidebar::{Sidebar, SidebarSection, WorkstreamEntry};
@@ -139,6 +140,12 @@ pub struct App {
     pub tool_scroll: usize,
     /// Pending async actions to process.
     pending_actions: Vec<PendingAction>,
+    /// Command autocomplete popup.
+    pub command_popup: CommandPopup,
+    /// Whether a command is currently executing.
+    pub command_executing: bool,
+    /// Current command execution progress message.
+    pub command_progress: Option<String>,
 }
 
 impl App {
@@ -186,6 +193,9 @@ impl App {
             moving_session_to_workstream: false,
             tool_scroll: 0,
             pending_actions: Vec::new(),
+            command_popup: CommandPopup::new(),
+            command_executing: false,
+            command_progress: None,
         })
     }
 
@@ -653,6 +663,52 @@ impl App {
             ServerMessage::Pong => {
                 // Ignore pongs
             }
+
+            ServerMessage::CommandProgress {
+                command,
+                message,
+                percent,
+            } => {
+                self.command_executing = true;
+                let progress_str = match percent {
+                    Some(p) => format!("/{}: {} ({}%)", command, message, p),
+                    None => format!("/{}: {}", command, message),
+                };
+                self.command_progress = Some(progress_str.clone());
+                self.status_message = Some(progress_str);
+            }
+
+            ServerMessage::CommandResult {
+                command,
+                success,
+                result,
+            } => {
+                self.command_executing = false;
+                self.command_progress = None;
+
+                if success {
+                    // Format the result as a system message
+                    let result_str = if let Some(msg) = result.get("message").and_then(|v| v.as_str()) {
+                        msg.to_string()
+                    } else {
+                        serde_json::to_string_pretty(&result).unwrap_or_else(|_| "Success".to_string())
+                    };
+                    self.status_message = Some(format!("/{}: {}", command, result_str));
+
+                    // Add as system message in chat
+                    self.push_message(ChatMessage {
+                        is_user: false,
+                        content: format!("[/{}] {}", command, result_str),
+                        streaming: false,
+                    });
+                } else {
+                    let error_str = result
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown error");
+                    self.status_message = Some(format!("/{} failed: {}", command, error_str));
+                }
+            }
         }
     }
 
@@ -738,12 +794,58 @@ impl App {
         let has_shift = key.modifiers.contains(KeyModifiers::SHIFT);
         let has_ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
 
+        // Check if command popup is visible and handle its keys
+        if self.command_popup.is_visible() {
+            match key.code {
+                KeyCode::Esc => {
+                    self.command_popup.hide();
+                    return;
+                }
+                KeyCode::Up => {
+                    self.command_popup.select_prev();
+                    return;
+                }
+                KeyCode::Down => {
+                    self.command_popup.select_next();
+                    return;
+                }
+                KeyCode::Tab | KeyCode::Enter => {
+                    // Complete the selected command
+                    if let Some(cmd) = self.command_popup.selected_command() {
+                        let cmd_name = cmd.name.clone();
+                        self.input.set_text(&format!("/{} ", cmd_name));
+                        self.command_popup.hide();
+                    }
+                    return;
+                }
+                KeyCode::Char(c) => {
+                    // Continue typing and update filter
+                    self.input.insert_char(c);
+                    self.update_command_popup();
+                    return;
+                }
+                KeyCode::Backspace => {
+                    self.input.delete_char_before();
+                    self.update_command_popup();
+                    return;
+                }
+                _ => {}
+            }
+        }
+
         match key.code {
             KeyCode::Char(c) => {
                 self.input.insert_char(c);
+                // Show command popup when typing '/'
+                if c == '/' && self.input.content().trim() == "/" {
+                    self.command_popup.show("");
+                } else {
+                    self.update_command_popup();
+                }
             }
             KeyCode::Backspace => {
                 self.input.delete_char_before();
+                self.update_command_popup();
             }
             KeyCode::Delete => {
                 self.input.delete_char_at();
@@ -776,11 +878,19 @@ impl App {
                     // Shift+Enter: insert newline
                     self.input.insert_newline();
                 } else if !self.input.is_empty() {
+                    // Hide command popup
+                    self.command_popup.hide();
+
                     // Handle based on input mode
                     match &self.input_mode {
                         InputMode::Chat => {
-                            if !self.waiting {
-                                self.send_message();
+                            if !self.waiting && !self.command_executing {
+                                // Check if this is a command
+                                if self.input.is_command() {
+                                    self.send_command();
+                                } else {
+                                    self.send_message();
+                                }
                             }
                         }
                         InputMode::NewWorkstream => {
@@ -867,6 +977,90 @@ impl App {
         self.chat_auto_scroll = false;
         self.chat_scroll = self.chat_scroll.saturating_add(lines);
         // Note: actual clamping happens in render_chat based on content height
+    }
+
+    /// Update the command popup based on current input.
+    fn update_command_popup(&mut self) {
+        if let Some(prefix) = self.input.command_prefix() {
+            if !self.command_popup.is_visible() {
+                self.command_popup.show(prefix);
+            } else {
+                self.command_popup.filter(prefix);
+            }
+        } else {
+            self.command_popup.hide();
+        }
+    }
+
+    /// Send the current input as a command.
+    fn send_command(&mut self) {
+        let input = self.input.submit();
+
+        // Parse the command
+        if let Some(cmd) = crate::input::ParsedCommand::parse(&input) {
+            // Handle built-in commands
+            if cmd.name.eq_ignore_ascii_case("help") {
+                // Show available commands in chat
+                let help_text = self.get_help_text();
+                self.push_message(ChatMessage {
+                    is_user: false,
+                    content: help_text,
+                    streaming: false,
+                });
+                return;
+            }
+
+            // Build args JSON
+            let args = self.build_command_args(&cmd);
+
+            // Send command via WebSocket
+            if let Err(e) = self.ws_client.send_command(cmd.name.clone(), args) {
+                self.status_message = Some(format!("Failed to send command: {}", e));
+                return;
+            }
+
+            self.command_executing = true;
+            self.status_message = Some(format!("Executing /{}", cmd.name));
+        } else {
+            self.status_message = Some("Invalid command".to_string());
+        }
+    }
+
+    /// Build command arguments JSON from parsed command.
+    fn build_command_args(&self, cmd: &crate::input::ParsedCommand) -> serde_json::Value {
+        let mut args = serde_json::json!({});
+
+        // Always include session_id if available
+        if let Some(ref sid) = self.session_id {
+            args["session_id"] = serde_json::Value::String(sid.clone());
+        }
+
+        // Parse additional args (simple key=value or flags)
+        for part in cmd.args.split_whitespace() {
+            if part.starts_with("--") {
+                let flag = &part[2..];
+                if let Some((key, value)) = flag.split_once('=') {
+                    // --key=value
+                    args[key] = serde_json::Value::String(value.to_string());
+                } else {
+                    // --flag (boolean true)
+                    args[flag] = serde_json::Value::Bool(true);
+                }
+            } else if part == "-f" || part == "--force" {
+                args["force"] = serde_json::Value::Bool(true);
+            }
+        }
+
+        args
+    }
+
+    /// Get help text for available commands.
+    fn get_help_text(&self) -> String {
+        let mut text = String::from("**Available Commands:**\n\n");
+        text.push_str("/compact - Compact session history by summarizing older turns\n");
+        text.push_str("  Options: --force, -f (force compaction even if not needed)\n\n");
+        text.push_str("/help - Show this help message\n");
+        text
     }
 
     /// Send the current input as a chat message.
