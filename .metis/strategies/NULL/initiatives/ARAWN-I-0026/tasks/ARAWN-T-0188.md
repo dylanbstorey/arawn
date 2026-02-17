@@ -4,14 +4,14 @@ level: task
 title: "WebSocket command bridge"
 short_code: "ARAWN-T-0188"
 created_at: 2026-02-16T18:54:55.136367+00:00
-updated_at: 2026-02-16T18:54:55.136367+00:00
+updated_at: 2026-02-17T01:42:37.371671+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -31,12 +31,14 @@ Bridge WebSocket messages to REST command handlers, enabling active sessions to 
 
 ## Acceptance Criteria
 
-- [ ] `WsCommandRequest` message type (client → server)
-- [ ] `WsCommandProgress` message type (server → client)
-- [ ] `WsCommandResult` message type (server → client)
-- [ ] WS handler routes command messages to REST handlers
-- [ ] Progress streamed back over WS connection
-- [ ] Session context automatically included (no session_id needed in WS)
+## Acceptance Criteria
+
+- [x] `WsCommandRequest` message type (client → server) - `ClientMessage::Command { command, args }`
+- [x] `WsCommandProgress` message type (server → client) - `ServerMessage::CommandProgress { command, message, percent }`
+- [x] `WsCommandResult` message type (server → client) - `ServerMessage::CommandResult { command, success, result }`
+- [x] WS handler routes command messages to REST handlers - via `handle_command()` in handlers.rs
+- [x] Progress streamed back over WS connection - using `MessageResponse::Stream`
+- [x] Session context automatically included (no session_id needed in WS) - via `inject_session_context()`
 
 ## Implementation Notes
 
@@ -87,4 +89,33 @@ pub struct WsCommandResult {
 
 ## Status Updates
 
-*To be added during implementation*
+### 2026-02-17: Implementation Complete
+
+**Files Modified:**
+- `crates/arawn-server/src/routes/ws/protocol.rs` - Added `Command` variant to `ClientMessage`, `CommandProgress` and `CommandResult` variants to `ServerMessage`, plus helper constructors
+- `crates/arawn-server/src/routes/ws/handlers.rs` - Added `handle_command()` function and `inject_session_context()` helper
+
+**Implementation Details:**
+
+1. **ClientMessage::Command** - New message type with `command` (name) and `args` (JSON value)
+
+2. **ServerMessage::CommandProgress** - Progress updates with `command`, `message`, and optional `percent`
+
+3. **ServerMessage::CommandResult** - Final result with `command`, `success` boolean, and `result` JSON
+
+4. **handle_command()** - Routes to CommandRegistry, executes handler, streams progress and result
+
+5. **inject_session_context()** - If args don't include `session_id` and connection has subscriptions, auto-injects the first subscribed session ID
+
+**Tests:** 10 tests total
+- 6 protocol tests (message parsing and serialization)
+- 4 handler tests (session context injection)
+
+**Usage Example:**
+```json
+// Client sends:
+{"type": "command", "command": "compact", "args": {"force": true}}
+
+// Server responds (streamed):
+{"type": "command_progress", "command": "compact", "message": "Starting...", "percent": 0}
+{"type": "command_result", "command": "compact", "success": true, "result": {"compacted": true, "turns_compacted": 3}}

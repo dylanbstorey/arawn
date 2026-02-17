@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use arawn_agent::{SessionId, ToolCall, ToolResultRecord, Turn, TurnId};
 
+use crate::routes::commands::{CommandOutput, CommandRegistry};
 use crate::state::AppState;
 use super::connection::ConnectionState;
 use super::protocol::{ClientMessage, ServerMessage};
@@ -48,6 +49,10 @@ pub async fn handle_message(
             message,
         } => {
             handle_chat(session_id, workstream_id, message, conn_state, app_state).await
+        }
+
+        ClientMessage::Command { command, args } => {
+            handle_command(command, args, conn_state, app_state).await
         }
     }
 }
@@ -131,6 +136,107 @@ fn handle_cancel(
     conn_state.cancellation = tokio_util::sync::CancellationToken::new();
 
     MessageResponse::None
+}
+
+/// Handle command execution.
+async fn handle_command(
+    command: String,
+    args: serde_json::Value,
+    conn_state: &ConnectionState,
+    app_state: &AppState,
+) -> MessageResponse {
+    if !conn_state.authenticated {
+        return MessageResponse::Single(ServerMessage::error(
+            "unauthorized",
+            "Authentication required",
+        ));
+    }
+
+    // Get the command registry (create with defaults)
+    let registry = CommandRegistry::with_defaults();
+
+    // Look up the command handler
+    let handler = match registry.get(&command) {
+        Some(h) => h,
+        None => {
+            return MessageResponse::Single(ServerMessage::command_failure(
+                &command,
+                format!("Unknown command: {}", command),
+            ));
+        }
+    };
+
+    // For commands that need session context, inject the current session
+    // if the client didn't provide one and we have a current subscription
+    let args = inject_session_context(args, conn_state);
+
+    // Send progress message
+    let command_name = command.clone();
+    let progress_msg = ServerMessage::command_progress(&command_name, "Starting...", Some(0));
+
+    // Execute the command
+    let result = handler.execute(app_state, args).await;
+
+    // Create response stream with progress and result
+    let response_stream = async_stream::stream! {
+        yield progress_msg;
+
+        match result {
+            Ok(output) => {
+                match output {
+                    CommandOutput::Completed { result } => {
+                        yield ServerMessage::command_success(&command_name, result);
+                    }
+                    CommandOutput::Text { message } => {
+                        yield ServerMessage::command_success(
+                            &command_name,
+                            serde_json::json!({ "message": message }),
+                        );
+                    }
+                    CommandOutput::Json { data } => {
+                        yield ServerMessage::command_success(&command_name, data);
+                    }
+                    CommandOutput::Progress { percent, message } => {
+                        yield ServerMessage::command_progress(&command_name, message, Some(percent));
+                    }
+                    CommandOutput::Error { error } => {
+                        yield ServerMessage::command_failure(&command_name, error.message);
+                    }
+                }
+            }
+            Err(e) => {
+                yield ServerMessage::command_failure(&command_name, e.message);
+            }
+        }
+    };
+
+    MessageResponse::Stream(Box::pin(response_stream))
+}
+
+/// Inject session context from the connection state if not provided in args.
+fn inject_session_context(
+    mut args: serde_json::Value,
+    conn_state: &ConnectionState,
+) -> serde_json::Value {
+    // If args is null, create an empty object
+    if args.is_null() {
+        args = serde_json::json!({});
+    }
+
+    // If args is an object and doesn't have session_id, try to inject from subscriptions
+    if let Some(obj) = args.as_object_mut() {
+        if !obj.contains_key("session_id") {
+            // Use the first subscribed session if available
+            if let Some(session_id) = conn_state.subscriptions.iter().next() {
+                obj.insert(
+                    "session_id".to_string(),
+                    serde_json::Value::String(session_id.to_string()),
+                );
+            }
+        }
+    }
+
+    args
 }
 
 /// Handle chat message.
@@ -309,4 +415,65 @@ async fn handle_chat(
     };
 
     MessageResponse::Stream(Box::pin(response_stream))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inject_session_context_null_args() {
+        let conn_state = ConnectionState::new();
+        let args = serde_json::Value::Null;
+        let result = inject_session_context(args, &conn_state);
+
+        // Should create empty object when no subscriptions
+        assert!(result.is_object());
+        assert!(!result.as_object().unwrap().contains_key("session_id"));
+    }
+
+    #[test]
+    fn test_inject_session_context_with_subscription() {
+        let mut conn_state = ConnectionState::new();
+        let session_id = SessionId::new();
+        conn_state.subscriptions.insert(session_id);
+
+        let args = serde_json::json!({});
+        let result = inject_session_context(args, &conn_state);
+
+        // Should inject session_id from subscriptions
+        assert!(result.as_object().unwrap().contains_key("session_id"));
+        assert_eq!(
+            result["session_id"].as_str().unwrap(),
+            session_id.to_string()
+        );
+    }
+
+    #[test]
+    fn test_inject_session_context_preserves_existing() {
+        let mut conn_state = ConnectionState::new();
+        let subscribed_id = SessionId::new();
+        conn_state.subscriptions.insert(subscribed_id);
+
+        let explicit_id = "00000000-0000-0000-0000-000000000001";
+        let args = serde_json::json!({ "session_id": explicit_id });
+        let result = inject_session_context(args, &conn_state);
+
+        // Should preserve explicitly provided session_id
+        assert_eq!(result["session_id"].as_str().unwrap(), explicit_id);
+    }
+
+    #[test]
+    fn test_inject_session_context_preserves_other_args() {
+        let conn_state = ConnectionState::new();
+        let args = serde_json::json!({
+            "force": true,
+            "other": "value"
+        });
+        let result = inject_session_context(args, &conn_state);
+
+        // Should preserve other fields
+        assert_eq!(result["force"], true);
+        assert_eq!(result["other"], "value");
+    }
 }

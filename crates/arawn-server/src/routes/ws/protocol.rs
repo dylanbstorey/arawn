@@ -37,6 +37,14 @@ pub enum ClientMessage {
         /// Session ID to cancel.
         session_id: String,
     },
+    /// Execute a server command.
+    Command {
+        /// Command name (e.g., "compact").
+        command: String,
+        /// Command arguments as JSON.
+        #[serde(default)]
+        args: serde_json::Value,
+    },
 }
 
 /// Messages from server to client.
@@ -101,6 +109,25 @@ pub enum ServerMessage {
     },
     /// Pong response to ping.
     Pong,
+    /// Command execution progress.
+    CommandProgress {
+        /// Command name.
+        command: String,
+        /// Progress message.
+        message: String,
+        /// Progress percentage (0-100).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        percent: Option<u8>,
+    },
+    /// Command execution result.
+    CommandResult {
+        /// Command name.
+        command: String,
+        /// Whether the command succeeded.
+        success: bool,
+        /// Result data (on success) or error details (on failure).
+        result: serde_json::Value,
+    },
 }
 
 impl ServerMessage {
@@ -125,6 +152,37 @@ impl ServerMessage {
         Self::AuthResult {
             success: false,
             error: Some(error.into()),
+        }
+    }
+
+    /// Create a command progress message.
+    pub fn command_progress(
+        command: impl Into<String>,
+        message: impl Into<String>,
+        percent: Option<u8>,
+    ) -> Self {
+        Self::CommandProgress {
+            command: command.into(),
+            message: message.into(),
+            percent,
+        }
+    }
+
+    /// Create a successful command result message.
+    pub fn command_success(command: impl Into<String>, result: serde_json::Value) -> Self {
+        Self::CommandResult {
+            command: command.into(),
+            success: true,
+            result,
+        }
+    }
+
+    /// Create a failed command result message.
+    pub fn command_failure(command: impl Into<String>, error: impl Into<String>) -> Self {
+        Self::CommandResult {
+            command: command.into(),
+            success: false,
+            result: serde_json::json!({ "error": error.into() }),
         }
     }
 }
@@ -160,6 +218,32 @@ mod tests {
         let json = r#"{"type": "subscribe", "session_id": "123"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         assert!(matches!(msg, ClientMessage::Subscribe { session_id } if session_id == "123"));
+    }
+
+    #[test]
+    fn test_command_message_parsing() {
+        // Minimal command message
+        let json = r#"{"type": "command", "command": "compact"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::Command { command, args } => {
+                assert_eq!(command, "compact");
+                assert!(args.is_null());
+            }
+            _ => panic!("Expected Command"),
+        }
+
+        // Command with args
+        let json = r#"{"type": "command", "command": "compact", "args": {"session_id": "123", "force": true}}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ClientMessage::Command { command, args } => {
+                assert_eq!(command, "compact");
+                assert_eq!(args["session_id"], "123");
+                assert_eq!(args["force"], true);
+            }
+            _ => panic!("Expected Command"),
+        }
     }
 
     #[test]
@@ -199,5 +283,43 @@ mod tests {
         let json = serde_json::to_string(&failure).unwrap();
         assert!(json.contains("error"));
         assert!(json.contains("bad token"));
+    }
+
+    #[test]
+    fn test_command_progress_serialization() {
+        let msg = ServerMessage::command_progress("compact", "Summarizing turns...", Some(50));
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("command_progress"));
+        assert!(json.contains("compact"));
+        assert!(json.contains("Summarizing"));
+        assert!(json.contains("50"));
+
+        // Without percent
+        let msg = ServerMessage::command_progress("compact", "Starting...", None);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(!json.contains("percent"));
+    }
+
+    #[test]
+    fn test_command_result_serialization() {
+        // Success
+        let msg = ServerMessage::command_success(
+            "compact",
+            serde_json::json!({"compacted": true, "turns_compacted": 5}),
+        );
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("command_result"));
+        assert!(json.contains("compact"));
+        assert!(json.contains("true")); // success
+        assert!(json.contains("compacted"));
+        assert!(json.contains("turns_compacted"));
+
+        // Failure
+        let msg = ServerMessage::command_failure("compact", "Session not found");
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("command_result"));
+        assert!(json.contains("compact"));
+        assert!(json.contains("false")); // success: false
+        assert!(json.contains("Session not found"));
     }
 }
