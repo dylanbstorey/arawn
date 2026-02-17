@@ -132,6 +132,19 @@ pub enum ServerMessage {
         /// Result data (on success) or error details (on failure).
         result: serde_json::Value,
     },
+    /// Context usage information.
+    ContextInfo {
+        /// Session ID.
+        session_id: String,
+        /// Current token count estimate.
+        current_tokens: usize,
+        /// Maximum tokens allowed.
+        max_tokens: usize,
+        /// Usage as percentage (0-100).
+        percent: u8,
+        /// Status: "ok", "warning", or "critical".
+        status: String,
+    },
 }
 
 #[cfg(test)]
@@ -264,6 +277,48 @@ mod tests {
                 assert_eq!(result["error"], "Session not found");
             }
             _ => panic!("Expected CommandResult"),
+        }
+    }
+
+    #[test]
+    fn test_context_info_deserialization() {
+        let json = r#"{"type":"context_info","session_id":"abc123","current_tokens":50000,"max_tokens":100000,"percent":50,"status":"ok"}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::ContextInfo {
+                session_id,
+                current_tokens,
+                max_tokens,
+                percent,
+                status,
+            } => {
+                assert_eq!(session_id, "abc123");
+                assert_eq!(current_tokens, 50000);
+                assert_eq!(max_tokens, 100000);
+                assert_eq!(percent, 50);
+                assert_eq!(status, "ok");
+            }
+            _ => panic!("Expected ContextInfo"),
+        }
+
+        // Warning status
+        let json = r#"{"type":"context_info","session_id":"def456","current_tokens":80000,"max_tokens":100000,"percent":80,"status":"warning"}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::ContextInfo { status, .. } => {
+                assert_eq!(status, "warning");
+            }
+            _ => panic!("Expected ContextInfo"),
+        }
+
+        // Critical status
+        let json = r#"{"type":"context_info","session_id":"ghi789","current_tokens":95000,"max_tokens":100000,"percent":95,"status":"critical"}"#;
+        let msg: ServerMessage = serde_json::from_str(json).unwrap();
+        match msg {
+            ServerMessage::ContextInfo { status, .. } => {
+                assert_eq!(status, "critical");
+            }
+            _ => panic!("Expected ContextInfo"),
         }
     }
 }

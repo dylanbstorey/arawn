@@ -128,6 +128,19 @@ pub enum ServerMessage {
         /// Result data (on success) or error details (on failure).
         result: serde_json::Value,
     },
+    /// Context usage information.
+    ContextInfo {
+        /// Session ID.
+        session_id: String,
+        /// Current token count estimate.
+        current_tokens: usize,
+        /// Maximum tokens allowed.
+        max_tokens: usize,
+        /// Usage as percentage (0-100).
+        percent: u8,
+        /// Status: "ok", "warning", or "critical".
+        status: String,
+    },
 }
 
 impl ServerMessage {
@@ -183,6 +196,33 @@ impl ServerMessage {
             command: command.into(),
             success: false,
             result: serde_json::json!({ "error": error.into() }),
+        }
+    }
+
+    /// Create a context info message.
+    pub fn context_info(
+        session_id: impl Into<String>,
+        current_tokens: usize,
+        max_tokens: usize,
+    ) -> Self {
+        let percent = if max_tokens == 0 {
+            0
+        } else {
+            ((current_tokens as f64 / max_tokens as f64) * 100.0).min(100.0) as u8
+        };
+        let status = if percent < 70 {
+            "ok"
+        } else if percent < 90 {
+            "warning"
+        } else {
+            "critical"
+        };
+        Self::ContextInfo {
+            session_id: session_id.into(),
+            current_tokens,
+            max_tokens,
+            percent,
+            status: status.to_string(),
         }
     }
 }
@@ -321,5 +361,63 @@ mod tests {
         assert!(json.contains("compact"));
         assert!(json.contains("false")); // success: false
         assert!(json.contains("Session not found"));
+    }
+
+    #[test]
+    fn test_context_info_serialization() {
+        // OK status (< 70%)
+        let msg = ServerMessage::context_info("session-123", 50000, 100000);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("context_info"));
+        assert!(json.contains("session-123"));
+        assert!(json.contains("50000"));
+        assert!(json.contains("100000"));
+        assert!(json.contains("50")); // percent
+        assert!(json.contains(r#""status":"ok""#));
+
+        // Warning status (70-90%)
+        let msg = ServerMessage::context_info("session-456", 80000, 100000);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""status":"warning""#));
+        assert!(json.contains("80")); // percent
+
+        // Critical status (> 90%)
+        let msg = ServerMessage::context_info("session-789", 95000, 100000);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""status":"critical""#));
+        assert!(json.contains("95")); // percent
+    }
+
+    #[test]
+    fn test_context_info_boundary_conditions() {
+        // Exactly 70% - should be warning
+        let msg = ServerMessage::context_info("s", 70000, 100000);
+        match msg {
+            ServerMessage::ContextInfo { status, percent, .. } => {
+                assert_eq!(percent, 70);
+                assert_eq!(status, "warning");
+            }
+            _ => panic!("Expected ContextInfo"),
+        }
+
+        // Exactly 90% - should be critical
+        let msg = ServerMessage::context_info("s", 90000, 100000);
+        match msg {
+            ServerMessage::ContextInfo { status, percent, .. } => {
+                assert_eq!(percent, 90);
+                assert_eq!(status, "critical");
+            }
+            _ => panic!("Expected ContextInfo"),
+        }
+
+        // Zero max tokens - should handle gracefully
+        let msg = ServerMessage::context_info("s", 1000, 0);
+        match msg {
+            ServerMessage::ContextInfo { percent, status, .. } => {
+                assert_eq!(percent, 0);
+                assert_eq!(status, "ok");
+            }
+            _ => panic!("Expected ContextInfo"),
+        }
     }
 }

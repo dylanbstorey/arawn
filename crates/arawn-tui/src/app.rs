@@ -146,6 +146,21 @@ pub struct App {
     pub command_executing: bool,
     /// Current command execution progress message.
     pub command_progress: Option<String>,
+    /// Context usage information for current session.
+    pub context_info: Option<ContextState>,
+}
+
+/// Context usage state for display in status bar.
+#[derive(Debug, Clone)]
+pub struct ContextState {
+    /// Current token count.
+    pub current_tokens: usize,
+    /// Maximum tokens.
+    pub max_tokens: usize,
+    /// Usage percentage (0-100).
+    pub percent: u8,
+    /// Status: "ok", "warning", or "critical".
+    pub status: String,
 }
 
 impl App {
@@ -196,6 +211,7 @@ impl App {
             command_popup: CommandPopup::new(),
             command_executing: false,
             command_progress: None,
+            context_info: None,
         })
     }
 
@@ -708,6 +724,21 @@ impl App {
                         .unwrap_or("Unknown error");
                     self.status_message = Some(format!("/{} failed: {}", command, error_str));
                 }
+            }
+
+            ServerMessage::ContextInfo {
+                current_tokens,
+                max_tokens,
+                percent,
+                status,
+                ..
+            } => {
+                self.context_info = Some(ContextState {
+                    current_tokens,
+                    max_tokens,
+                    percent,
+                    status,
+                });
             }
         }
     }

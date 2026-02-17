@@ -160,26 +160,63 @@ fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
         "^K palette │ ^W sidebar │ ^L logs │ ^Q quit".to_string()
     };
 
-    // Show connection status on the right if not connected
-    let right_text = match app.connection_status {
-        ConnectionStatus::Connected => String::new(),
-        status => format!(" {} ", status),
-    };
+    // Build right side with context info and connection status
+    let mut right_spans: Vec<Span> = Vec::new();
 
+    // Add context indicator if available
+    if let Some(ref ctx) = app.context_info {
+        let (ctx_text, ctx_color) = format_context_indicator(ctx);
+        right_spans.push(Span::styled(ctx_text, Style::default().fg(ctx_color)));
+        right_spans.push(Span::raw(" "));
+    }
+
+    // Show connection status if not connected
+    match app.connection_status {
+        ConnectionStatus::Connected => {}
+        status => {
+            right_spans.push(Span::styled(
+                format!(" {} ", status),
+                Style::default().fg(Color::Yellow),
+            ));
+        }
+    }
+
+    // Calculate widths for spacing
+    let right_text_len: usize = right_spans.iter().map(|s| s.width()).sum();
     let left = Span::styled(&left_text, Style::default().fg(Color::DarkGray));
     let spacer_width = area
         .width
-        .saturating_sub(left_text.len() as u16 + right_text.len() as u16);
+        .saturating_sub(left_text.len() as u16 + right_text_len as u16);
     let spacer = Span::raw(" ".repeat(spacer_width as usize));
-    let right = Span::styled(
-        right_text,
-        Style::default().fg(Color::Yellow),
-    );
 
-    let line = Line::from(vec![left, spacer, right]);
+    let mut spans = vec![left, spacer];
+    spans.extend(right_spans);
+
+    let line = Line::from(spans);
     let status = Paragraph::new(line);
 
     frame.render_widget(status, area);
+}
+
+/// Format the context indicator with appropriate color.
+fn format_context_indicator(ctx: &crate::app::ContextState) -> (String, Color) {
+    let color = match ctx.status.as_str() {
+        "ok" => Color::Green,
+        "warning" => Color::Yellow,
+        "critical" => Color::Red,
+        _ => Color::Gray,
+    };
+
+    // Format as "[Context: XX%]" or with token details
+    let text = if ctx.max_tokens > 0 {
+        let current_k = ctx.current_tokens / 1000;
+        let max_k = ctx.max_tokens / 1000;
+        format!("[~{}k/{}k {}%]", current_k, max_k, ctx.percent)
+    } else {
+        format!("[Context: {}%]", ctx.percent)
+    };
+
+    (text, color)
 }
 
 /// Render the sessions overlay.
