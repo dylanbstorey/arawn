@@ -377,6 +377,7 @@ dependencies = [
  "arawn-types",
  "arawn-workstream",
  "async-stream",
+ "async-trait",
  "axum",
  "chrono",
  "futures",

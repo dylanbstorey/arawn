@@ -4,14 +4,14 @@ level: task
 title: "SessionCompactor implementation"
 short_code: "ARAWN-T-0186"
 created_at: 2026-02-16T18:54:49.937584+00:00
-updated_at: 2026-02-17T01:04:51.307182+00:00
+updated_at: 2026-02-17T01:40:04.940465+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0026
 ## Objective
 
 Implement SessionCompactor that summarizes older turns mid-session while preserving recent turns verbatim, reusing the existing Compressor infrastructure.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

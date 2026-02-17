@@ -188,6 +188,13 @@ impl Server {
                 "/mcp/servers/{name}/disconnect",
                 post(routes::disconnect_server_handler),
             )
+            // Command endpoints
+            .route("/commands", get(routes::list_commands_handler))
+            .route("/commands/compact", post(routes::compact_command_handler))
+            .route(
+                "/commands/compact/stream",
+                post(routes::compact_command_stream_handler),
+            )
             // Auth middleware for all API routes
             .layer(middleware::from_fn_with_state(
                 self.state.clone(),

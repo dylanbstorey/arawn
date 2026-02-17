@@ -2,6 +2,7 @@
 
 pub mod agents;
 pub mod chat;
+pub mod commands;
 pub mod config;
 pub mod health;
 pub mod mcp;
@@ -46,3 +47,8 @@ pub use workstreams::{
     promote_handler, send_message_handler, update_workstream_handler,
 };
 pub use ws::{ClientMessage, ServerMessage, ws_handler};
+pub use commands::{
+    CommandHandler, CommandInfo, CommandOutput, CommandRegistry, CompactCommand, CompactEvent,
+    CompactRequest, CompactResponse, ListCommandsResponse, SharedCommandRegistry,
+    compact_command_handler, compact_command_stream_handler, list_commands_handler,
+};

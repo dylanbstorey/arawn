@@ -104,6 +104,11 @@ impl Agent {
         &self.tools
     }
 
+    /// Get the LLM backend.
+    pub fn backend(&self) -> SharedBackend {
+        self.backend.clone()
+    }
+
     /// Execute a single turn of conversation.
     ///
     /// Takes a user message, potentially executes multiple tool calls,
