@@ -4,14 +4,14 @@ level: task
 title: "WebSocket command bridge"
 short_code: "ARAWN-T-0188"
 created_at: 2026-02-16T18:54:55.136367+00:00
-updated_at: 2026-02-17T01:42:37.371671+00:00
+updated_at: 2026-02-17T02:48:11.031404+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0026
 ## Objective
 
 Bridge WebSocket messages to REST command handlers, enabling active sessions to execute commands via WS and receive streaming progress.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

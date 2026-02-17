@@ -4,14 +4,14 @@ level: task
 title: "Context management integration testing"
 short_code: "ARAWN-T-0191"
 created_at: 2026-02-16T18:54:57.891392+00:00
-updated_at: 2026-02-17T02:17:58.410692+00:00
+updated_at: 2026-02-17T02:48:12.406931+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0026
 ## Objective
 
 End-to-end integration tests for context tracking, auto-compaction, and `/compact` command flow.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

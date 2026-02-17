@@ -4,14 +4,14 @@ level: task
 title: "TUI command input"
 short_code: "ARAWN-T-0189"
 created_at: 2026-02-16T18:54:56.086208+00:00
-updated_at: 2026-02-17T01:48:47.579959+00:00
+updated_at: 2026-02-17T02:48:11.727263+00:00
 parent: ARAWN-I-0026
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0026
 ## Objective
 
 Add `/command` input handling to TUI - detect slash prefix, show autocomplete, send command requests via WebSocket.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
