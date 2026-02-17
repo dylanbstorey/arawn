@@ -151,13 +151,28 @@ impl AnthropicBackend {
     /// Handle an error response.
     async fn handle_error_response(response: Response) -> LlmError {
         let status = response.status();
+
+        // Extract Retry-After header before consuming response
+        let retry_after_header = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+
         let body = response.text().await.unwrap_or_default();
 
         // Try to parse as API error
         if let Ok(error) = serde_json::from_str::<ApiError>(&body) {
             match status.as_u16() {
                 401 => LlmError::Auth(format!("Authentication failed: {}", error.error.message)),
-                429 => LlmError::RateLimit(format!("Rate limit exceeded: {}", error.error.message)),
+                429 => {
+                    // Parse rate limit info with Retry-After header
+                    let info = crate::error::RateLimitInfo::parse_openai(
+                        &error.error.message,
+                        retry_after_header.as_deref(),
+                    );
+                    LlmError::RateLimit(info)
+                }
                 500..=599 => LlmError::Backend(format!("Server error: {}", error.error.message)),
                 _ => LlmError::Backend(error.error.message),
             }

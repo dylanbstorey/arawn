@@ -4,15 +4,15 @@ level: task
 title: "Trait-based rate limit handling for LLM backends"
 short_code: "ARAWN-T-0183"
 created_at: 2026-02-16T15:18:24.402978+00:00
-updated_at: 2026-02-16T15:18:24.402978+00:00
+updated_at: 2026-02-17T13:46:44.674130+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#feature"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -38,6 +38,12 @@ Implement a trait-based approach for handling rate limit errors gracefully acros
 - **User Value**: Automatic recovery from rate limits instead of cryptic 500 errors; transparent retry behavior
 - **Business Value**: Better reliability during high usage; reduced user frustration from transient failures
 - **Effort Estimate**: M (Medium)
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -108,4 +114,40 @@ pub trait RateLimitParser {
 
 ## Status Updates
 
-*Backlog - awaiting prioritization*
+### Progress
+
+**Implementation Complete:**
+
+1. **RateLimitInfo struct** (`arawn-llm/src/error.rs`)
+   - Added `RateLimitInfo` with `message`, `retry_after: Option<Duration>`, `limit_type: Option<RateLimitType>`
+   - Added `parse_groq()` for Groq's "try again in Xs" format
+   - Added `parse_openai()` for Retry-After header parsing
+
+2. **Updated LlmError::RateLimit** 
+   - Changed from `RateLimit(String)` to `RateLimit(RateLimitInfo)`
+   - Added `retry_after()` and `is_retryable()` methods
+   - Rate limits now retryable alongside network errors
+
+3. **Updated with_retry()** (`arawn-llm/src/backend.rs`)
+   - Uses provider-specified retry delay when available
+   - Falls back to exponential backoff otherwise
+   - Adds 100ms buffer to provider timing
+
+4. **OpenAI backend** (`arawn-llm/src/openai.rs`)
+   - Parses Retry-After header
+   - Detects Groq timing in error messages
+   - Creates proper RateLimitInfo
+
+5. **Anthropic backend** (`arawn-llm/src/anthropic.rs`)
+   - Parses Retry-After header
+   - Creates proper RateLimitInfo
+
+6. **AgentError** (`arawn-agent/src/error.rs`)
+   - Added `is_rate_limit()`, `llm_error()`, `retry_after()` methods
+
+7. **ServerError** (`arawn-server/src/error.rs`)
+   - Added `RateLimitError` struct with retry timing
+   - Server returns HTTP 429 for upstream rate limits
+   - Adds Retry-After header when timing is known
+
+All tests pass.

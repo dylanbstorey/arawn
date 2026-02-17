@@ -1,5 +1,6 @@
 //! Error types for the agent crate.
 
+use std::time::Duration;
 use thiserror::Error;
 
 /// Result type alias using the agent error type.
@@ -72,6 +73,27 @@ impl AgentError {
     /// Create an internal error.
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::Internal(msg.into())
+    }
+
+    /// Check if this error wraps an LLM rate limit.
+    pub fn is_rate_limit(&self) -> bool {
+        matches!(self, Self::Llm(arawn_llm::LlmError::RateLimit(_)))
+    }
+
+    /// Get the wrapped LLM error if present.
+    pub fn llm_error(&self) -> Option<&arawn_llm::LlmError> {
+        match self {
+            Self::Llm(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    /// Get the retry-after duration if this is a rate limit error.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Llm(llm_err) => llm_err.retry_after(),
+            _ => None,
+        }
     }
 }
 

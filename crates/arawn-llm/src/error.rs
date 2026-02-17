@@ -1,9 +1,140 @@
 //! Error types for the LLM crate.
 
+use std::time::Duration;
 use thiserror::Error;
 
 /// Result type alias using the LLM error type.
 pub type Result<T> = std::result::Result<T, LlmError>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rate Limit Info
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Information about a rate limit error.
+#[derive(Debug, Clone)]
+pub struct RateLimitInfo {
+    /// The error message from the provider.
+    pub message: String,
+    /// How long to wait before retrying (if the provider specified).
+    pub retry_after: Option<Duration>,
+    /// The type of rate limit hit (if known).
+    pub limit_type: Option<RateLimitType>,
+}
+
+/// Type of rate limit encountered.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RateLimitType {
+    /// Tokens per minute limit.
+    TokensPerMinute,
+    /// Requests per minute limit.
+    RequestsPerMinute,
+    /// Requests per day limit.
+    RequestsPerDay,
+    /// Other/unknown limit type.
+    Other,
+}
+
+impl RateLimitInfo {
+    /// Create a new rate limit info with just a message.
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            retry_after: None,
+            limit_type: None,
+        }
+    }
+
+    /// Create a rate limit info with a retry duration.
+    pub fn with_retry_after(message: impl Into<String>, retry_after: Duration) -> Self {
+        Self {
+            message: message.into(),
+            retry_after: Some(retry_after),
+            limit_type: None,
+        }
+    }
+
+    /// Parse rate limit info from a Groq error message.
+    ///
+    /// Groq returns messages like:
+    /// "Rate limit reached... Please try again in 6.57792s."
+    pub fn parse_groq(message: &str) -> Self {
+        let retry_after = parse_groq_retry_after(message);
+        let limit_type = if message.contains("TPM") || message.contains("tokens per minute") {
+            Some(RateLimitType::TokensPerMinute)
+        } else if message.contains("RPM") || message.contains("requests per minute") {
+            Some(RateLimitType::RequestsPerMinute)
+        } else if message.contains("RPD") || message.contains("requests per day") {
+            Some(RateLimitType::RequestsPerDay)
+        } else {
+            None
+        };
+
+        Self {
+            message: message.to_string(),
+            retry_after,
+            limit_type,
+        }
+    }
+
+    /// Parse rate limit info from OpenAI-style headers and body.
+    pub fn parse_openai(message: &str, retry_after_header: Option<&str>) -> Self {
+        let retry_after = retry_after_header.and_then(parse_retry_after_header);
+
+        Self {
+            message: message.to_string(),
+            retry_after,
+            limit_type: None,
+        }
+    }
+}
+
+impl std::fmt::Display for RateLimitInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)?;
+        if let Some(retry_after) = self.retry_after {
+            write!(f, " (retry after {:.2}s)", retry_after.as_secs_f64())?;
+        }
+        Ok(())
+    }
+}
+
+/// Parse Groq's "Please try again in Xs" format.
+fn parse_groq_retry_after(message: &str) -> Option<Duration> {
+    // Look for "try again in X" pattern
+    let patterns = ["try again in ", "Try again in ", "retry in "];
+
+    for pattern in patterns {
+        if let Some(idx) = message.find(pattern) {
+            let start = idx + pattern.len();
+            let rest = &message[start..];
+
+            // Extract the number (may include decimal point)
+            let num_str: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+
+            if let Ok(seconds) = num_str.parse::<f64>() {
+                return Some(Duration::from_secs_f64(seconds));
+            }
+        }
+    }
+
+    None
+}
+
+/// Parse a Retry-After header value.
+///
+/// Supports both seconds (integer) and HTTP-date formats.
+fn parse_retry_after_header(value: &str) -> Option<Duration> {
+    // Try parsing as seconds first (most common)
+    if let Ok(seconds) = value.trim().parse::<u64>() {
+        return Some(Duration::from_secs(seconds));
+    }
+
+    // Could add HTTP-date parsing here if needed
+    None
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Response Validation Errors
@@ -159,9 +290,9 @@ pub enum LlmError {
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
 
-    /// Rate limit exceeded.
+    /// Rate limit exceeded (retryable with backoff).
     #[error("Rate limit exceeded: {0}")]
-    RateLimit(String),
+    RateLimit(RateLimitInfo),
 
     /// Authentication failed.
     #[error("Authentication error: {0}")]
@@ -170,6 +301,34 @@ pub enum LlmError {
     /// Internal error.
     #[error("Internal error: {0}")]
     Internal(String),
+}
+
+impl LlmError {
+    /// Create a rate limit error from a message string.
+    ///
+    /// This is a convenience method for cases where the provider doesn't
+    /// give structured rate limit information.
+    pub fn rate_limit(message: impl Into<String>) -> Self {
+        Self::RateLimit(RateLimitInfo::new(message))
+    }
+
+    /// Create a rate limit error with retry timing.
+    pub fn rate_limit_with_retry(message: impl Into<String>, retry_after: Duration) -> Self {
+        Self::RateLimit(RateLimitInfo::with_retry_after(message, retry_after))
+    }
+
+    /// Get the retry-after duration if this is a rate limit error.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::RateLimit(info) => info.retry_after,
+            _ => None,
+        }
+    }
+
+    /// Returns true if this error is retryable.
+    pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Network(_) | Self::RateLimit(_))
+    }
 }
 
 impl From<reqwest::Error> for LlmError {
@@ -192,10 +351,10 @@ impl From<serde_json::Error> for LlmError {
 
 /// Check if an error is retryable.
 ///
-/// Only network errors are considered retryable. Config, serialization,
-/// and other errors should not be retried.
+/// Network errors and rate limit errors are retryable.
+/// Config, serialization, and other errors should not be retried.
 pub fn is_retryable(error: &LlmError) -> bool {
-    matches!(error, LlmError::Network(_))
+    error.is_retryable()
 }
 
 #[cfg(test)]
@@ -205,11 +364,82 @@ mod tests {
     #[test]
     fn test_is_retryable() {
         assert!(is_retryable(&LlmError::Network("timeout".to_string())));
+        assert!(is_retryable(&LlmError::rate_limit("rate limited")));
         assert!(!is_retryable(&LlmError::Config("bad config".to_string())));
         assert!(!is_retryable(&LlmError::Auth("unauthorized".to_string())));
         assert!(!is_retryable(&LlmError::Backend(
             "server error".to_string()
         )));
+    }
+
+    #[test]
+    fn test_rate_limit_info_new() {
+        let info = RateLimitInfo::new("Rate limited");
+        assert_eq!(info.message, "Rate limited");
+        assert!(info.retry_after.is_none());
+        assert!(info.limit_type.is_none());
+    }
+
+    #[test]
+    fn test_rate_limit_info_with_retry() {
+        let info = RateLimitInfo::with_retry_after("Rate limited", Duration::from_secs(5));
+        assert_eq!(info.message, "Rate limited");
+        assert_eq!(info.retry_after, Some(Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn test_parse_groq_retry_after() {
+        // Standard Groq format
+        let info = RateLimitInfo::parse_groq(
+            "Rate limit reached. Please try again in 6.57792s. Need more tokens?",
+        );
+        let retry = info.retry_after.unwrap();
+        assert!((retry.as_secs_f64() - 6.57792).abs() < 0.001);
+
+        // With TPM indicator
+        let info = RateLimitInfo::parse_groq(
+            "Rate limit reached for model on tokens per minute (TPM). try again in 10s",
+        );
+        assert_eq!(info.retry_after, Some(Duration::from_secs(10)));
+        assert_eq!(info.limit_type, Some(RateLimitType::TokensPerMinute));
+
+        // No retry timing
+        let info = RateLimitInfo::parse_groq("Rate limit exceeded");
+        assert!(info.retry_after.is_none());
+    }
+
+    #[test]
+    fn test_parse_retry_after_header() {
+        assert_eq!(
+            parse_retry_after_header("5"),
+            Some(Duration::from_secs(5))
+        );
+        assert_eq!(
+            parse_retry_after_header(" 10 "),
+            Some(Duration::from_secs(10))
+        );
+        assert_eq!(parse_retry_after_header("invalid"), None);
+    }
+
+    #[test]
+    fn test_llm_error_retry_after() {
+        let err = LlmError::rate_limit_with_retry("limited", Duration::from_secs(5));
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(5)));
+
+        let err = LlmError::rate_limit("limited");
+        assert_eq!(err.retry_after(), None);
+
+        let err = LlmError::Network("timeout".to_string());
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn test_rate_limit_info_display() {
+        let info = RateLimitInfo::new("Rate limited");
+        assert_eq!(info.to_string(), "Rate limited");
+
+        let info = RateLimitInfo::with_retry_after("Rate limited", Duration::from_secs_f64(6.5));
+        assert!(info.to_string().contains("retry after 6.50s"));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

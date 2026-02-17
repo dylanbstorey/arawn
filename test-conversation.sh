@@ -268,7 +268,58 @@ chat "Found the issue - glob was walking too deep. Fixed it to calculate depth f
 chat "What config options exist for tuning session behavior?"
 
 # ----------------------------------------------------------------------------
-log "Scene 8: Wrapping up"
+log "Scene 8: Context management"
+# ----------------------------------------------------------------------------
+
+# Check available commands
+echo -e "${BLUE}[Checking available commands]${NC}"
+cmd_response=$(api_call GET "$SERVER/api/v1/commands")
+has_compact=$(echo "$cmd_response" | jq -r '.commands[]? | select(.name == "compact") | .name // empty')
+if [ "$has_compact" = "compact" ]; then
+    echo -e "${GREEN}Compact command available${NC}"
+else
+    echo -e "${RED}Compact command not found in command list${NC}"
+    ((ERROR_COUNT++)) || true
+fi
+
+# Try compact on current session (should say not needed - too few turns)
+if [ -n "$SESSION_ID" ]; then
+    echo -e "${BLUE}[Testing compact command - expects 'not needed']${NC}"
+    compact_response=$(api_call POST "$SERVER/api/v1/commands/compact" "{\"session_id\": \"$SESSION_ID\"}")
+    compacted=$(echo "$compact_response" | jq -r '.compacted // empty')
+    message=$(echo "$compact_response" | jq -r '.message // empty')
+
+    if [ "$compacted" = "false" ]; then
+        echo -e "${GREEN}Correctly reported: $message${NC}"
+    elif [ "$compacted" = "true" ]; then
+        echo -e "${YELLOW}Compaction performed (unexpected with few turns)${NC}"
+    else
+        echo -e "${RED}Unexpected compact response${NC}"
+    fi
+fi
+
+# Build up a longer session for context testing
+echo -e "${BLUE}[Building longer conversation for context test]${NC}"
+new_session
+
+# Send several messages to accumulate context
+for i in $(seq 1 5); do
+    chat "Tell me about topic $i - keep it brief"
+done
+
+# Now try force compact
+if [ -n "$SESSION_ID" ]; then
+    echo -e "${BLUE}[Testing force compact]${NC}"
+    compact_response=$(api_call POST "$SERVER/api/v1/commands/compact" "{\"session_id\": \"$SESSION_ID\", \"force\": true}")
+    compacted=$(echo "$compact_response" | jq -r '.compacted // "unknown"')
+    echo -e "${DIM}Force compact result: compacted=$compacted${NC}"
+
+    # Log compact result
+    echo "COMPACT: compacted=$compacted" >> "$LOG_FILE"
+fi
+
+# ----------------------------------------------------------------------------
+log "Scene 9: Wrapping up"
 # ----------------------------------------------------------------------------
 
 chat "Quick summary of what we discussed today?"
@@ -300,3 +351,12 @@ fi
 echo ""
 echo "Token usage by message:"
 grep "^TOKENS:" "$LOG_FILE" | awk -F': ' '{print "  " NR ": " $2 " tokens"}' | head -10
+
+# Context management summary
+echo ""
+echo "Context management:"
+COMPACT_COUNT=$(grep -c "^COMPACT:" "$LOG_FILE" 2>/dev/null || echo 0)
+echo "  Compact operations: $COMPACT_COUNT"
+grep "^COMPACT:" "$LOG_FILE" | while read -r line; do
+    echo "  - $line"
+done

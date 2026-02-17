@@ -20,8 +20,9 @@ use crate::types::{
 
 /// Execute an async operation with exponential backoff retry.
 ///
-/// Retries only on transient errors (network failures). Non-retryable errors
-/// are returned immediately.
+/// Retries on transient errors (network failures) and rate limits.
+/// For rate limits, uses provider-specified retry delay when available.
+/// Non-retryable errors are returned immediately.
 pub async fn with_retry<F, Fut, T>(
     max_retries: u32,
     initial_backoff: Duration,
@@ -43,6 +44,14 @@ where
                     return Err(e);
                 }
 
+                // For rate limits, use provider-specified delay if available
+                let wait_duration = if let Some(retry_after) = e.retry_after() {
+                    // Add a small buffer to the provider's suggested delay
+                    retry_after + Duration::from_millis(100)
+                } else {
+                    backoff
+                };
+
                 last_error = Some(e);
 
                 if attempt < max_retries {
@@ -50,11 +59,16 @@ where
                         backend = backend_name,
                         attempt = attempt + 1,
                         max_retries = max_retries,
-                        backoff_ms = backoff.as_millis() as u64,
+                        wait_ms = wait_duration.as_millis() as u64,
                         "Request failed, retrying"
                     );
-                    tokio::time::sleep(backoff).await;
-                    backoff *= 2;
+                    tokio::time::sleep(wait_duration).await;
+
+                    // Only apply exponential backoff for non-rate-limit errors
+                    // Rate limits use provider timing, so we keep the base backoff for fallback
+                    if last_error.as_ref().and_then(|e| e.retry_after()).is_none() {
+                        backoff *= 2;
+                    }
                 }
             }
         }
