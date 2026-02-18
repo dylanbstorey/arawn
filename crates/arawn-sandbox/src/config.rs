@@ -121,25 +121,67 @@ impl SandboxConfig {
     /// accessible to sandboxed commands.
     pub fn default_deny_read_paths() -> Vec<PathBuf> {
         let mut paths = vec![
+            // System auth & security
             PathBuf::from("/etc/shadow"),
+            PathBuf::from("/etc/gshadow"),
             PathBuf::from("/etc/sudoers"),
             PathBuf::from("/etc/sudoers.d"),
+            PathBuf::from("/etc/ssl/private"),
+            PathBuf::from("/etc/pam.d"),
+            PathBuf::from("/etc/security"),
         ];
 
-        // Add home directory sensitive paths
         if let Some(home) = dirs::home_dir() {
+            // SSH & GPG keys
             paths.push(home.join(".ssh"));
             paths.push(home.join(".gnupg"));
+
+            // Cloud provider credentials
             paths.push(home.join(".aws"));
+            paths.push(home.join(".azure"));
             paths.push(home.join(".config/gcloud"));
             paths.push(home.join(".kube"));
+
+            // Container & registry credentials
             paths.push(home.join(".docker/config.json"));
+
+            // Package manager tokens
             paths.push(home.join(".npmrc"));
+            paths.push(home.join(".yarnrc"));
+
+            // Git credentials
             paths.push(home.join(".netrc"));
+            paths.push(home.join(".git-credentials"));
             paths.push(home.join(".gitconfig"));
+
+            // CLI tool credentials
+            paths.push(home.join(".config/gh"));
+            paths.push(home.join(".config/hub"));
+            paths.push(home.join(".config/heroku"));
+            paths.push(home.join(".terraform.d"));
+            paths.push(home.join(".vault-token"));
+
+            // Database passwords
+            paths.push(home.join(".pgpass"));
+            paths.push(home.join(".my.cnf"));
+
+            // Shell history (may contain secrets)
             paths.push(home.join(".bash_history"));
             paths.push(home.join(".zsh_history"));
-            // Arawn config directory (credentials, keys)
+            paths.push(home.join(".python_history"));
+            paths.push(home.join(".node_repl_history"));
+            paths.push(home.join(".mysql_history"));
+            paths.push(home.join(".psql_history"));
+            paths.push(home.join(".rediscli_history"));
+
+            // macOS specific
+            #[cfg(target_os = "macos")]
+            {
+                paths.push(home.join("Library/Keychains"));
+                paths.push(home.join("Library/Cookies"));
+            }
+
+            // Arawn config (credentials, API keys)
             paths.push(home.join(".arawn/config"));
         }
 
