@@ -37,17 +37,21 @@ This keeps the main agent's context clean and efficient while still enabling dee
 
 ## Goals & Non-Goals
 
-**Goals:**
+**Goals (Phase 1):**
 - Isolated exploration context that doesn't pollute main agent history
 - Explicit `explore()` tool for agent-initiated exploration
-- User prompt when tool results exceed threshold ("compress with RLM?")
-- Configurable model (defaults to main agent's model)
-- Full tool access (not restricted to read-only)
+- Configurable model (falls back to default LLM)
+- Read-only tool access plus internal scratch space
 - Budget enforcement (25 iteration limit, configurable)
 - Natural language output for injection into main conversation
+- Streaming progress to client
 
-**Non-Goals (Phase 1):**
-- Memory/knowledge graph persistence (deferred - cache invalidation unsolved)
+**Phase 2 (Deferred):**
+- Large-result-intercept with user prompt ("compress with RLM?")
+- Server→client prompt protocol
+
+**Non-Goals:**
+- Memory/knowledge graph persistence (cache invalidation unsolved)
 - Automatic fact extraction
 - Query intent classification (understand vs modify)
 - Cross-session knowledge sharing
@@ -316,9 +320,12 @@ Muninn-style transparent proxy that intercepts all LLM calls.
 Skip user prompt, always compress large results.
 - **Rejected**: User loses control. Some contexts need raw data. Prompt gives user agency.
 
-### 4. Read-Only Tool Access (Rejected)
-Restrict RLM to glob/grep/read only.
-- **Rejected**: User requested full tool access. RLM may need web search, code execution for exploration.
+### 4. Read-Only Tool Access (Accepted with nuance)
+Restrict RLM to read-only tools plus internal scratch space.
+- **Accepted**: Exploration is about gathering information, not changing state. If RLM writes externally, main agent doesn't know (isolation breaks). Cheaper models are riskier for writes.
+- **Allowed**: glob, grep, file_read, web_fetch, internal scratch/think tool
+- **Disallowed**: file_write, shell (initially), external modifications
+- **Revisit**: Shell for read-only commands (jq, etc.) if usage patterns show need
 
 ### 5. Coupled Memory Persistence (Deferred)
 Extract facts during exploration and persist to knowledge graph.
@@ -376,15 +383,21 @@ Extract facts during exploration and persist to knowledge graph.
 
 ## Design Decisions
 
-1. **User prompt UX**: Requires bi-directional communication at arawn-client layer. CLI may need to adopt client crate. TUI can use existing prompt patterns.
+1. **Model selection**: Configurable per-exploration. Falls back to default LLM (same pattern as other tools/agents).
 
-2. **Streaming**: Yes - stream exploration progress to user (files being examined, iterations used).
+2. **Tool access**: Read-only plus internal scratch. See "Alternatives Considered" for full breakdown.
 
-3. **Cancellation**: Yes - user can cancel mid-exploration. RLM synthesizes partial findings.
+3. **Phase 1 scope**: Explicit `explore()` tool only. Large-result-intercept deferred to phase 2.
 
-4. **Scope hints**: Deferred. Context for "where to look" comes from the query and injected prompt, not a separate parameter. Simplifies tool interface.
+4. **Client prompts**: Not needed for phase 1. The intercept flow ("compress with RLM?") requires server→client prompts, but that's phase 2.
 
-5. **Recursive exploration**: Max 1 level. RLM cannot spawn sub-RLMs.
+5. **Streaming**: Yes - stream exploration progress to user (files being examined, iterations used).
+
+6. **Cancellation**: Yes - user can cancel mid-exploration. RLM synthesizes partial findings.
+
+7. **Scope hints**: Deferred. Context for "where to look" comes from the query and injected prompt, not a separate parameter. Simplifies tool interface.
+
+8. **Recursive exploration**: Max 1 level. RLM cannot spawn sub-RLMs.
 
 ## Open Questions
 

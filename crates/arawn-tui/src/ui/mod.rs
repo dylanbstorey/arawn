@@ -8,6 +8,7 @@ pub mod logs;
 pub mod palette;
 pub mod sessions;
 pub mod sidebar;
+pub mod tools;
 
 pub use command_popup::{CommandInfo, CommandPopup};
 pub use layout::render;

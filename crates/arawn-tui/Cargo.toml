@@ -42,3 +42,6 @@ arawn-config = { path = "../arawn-config" }
 
 # Synchronization (non-poisoning locks)
 parking_lot = { workspace = true }
+
+# Temporary files (for pager integration)
+tempfile = "3"

@@ -106,6 +106,9 @@ fn render_assistant_message(lines: &mut Vec<Line<'static>>, msg: &ChatMessage, _
     }
 }
 
+/// Dotted separator character for tool display.
+const TOOL_SEPARATOR: &str = "┄";
+
 /// Render tool executions between messages.
 fn render_tools(lines: &mut Vec<Line<'static>>, tools: &[ToolExecution]) {
     if tools.is_empty() {
@@ -115,13 +118,19 @@ fn render_tools(lines: &mut Vec<Line<'static>>, tools: &[ToolExecution]) {
     lines.push(Line::from(""));
 
     for tool in tools {
-        // Tool header line
+        // Top separator
+        lines.push(Line::from(Span::styled(
+            TOOL_SEPARATOR.repeat(48),
+            Style::default().fg(Color::DarkGray),
+        )));
+
+        // Build one-liner: [name] args... status duration
         let status_indicator = if tool.running {
-            Span::styled("◐ ", Style::default().fg(Color::Yellow))
+            Span::styled("◐", Style::default().fg(Color::Yellow))
         } else if tool.success == Some(true) {
-            Span::styled("✓ ", Style::default().fg(Color::Green))
+            Span::styled("✓", Style::default().fg(Color::Green))
         } else {
-            Span::styled("✗ ", Style::default().fg(Color::Red))
+            Span::styled("✗", Style::default().fg(Color::Red))
         };
 
         let tool_name = Span::styled(
@@ -131,34 +140,70 @@ fn render_tools(lines: &mut Vec<Line<'static>>, tools: &[ToolExecution]) {
                 .add_modifier(Modifier::BOLD),
         );
 
-        lines.push(Line::from(vec![
-            Span::raw("  "),
-            status_indicator,
-            tool_name,
-        ]));
+        // Format args or output preview (truncated)
+        let preview = if !tool.args.is_empty() {
+            truncate_str(&tool.args, 30)
+        } else if !tool.output.is_empty() {
+            let first_line = tool.output.lines().next().unwrap_or("");
+            truncate_str(first_line, 30)
+        } else {
+            String::new()
+        };
 
-        // Show truncated output preview if there's output
-        if !tool.output.is_empty() {
-            let line_count = tool.output.lines().count();
-            let preview = tool.output.lines().next().unwrap_or("");
+        // Format duration
+        let duration_str = if tool.running {
+            String::new()
+        } else if let Some(ms) = tool.duration_ms {
+            format_duration(ms)
+        } else {
+            String::new()
+        };
 
-            // Build the preview string with truncation indicator
-            let mut display = if preview.len() > 60 {
-                format!("{}...", &preview[..57])
-            } else {
-                preview.to_string()
-            };
-
-            // Add indicator if there are more lines
-            if line_count > 1 {
-                display.push_str(&format!(" (+{} more lines)", line_count - 1));
-            }
-
-            lines.push(Line::from(Span::styled(
-                format!("    {}", display),
-                Style::default().fg(Color::DarkGray),
-            )));
+        // Build the line with proper spacing
+        let mut spans = vec![tool_name, Span::raw(" ")];
+        if !preview.is_empty() {
+            spans.push(Span::styled(preview, Style::default().fg(Color::Gray)));
         }
+        // Add spacing before status
+        spans.push(Span::raw(" "));
+        spans.push(status_indicator);
+        if !duration_str.is_empty() {
+            spans.push(Span::styled(
+                format!(" {}", duration_str),
+                Style::default().fg(Color::DarkGray),
+            ));
+        }
+
+        lines.push(Line::from(spans));
+
+        // Bottom separator
+        lines.push(Line::from(Span::styled(
+            TOOL_SEPARATOR.repeat(48),
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+}
+
+/// Truncate a string to max length, adding "..." if truncated.
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len.saturating_sub(3)])
+    }
+}
+
+/// Format duration in human-readable form.
+fn format_duration(ms: u64) -> String {
+    if ms < 1000 {
+        format!("{}ms", ms)
+    } else if ms < 60_000 {
+        format!("{:.1}s", ms as f64 / 1000.0)
+    } else {
+        let secs = ms / 1000;
+        let mins = secs / 60;
+        let remaining_secs = secs % 60;
+        format!("{}m{}s", mins, remaining_secs)
     }
 }
 

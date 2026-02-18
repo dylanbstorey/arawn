@@ -76,12 +76,18 @@ pub struct ToolExecution {
     pub id: String,
     /// Tool name.
     pub name: String,
+    /// Tool arguments (truncated for display).
+    pub args: String,
     /// Accumulated output.
     pub output: String,
     /// Whether the tool is still running.
     pub running: bool,
     /// Whether the tool succeeded (None if still running).
     pub success: Option<bool>,
+    /// When the tool started (for duration calculation).
+    pub started_at: std::time::Instant,
+    /// Duration in milliseconds (calculated when tool ends).
+    pub duration_ms: Option<u64>,
 }
 
 /// Main application state.
@@ -138,6 +144,10 @@ pub struct App {
     pub moving_session_to_workstream: bool,
     /// Tool pane scroll offset.
     pub tool_scroll: usize,
+    /// Currently selected tool index (for tool pane navigation).
+    pub selected_tool_index: Option<usize>,
+    /// Whether the tool pane (split view) is visible.
+    pub show_tool_pane: bool,
     /// Pending async actions to process.
     pending_actions: Vec<PendingAction>,
     /// Command autocomplete popup.
@@ -207,6 +217,8 @@ impl App {
             sidebar,
             moving_session_to_workstream: false,
             tool_scroll: 0,
+            selected_tool_index: None,
+            show_tool_pane: false,
             pending_actions: Vec::new(),
             command_popup: CommandPopup::new(),
             command_executing: false,
@@ -639,10 +651,17 @@ impl App {
                 self.push_tool(ToolExecution {
                     id: tool_id,
                     name: tool_name,
+                    args: String::new(), // Args not provided by protocol yet
                     output: String::new(),
                     running: true,
                     success: None,
+                    started_at: std::time::Instant::now(),
+                    duration_ms: None,
                 });
+                // Auto-select the new tool if tool pane is visible
+                if self.show_tool_pane {
+                    self.selected_tool_index = Some(self.tools.len().saturating_sub(1));
+                }
             }
 
             ServerMessage::ToolOutput {
@@ -659,6 +678,7 @@ impl App {
                 if let Some(tool) = self.tools.iter_mut().find(|t| t.id == tool_id) {
                     tool.running = false;
                     tool.success = Some(success);
+                    tool.duration_ms = Some(tool.started_at.elapsed().as_millis() as u64);
                 }
             }
 
@@ -791,7 +811,22 @@ impl App {
                     return;
                 }
                 KeyCode::Char('e') => {
-                    self.focus.toggle(FocusTarget::ToolPane);
+                    self.show_tool_pane = !self.show_tool_pane;
+                    if self.show_tool_pane {
+                        // Select first tool if none selected
+                        if self.selected_tool_index.is_none() && !self.tools.is_empty() {
+                            self.selected_tool_index = Some(0);
+                        }
+                        self.focus.focus(FocusTarget::ToolPane);
+                    } else {
+                        self.selected_tool_index = None;
+                        self.focus.return_to_input();
+                    }
+                    return;
+                }
+                KeyCode::Char('o') if self.show_tool_pane => {
+                    // Open selected tool output in external editor
+                    self.open_tool_in_editor();
                     return;
                 }
                 KeyCode::Char('l') => {
@@ -1326,14 +1361,37 @@ impl App {
 
     /// Handle tool pane key events.
     fn handle_tool_pane_key(&mut self, key: crossterm::event::KeyEvent) {
+        let has_ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+
         match key.code {
             KeyCode::Esc => {
+                self.show_tool_pane = false;
+                self.selected_tool_index = None;
                 self.focus.return_to_input();
             }
-            KeyCode::Up => {
+            KeyCode::Left | KeyCode::Char('h') => {
+                // Navigate to previous tool
+                if !self.tools.is_empty() {
+                    let current = self.selected_tool_index.unwrap_or(0);
+                    self.selected_tool_index = Some(current.saturating_sub(1));
+                    self.tool_scroll = 0; // Reset scroll when changing tools
+                }
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                // Navigate to next tool
+                if !self.tools.is_empty() {
+                    let current = self.selected_tool_index.unwrap_or(0);
+                    let max_idx = self.tools.len().saturating_sub(1);
+                    self.selected_tool_index = Some((current + 1).min(max_idx));
+                    self.tool_scroll = 0; // Reset scroll when changing tools
+                }
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                // Scroll output up
                 self.tool_scroll = self.tool_scroll.saturating_sub(1);
             }
-            KeyCode::Down => {
+            KeyCode::Down | KeyCode::Char('j') => {
+                // Scroll output down
                 self.tool_scroll = self.tool_scroll.saturating_add(1);
             }
             KeyCode::PageUp => {
@@ -1343,13 +1401,105 @@ impl App {
                 self.tool_scroll = self.tool_scroll.saturating_add(10);
             }
             KeyCode::Home => {
-                self.tool_scroll = 0;
+                if has_ctrl {
+                    // Ctrl+Home: go to first tool
+                    if !self.tools.is_empty() {
+                        self.selected_tool_index = Some(0);
+                        self.tool_scroll = 0;
+                    }
+                } else {
+                    self.tool_scroll = 0;
+                }
             }
             KeyCode::End => {
-                // Scroll to end - will be clamped in render
-                self.tool_scroll = usize::MAX;
+                if has_ctrl {
+                    // Ctrl+End: go to last tool
+                    if !self.tools.is_empty() {
+                        self.selected_tool_index = Some(self.tools.len() - 1);
+                        self.tool_scroll = 0;
+                    }
+                } else {
+                    // Scroll to end - will be clamped in render
+                    self.tool_scroll = usize::MAX;
+                }
+            }
+            KeyCode::Char('o') if has_ctrl => {
+                // Ctrl+O: open in external editor
+                self.open_tool_in_editor();
             }
             _ => {}
+        }
+    }
+
+    /// Open the selected tool's output in an external pager.
+    ///
+    /// This suspends the TUI, runs the pager (e.g., `less`), and restores
+    /// the TUI when the user exits the pager.
+    fn open_tool_in_editor(&mut self) {
+        let Some(idx) = self.selected_tool_index else {
+            self.status_message = Some("No tool selected".to_string());
+            return;
+        };
+        let Some(tool) = self.tools.get(idx) else {
+            self.status_message = Some("Tool not found".to_string());
+            return;
+        };
+
+        if tool.output.is_empty() {
+            self.status_message = Some("Tool has no output".to_string());
+            return;
+        }
+
+        // Get pager from environment (prefer PAGER for viewing)
+        let pager = std::env::var("PAGER")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| "less".to_string());
+
+        let output = tool.output.clone();
+        let tool_name = tool.name.clone();
+
+        // Run pager synchronously, suspending the TUI
+        if let Err(e) = self.run_pager(&pager, &output) {
+            self.status_message = Some(format!("Failed to open pager: {}", e));
+        } else {
+            self.status_message = Some(format!("Viewed {} output in {}", tool_name, pager));
+        }
+    }
+
+    /// Run a pager with the given content, suspending and restoring the TUI.
+    fn run_pager(&self, pager: &str, content: &str) -> std::io::Result<()> {
+        use crossterm::{
+            execute,
+            terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+        };
+        use std::io::Write;
+
+        // Write content to temp file
+        let mut tmp = tempfile::NamedTempFile::new()?;
+        tmp.write_all(content.as_bytes())?;
+        tmp.flush()?;
+
+        // Suspend TUI
+        disable_raw_mode()?;
+        execute!(std::io::stdout(), LeaveAlternateScreen)?;
+
+        // Run pager (blocks until user quits)
+        let status = std::process::Command::new(pager)
+            .arg(tmp.path())
+            .status();
+
+        // Restore TUI (even if pager failed)
+        execute!(std::io::stdout(), EnterAlternateScreen)?;
+        enable_raw_mode()?;
+
+        // Check pager result
+        match status {
+            Ok(exit) if exit.success() => Ok(()),
+            Ok(exit) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Pager exited with status: {}", exit),
+            )),
+            Err(e) => Err(e),
         }
     }
 

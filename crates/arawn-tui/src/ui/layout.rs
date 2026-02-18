@@ -9,6 +9,7 @@ use crate::ui::logs::{render_logs_footer, render_logs_panel};
 use crate::ui::palette::render_palette_overlay as render_palette;
 use crate::ui::sessions::render_sessions_overlay as render_sessions;
 use crate::ui::sidebar::{render_sidebar, SIDEBAR_HINT_WIDTH, SIDEBAR_WIDTH};
+use crate::ui::tools::{render_tool_pane, render_tool_pane_footer};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -133,9 +134,30 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(header, area);
 }
 
-/// Render the main content area (chat messages).
+/// Render the main content area (chat messages + optional tool pane).
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
-    render_chat(app, frame, area);
+    if app.show_tool_pane {
+        // Split vertically: chat (top 70%), tool pane (bottom 30%)
+        let chunks = Layout::vertical([
+            Constraint::Percentage(70),
+            Constraint::Percentage(30),
+        ])
+        .split(area);
+
+        render_chat(app, frame, chunks[0]);
+
+        // Tool pane with footer
+        let tool_chunks = Layout::vertical([
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ])
+        .split(chunks[1]);
+
+        render_tool_pane(app, frame, tool_chunks[0]);
+        render_tool_pane_footer(frame, tool_chunks[1]);
+    } else {
+        render_chat(app, frame, area);
+    }
 }
 
 /// Render the input area.
@@ -149,6 +171,8 @@ fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
         msg.clone()
     } else if app.waiting {
         "Thinking...".to_string()
+    } else if app.focus.is(FocusTarget::ToolPane) {
+        "←→ tools │ ↑↓ scroll │ ^O editor │ Esc close".to_string()
     } else if app.focus.is(FocusTarget::Sidebar) {
         use crate::sidebar::SidebarSection;
         let section = match app.sidebar.section {
@@ -157,7 +181,7 @@ fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
         };
         format!("[{}] ↑↓ navigate │ Tab switch │ Enter select │ n new │ → close", section)
     } else {
-        "^K palette │ ^W sidebar │ ^L logs │ ^Q quit".to_string()
+        "^K palette │ ^W sidebar │ ^E tools │ ^L logs │ ^Q quit".to_string()
     };
 
     // Build right side with context info and connection status
