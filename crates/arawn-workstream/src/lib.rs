@@ -29,5 +29,5 @@ pub use session_loader::{
 };
 pub use store::WorkstreamStore;
 pub use types::{MessageRole, WorkstreamMessage};
-pub use directory::{DirectoryError, DirectoryManager, DirectoryResult, SCRATCH_WORKSTREAM};
+pub use directory::{AttachResult, CloneResult, DirectoryError, DirectoryManager, DirectoryResult, ExportResult, PromoteResult, SCRATCH_WORKSTREAM};
 pub use path_validator::{PathError, PathResult, PathValidator};

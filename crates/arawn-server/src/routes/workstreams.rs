@@ -1,3 +1,4 @@
+use std::path::Path as StdPath;
 use std::sync::Arc;
 
 use axum::{
@@ -80,6 +81,64 @@ pub struct PromoteRequest {
     pub tags: Vec<String>,
     #[serde(default)]
     pub default_model: Option<String>,
+}
+
+/// Request to promote a file from work/ to production/.
+#[derive(Debug, Deserialize)]
+pub struct PromoteFileRequest {
+    /// Source path relative to work/.
+    pub source: String,
+    /// Destination path relative to production/.
+    pub destination: String,
+}
+
+/// Response from file promotion.
+#[derive(Debug, Serialize)]
+pub struct PromoteFileResponse {
+    /// Final path of the promoted file (relative to production/).
+    pub path: String,
+    /// File size in bytes.
+    pub bytes: u64,
+    /// Whether the file was renamed due to a conflict.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub renamed: bool,
+}
+
+/// Request to export a file from production/ to external path.
+#[derive(Debug, Deserialize)]
+pub struct ExportFileRequest {
+    /// Source path relative to production/.
+    pub source: String,
+    /// Absolute destination path (directory or file).
+    pub destination: String,
+}
+
+/// Response from file export.
+#[derive(Debug, Serialize)]
+pub struct ExportFileResponse {
+    /// Final path of the exported file.
+    pub exported_to: String,
+    /// File size in bytes.
+    pub bytes: u64,
+}
+
+/// Request to clone a git repository into production/.
+#[derive(Debug, Deserialize)]
+pub struct CloneRepoRequest {
+    /// Git repository URL (HTTPS or SSH).
+    pub url: String,
+    /// Optional custom directory name.
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+/// Response from git clone operation.
+#[derive(Debug, Serialize)]
+pub struct CloneRepoResponse {
+    /// Path where the repository was cloned (relative to production/).
+    pub path: String,
+    /// HEAD commit hash.
+    pub commit: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -320,4 +379,170 @@ pub async fn promote_handler(
 
     let tags = mgr.get_tags(&ws.id).ok();
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
+}
+
+/// POST /api/v1/workstreams/:ws/files/promote
+///
+/// Promotes a file from work/ to production/ within a workstream.
+pub async fn promote_file_handler(
+    State(state): State<AppState>,
+    Path(workstream_id): Path<String>,
+    Json(req): Json<PromoteFileRequest>,
+) -> Result<(StatusCode, Json<PromoteFileResponse>), ServerError> {
+    let mgr = get_manager(&state)?;
+
+    // Get the directory manager
+    let dir_mgr = mgr.directory_manager().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Directory management not configured".to_string())
+    })?;
+
+    // Promote the file
+    let result = dir_mgr
+        .promote(
+            &workstream_id,
+            StdPath::new(&req.source),
+            StdPath::new(&req.destination),
+        )
+        .map_err(|e| match e {
+            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+                ServerError::NotFound(format!("Workstream not found: {ws}"))
+            }
+            arawn_workstream::directory::DirectoryError::SourceNotFound(path) => {
+                ServerError::NotFound(format!("Source file not found: {}", path.display()))
+            }
+            arawn_workstream::directory::DirectoryError::NotAFile(path) => {
+                ServerError::BadRequest(format!("Source is not a file: {}", path.display()))
+            }
+            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+            }
+            other => ServerError::Internal(format!("File promotion failed: {other}")),
+        })?;
+
+    // Calculate relative path for response
+    let prod_path = dir_mgr.production_path(&workstream_id);
+    let relative_path = result
+        .path
+        .strip_prefix(&prod_path)
+        .unwrap_or(&result.path)
+        .to_string_lossy()
+        .to_string();
+
+    // TODO: Send WebSocket alert if renamed
+
+    Ok((
+        StatusCode::OK,
+        Json(PromoteFileResponse {
+            path: relative_path,
+            bytes: result.bytes,
+            renamed: result.renamed,
+        }),
+    ))
+}
+
+/// POST /api/v1/workstreams/:ws/files/export
+///
+/// Exports a file from production/ to an external path.
+pub async fn export_file_handler(
+    State(state): State<AppState>,
+    Path(workstream_id): Path<String>,
+    Json(req): Json<ExportFileRequest>,
+) -> Result<(StatusCode, Json<ExportFileResponse>), ServerError> {
+    let mgr = get_manager(&state)?;
+
+    // Get the directory manager
+    let dir_mgr = mgr.directory_manager().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Directory management not configured".to_string())
+    })?;
+
+    // Export the file
+    let result = dir_mgr
+        .export(
+            &workstream_id,
+            StdPath::new(&req.source),
+            StdPath::new(&req.destination),
+        )
+        .map_err(|e| match e {
+            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+                ServerError::NotFound(format!("Workstream not found: {ws}"))
+            }
+            arawn_workstream::directory::DirectoryError::SourceNotFound(path) => {
+                ServerError::NotFound(format!("Source file not found: {}", path.display()))
+            }
+            arawn_workstream::directory::DirectoryError::NotAFile(path) => {
+                ServerError::BadRequest(format!("Source is not a file: {}", path.display()))
+            }
+            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+            }
+            other => ServerError::Internal(format!("File export failed: {other}")),
+        })?;
+
+    Ok((
+        StatusCode::OK,
+        Json(ExportFileResponse {
+            exported_to: result.path.to_string_lossy().to_string(),
+            bytes: result.bytes,
+        }),
+    ))
+}
+
+/// POST /api/v1/workstreams/:ws/clone
+///
+/// Clones a git repository into the workstream's production/ directory.
+pub async fn clone_repo_handler(
+    State(state): State<AppState>,
+    Path(workstream_id): Path<String>,
+    Json(req): Json<CloneRepoRequest>,
+) -> Result<(StatusCode, Json<CloneRepoResponse>), ServerError> {
+    let mgr = get_manager(&state)?;
+
+    // Get the directory manager
+    let dir_mgr = mgr.directory_manager().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Directory management not configured".to_string())
+    })?;
+
+    // Clone the repository
+    let result = dir_mgr
+        .clone_repo(&workstream_id, &req.url, req.name.as_deref())
+        .map_err(|e| match e {
+            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+                ServerError::NotFound(format!("Workstream not found: {ws}"))
+            }
+            arawn_workstream::directory::DirectoryError::AlreadyExists(path) => {
+                ServerError::Conflict(format!(
+                    "Destination already exists: {}",
+                    path.display()
+                ))
+            }
+            arawn_workstream::directory::DirectoryError::GitNotFound => {
+                ServerError::ServiceUnavailable(
+                    "Git is not installed or not in PATH".to_string(),
+                )
+            }
+            arawn_workstream::directory::DirectoryError::CloneFailed { url, stderr } => {
+                ServerError::BadRequest(format!("Clone failed for {url}: {stderr}"))
+            }
+            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+            }
+            other => ServerError::Internal(format!("Clone failed: {other}")),
+        })?;
+
+    // Calculate relative path for response
+    let prod_path = dir_mgr.production_path(&workstream_id);
+    let relative_path = result
+        .path
+        .strip_prefix(&prod_path)
+        .unwrap_or(&result.path)
+        .to_string_lossy()
+        .to_string();
+
+    Ok((
+        StatusCode::CREATED,
+        Json(CloneRepoResponse {
+            path: relative_path,
+            commit: result.commit,
+        }),
+    ))
 }

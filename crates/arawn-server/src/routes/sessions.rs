@@ -95,6 +95,15 @@ pub struct SessionDetail {
     /// Session metadata.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub metadata: std::collections::HashMap<String, serde_json::Value>,
+    /// Current workstream ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workstream_id: Option<String>,
+    /// Number of files migrated (when moving from scratch).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files_migrated: Option<usize>,
+    /// Allowed file paths for this session.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_paths: Option<Vec<String>>,
 }
 
 /// Turn info for API responses.
@@ -301,6 +310,8 @@ pub async fn update_session_handler(
 
     // Track the workstream ID for potential reload after reassignment
     let mut target_workstream_id: Option<String> = None;
+    // Track file migration info when moving from scratch
+    let mut migration_result: Option<arawn_workstream::AttachResult> = None;
 
     // Handle workstream reassignment if requested
     if let Some(ref new_workstream_id) = request.workstream_id {
@@ -310,6 +321,13 @@ pub async fn update_session_handler(
             "Attempting to reassign session to new workstream"
         );
         if let Some(ref workstreams) = state.workstreams {
+            // Get the current workstream ID before reassignment to detect scratch→named migration
+            let current_workstream_id = workstreams
+                .store()
+                .get_session(&session_id)
+                .map(|s| s.workstream_id)
+                .ok();
+
             match workstreams.reassign_session(&session_id, new_workstream_id) {
                 Ok(session) => {
                     tracing::info!(
@@ -318,6 +336,42 @@ pub async fn update_session_handler(
                         result_workstream_id = %session.workstream_id,
                         "Session reassignment successful"
                     );
+
+                    // Check if we're moving from scratch to a named workstream
+                    // and if directory manager is configured
+                    if let Some(ref old_ws) = current_workstream_id {
+                        if old_ws == "scratch" && new_workstream_id != "scratch" {
+                            if let Some(dir_mgr) = workstreams.directory_manager() {
+                                match dir_mgr.attach_session(&session_id, new_workstream_id) {
+                                    Ok(result) => {
+                                        tracing::info!(
+                                            session_id = %session_id,
+                                            files_migrated = result.files_migrated,
+                                            new_work_path = %result.new_work_path.display(),
+                                            "Migrated session files from scratch"
+                                        );
+                                        migration_result = Some(result);
+                                    }
+                                    Err(arawn_workstream::DirectoryError::SessionWorkNotFound(_)) => {
+                                        // No files to migrate, that's fine
+                                        tracing::debug!(
+                                            session_id = %session_id,
+                                            "No scratch session work directory to migrate"
+                                        );
+                                    }
+                                    Err(e) => {
+                                        // Log but don't fail - file migration is best-effort
+                                        tracing::warn!(
+                                            session_id = %session_id,
+                                            error = %e,
+                                            "Failed to migrate session files from scratch (non-fatal)"
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Invalidate the session cache so it reloads from the new workstream
                     state.invalidate_session(id).await;
                     target_workstream_id = Some(new_workstream_id.clone());
@@ -379,7 +433,21 @@ pub async fn update_session_handler(
             let _ = state.session_cache.update(id, session.clone()).await;
         }
 
-        return Ok(Json(session_to_detail(&session)));
+        // Build response with migration info if available
+        let (files_migrated, allowed_paths) = match migration_result {
+            Some(ref result) => (
+                Some(result.files_migrated),
+                Some(result.allowed_paths.iter().map(|p| p.display().to_string()).collect()),
+            ),
+            None => (None, None),
+        };
+
+        return Ok(Json(session_to_detail_with_migration(
+            &session,
+            Some(workstream_id.clone()),
+            files_migrated,
+            allowed_paths,
+        )));
     }
 
     // No reassignment - update session via cache directly
@@ -487,6 +555,15 @@ fn parse_session_id(s: &str) -> Result<SessionId, ServerError> {
 }
 
 fn session_to_detail(session: &Session) -> SessionDetail {
+    session_to_detail_with_migration(session, None, None, None)
+}
+
+fn session_to_detail_with_migration(
+    session: &Session,
+    workstream_id: Option<String>,
+    files_migrated: Option<usize>,
+    allowed_paths: Option<Vec<String>>,
+) -> SessionDetail {
     SessionDetail {
         id: session.id.to_string(),
         turns: session
@@ -504,6 +581,9 @@ fn session_to_detail(session: &Session) -> SessionDetail {
         created_at: session.created_at.to_rfc3339(),
         updated_at: session.updated_at.to_rfc3339(),
         metadata: session.metadata.clone(),
+        workstream_id,
+        files_migrated,
+        allowed_paths,
     }
 }
 

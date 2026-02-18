@@ -28,6 +28,10 @@ pub enum ServerError {
     #[error("Rate limit exceeded: {0}")]
     RateLimitExceeded(RateLimitError),
 
+    /// Resource conflict (e.g., already exists).
+    #[error("Conflict: {0}")]
+    Conflict(String),
+
     /// Service unavailable.
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
@@ -185,6 +189,7 @@ impl IntoResponse for ServerError {
                 ServerError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized"),
                 ServerError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
                 ServerError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
+                ServerError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
                 ServerError::RateLimitExceeded(_) => {
                     (StatusCode::TOO_MANY_REQUESTS, "rate_limit_exceeded")
                 }

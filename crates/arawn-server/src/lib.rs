@@ -159,6 +159,15 @@ impl Server {
                 get(routes::list_workstream_sessions_handler),
             )
             .route("/workstreams/{id}/promote", post(routes::promote_handler))
+            .route(
+                "/workstreams/{ws}/files/promote",
+                post(routes::promote_file_handler),
+            )
+            .route(
+                "/workstreams/{ws}/files/export",
+                post(routes::export_file_handler),
+            )
+            .route("/workstreams/{ws}/clone", post(routes::clone_repo_handler))
             // Config endpoint
             .route("/config", get(routes::get_config_handler))
             // Agent endpoints
