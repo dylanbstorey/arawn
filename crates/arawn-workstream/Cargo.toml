@@ -25,6 +25,9 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
+# Paths
+dirs = { workspace = true }
+
 # Synchronization (non-poisoning locks)
 parking_lot = { workspace = true }
 

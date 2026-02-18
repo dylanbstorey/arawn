@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::directory::DirectoryManager;
 use crate::message_store::MessageStore;
 use crate::scratch::{SCRATCH_ID, ScratchManager};
 use crate::session::SessionManager;
@@ -27,6 +28,7 @@ pub struct WorkstreamManager {
     store: WorkstreamStore,
     message_store: MessageStore,
     session_timeout_minutes: i64,
+    directory_manager: Option<DirectoryManager>,
 }
 
 impl WorkstreamManager {
@@ -45,6 +47,7 @@ impl WorkstreamManager {
             store,
             message_store,
             session_timeout_minutes: config.session_timeout_minutes,
+            directory_manager: None,
         })
     }
 
@@ -58,7 +61,22 @@ impl WorkstreamManager {
             store,
             message_store,
             session_timeout_minutes,
+            directory_manager: None,
         }
+    }
+
+    /// Set the directory manager for file path management.
+    ///
+    /// When set, workstream creation will also create the production/work
+    /// directory structure via `DirectoryManager`.
+    pub fn with_directory_manager(mut self, dm: DirectoryManager) -> Self {
+        self.directory_manager = Some(dm);
+        self
+    }
+
+    /// Get a reference to the directory manager, if configured.
+    pub fn directory_manager(&self) -> Option<&DirectoryManager> {
+        self.directory_manager.as_ref()
     }
 
     // ── Workstream CRUD ─────────────────────────────────────────────
@@ -75,6 +93,18 @@ impl WorkstreamManager {
         }
         // Create the JSONL directory
         std::fs::create_dir_all(self.message_store.workstream_dir(&ws.id))?;
+
+        // Create production/work directories if directory manager is configured
+        if let Some(dm) = &self.directory_manager {
+            if let Err(e) = dm.create_workstream(&ws.id) {
+                tracing::warn!(
+                    workstream_id = %ws.id,
+                    error = %e,
+                    "Failed to create workstream directories (non-fatal)"
+                );
+            }
+        }
+
         Ok(ws)
     }
 

@@ -5,9 +5,11 @@
 
 pub mod compression;
 pub mod context;
+pub mod directory;
 pub mod error;
 pub mod manager;
 pub mod message_store;
+pub mod path_validator;
 pub mod scratch;
 pub mod session;
 pub mod session_loader;
@@ -27,3 +29,5 @@ pub use session_loader::{
 };
 pub use store::WorkstreamStore;
 pub use types::{MessageRole, WorkstreamMessage};
+pub use directory::{DirectoryError, DirectoryManager, DirectoryResult, SCRATCH_WORKSTREAM};
+pub use path_validator::{PathError, PathResult, PathValidator};

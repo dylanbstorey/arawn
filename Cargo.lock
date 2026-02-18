@@ -354,6 +354,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "arawn-sandbox"
+version = "0.1.0"
+dependencies = [
+ "dirs 6.0.0",
+ "sandbox-runtime",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "arawn-script-sdk"
 version = "0.1.0"
 dependencies = [
@@ -450,6 +464,7 @@ version = "0.1.0"
 dependencies = [
  "arawn-llm",
  "chrono",
+ "dirs 6.0.0",
  "parking_lot",
  "refinery",
  "rusqlite",
@@ -2453,6 +2468,7 @@ dependencies = [
  "socket2",
  "system-configuration",
  "tokio",
+ "tower-layer",
  "tower-service",
  "tracing",
  "windows-registry",
@@ -3209,6 +3225,17 @@ dependencies = [
  "libc",
  "memoffset",
  "pin-utils",
+]
+
+[[package]]
+name = "nix"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
+dependencies = [
+ "bitflags 2.10.0",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -4349,6 +4376,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "sandbox-runtime"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee408f77cb6eeafd1d6a72a68faf733b992a9c13a5e25675e5e79328688e4b32"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "clap",
+ "dirs 5.0.1",
+ "futures",
+ "glob",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "nix 0.27.1",
+ "once_cell",
+ "parking_lot",
+ "pin-project-lite",
+ "rand 0.8.5",
+ "regex",
+ "serde",
+ "serde_json",
+ "shell-words",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -17,6 +17,7 @@ members = [
     "crates/arawn-mcp",
     "crates/arawn-session",
     "crates/arawn-tui",
+    "crates/arawn-sandbox",
 ]
 exclude = [
     "crates/orp-vendored",
@@ -84,6 +85,9 @@ uuid = { version = "1.11", features = ["v4", "serde"] }
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 
+# Paths
+dirs = "6.0"
+
 # Internal crates
 arawn-client = { path = "crates/arawn-client" }
 arawn-config = { path = "crates/arawn-config" }
@@ -99,6 +103,7 @@ arawn-plugin = { path = "crates/arawn-plugin" }
 arawn-mcp = { path = "crates/arawn-mcp" }
 arawn-session = { path = "crates/arawn-session" }
 arawn-tui = { path = "crates/arawn-tui" }
+arawn-sandbox = { path = "crates/arawn-sandbox" }
 orp-vendored = { path = "crates/orp-vendored" }
 gline-rs-vendored = { path = "crates/gline-rs-vendored", default-features = false }
 
