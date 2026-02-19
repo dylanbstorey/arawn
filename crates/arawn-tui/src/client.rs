@@ -124,9 +124,14 @@ impl WsClient {
     }
 
     /// Subscribe to a session.
-    pub fn subscribe(&self, session_id: String) -> Result<()> {
+    ///
+    /// If `reconnect_token` is provided, attempts to reclaim ownership after a disconnect.
+    pub fn subscribe(&self, session_id: String, reconnect_token: Option<String>) -> Result<()> {
         self.tx
-            .send(ClientMessage::Subscribe { session_id })
+            .send(ClientMessage::Subscribe {
+                session_id,
+                reconnect_token,
+            })
             .context("Failed to subscribe to session")
     }
 

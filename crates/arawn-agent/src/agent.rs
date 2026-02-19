@@ -192,6 +192,32 @@ impl Agent {
             let response = match self.backend.complete(request.clone()).await {
                 Ok(r) => r,
                 Err(e) => {
+                    // Check if this is a tool validation error (LLM hallucinated a tool name)
+                    // If so, inject feedback and retry instead of failing
+                    if e.is_tool_validation_error() {
+                        let invalid_tool = e.invalid_tool_name().unwrap_or("unknown");
+                        let available_tools = self.tools.names().join(", ");
+
+                        tracing::warn!(
+                            %session_id,
+                            %turn_id,
+                            iteration = iterations,
+                            invalid_tool = %invalid_tool,
+                            "Tool validation error - injecting feedback and retrying"
+                        );
+
+                        // Add feedback as a user message so the LLM can correct itself
+                        let feedback = format!(
+                            "Error: The tool '{}' does not exist. Available tools are: {}. Please use the exact tool name from this list.",
+                            invalid_tool,
+                            available_tools
+                        );
+                        messages.push(Message::user(feedback));
+
+                        // Continue to retry (counts against iteration limit)
+                        continue;
+                    }
+
                     tracing::error!(%session_id, %turn_id, iteration = iterations, error = %e, "LLM call failed");
                     return Err(e.into());
                 }
@@ -982,7 +1008,7 @@ impl Default for AgentBuilder {
 mod tests {
     use super::*;
     use crate::tool::MockTool;
-    use arawn_llm::{ContentBlock, MockBackend, StopReason, Usage};
+    use arawn_llm::{ContentBlock, MockBackend, MockResponse, StopReason, Usage};
 
     fn mock_text_response(text: &str) -> CompletionResponse {
         CompletionResponse::new(
@@ -1161,6 +1187,53 @@ mod tests {
 
         assert!(!response.tool_results[0].success);
         assert!(response.tool_results[0].content.contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_tool_validation_error_retry() {
+        // Test that when the backend returns a tool validation error (LLM hallucinated
+        // a tool name), the agent injects feedback and retries instead of failing.
+        let tool_validation_error = "tool call validation failed: attempted to call tool 'read_file' which was not in request.tools".to_string();
+
+        let backend = MockBackend::with_results(vec![
+            // First call: backend rejects with tool validation error
+            MockResponse::Error(tool_validation_error),
+            // Second call: LLM corrects itself and returns text
+            MockResponse::Success(mock_text_response("I'll use the correct tool name.")),
+        ]);
+
+        let agent = Agent::builder().with_backend(backend).build().unwrap();
+
+        let mut session = Session::new();
+        let response = agent.turn(&mut session, "Read the file").await.unwrap();
+
+        // Should succeed after retry
+        assert_eq!(response.text, "I'll use the correct tool name.");
+    }
+
+    #[tokio::test]
+    async fn test_tool_validation_error_exhausts_retries() {
+        // Test that repeated tool validation errors eventually hit the iteration limit
+        let tool_validation_error = "tool call validation failed: attempted to call tool 'bad_tool' which was not in request.tools".to_string();
+
+        // Return errors for more iterations than max_iterations
+        let errors: Vec<MockResponse> = (0..15)
+            .map(|_| MockResponse::Error(tool_validation_error.clone()))
+            .collect();
+
+        let backend = MockBackend::with_results(errors);
+
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_max_iterations(3) // Low limit to speed up test
+            .build()
+            .unwrap();
+
+        let mut session = Session::new();
+        let result = agent.turn(&mut session, "Keep failing").await.unwrap();
+
+        // Should hit max iterations and return truncated response
+        assert!(result.text.contains("truncated") || result.text.contains("max iterations"));
     }
 
     #[tokio::test]

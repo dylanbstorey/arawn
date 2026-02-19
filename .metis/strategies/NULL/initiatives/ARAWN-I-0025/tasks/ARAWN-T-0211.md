@@ -4,14 +4,14 @@ level: task
 title: "TUI: Session ownership and reconnect token support"
 short_code: "ARAWN-T-0211"
 created_at: 2026-02-19T13:57:31.801395+00:00
-updated_at: 2026-02-19T13:57:31.801395+00:00
+updated_at: 2026-02-19T14:05:14.126861+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -71,14 +71,18 @@ SubscribeAck {
 
 ## Acceptance Criteria
 
-- [ ] Protocol updated: Subscribe has reconnect_token field
-- [ ] Protocol updated: SubscribeAck variant added to ServerMessage
-- [ ] App stores reconnect tokens per session
-- [ ] SubscribeAck handler updates owner status and stores token
-- [ ] Reader mode: "READ ONLY" badge displayed
-- [ ] Reader mode: Input disabled with visual indicator
-- [ ] Reconnect logic uses stored token
-- [ ] Handle session_not_owned error gracefully
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] Protocol updated: Subscribe has reconnect_token field
+- [x] Protocol updated: SubscribeAck variant added to ServerMessage
+- [x] App stores reconnect tokens per session
+- [x] SubscribeAck handler updates owner status and stores token
+- [x] Reader mode: "READ ONLY" badge displayed
+- [x] Reader mode: Input disabled with visual indicator
+- [x] Reconnect logic uses stored token
+- [x] Handle session_not_owned error gracefully
 
 ## Implementation Notes
 
@@ -105,4 +109,15 @@ is_session_owner: bool,  // current session ownership status
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 2 - Continued
+- Initialized `reconnect_tokens` and `is_session_owner` fields in `App::new()`
+- Added `SubscribeAck` handler in `handle_server_message()` - updates ownership state and stores reconnect token
+- Updated `switch_to_session()` to pass reconnect token when subscribing
+- Modified `render_input()` in `ui/input.rs` to show "READ ONLY" badge when not owner
+- Added read-only check to `send_message()` and `send_command()` (except /help)
+- Build passes for both arawn-tui and arawn-server
+
+### Completed
+- Added specific handling for `session_not_owned` error - automatically switches to read-only mode
+- All acceptance criteria met
+- Build passes

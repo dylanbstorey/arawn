@@ -34,7 +34,8 @@ pub mod anthropic;
 pub mod openai;
 
 pub use backend::{
-    ContentDelta, LlmBackend, MockBackend, ResponseStream, SharedBackend, StreamEvent,
+    ContentDelta, LlmBackend, MockBackend, MockResponse, ResponseStream, SharedBackend,
+    StreamEvent,
 };
 pub use error::{LlmError, ResponseValidationError, Result};
 pub use types::{

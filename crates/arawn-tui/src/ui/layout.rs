@@ -54,23 +54,46 @@ pub fn render(app: &App, frame: &mut Frame) {
         render_sidebar(&app.sidebar, frame, sidebar_area);
     }
 
+    // Check for active disk warnings to show banner
+    let has_disk_warning = !app.disk_warnings.is_empty();
+    let warning_height = if has_disk_warning { 1 } else { 0 };
+
     // Calculate dynamic input height based on content
-    let available_for_input = main_area.height.saturating_sub(2); // Minus header and status
+    let available_for_input = main_area.height.saturating_sub(2 + warning_height); // Minus header, status, warning
     let input_height = calculate_input_height(&app.input, available_for_input);
 
-    // Main layout: header, content, input, status
-    let chunks = Layout::vertical([
-        Constraint::Length(1),            // Header
-        Constraint::Min(3),               // Content (chat area)
-        Constraint::Length(input_height), // Input (dynamic)
-        Constraint::Length(1),            // Status bar
-    ])
-    .split(main_area);
+    // Main layout: header, [warning], content, input, status
+    let chunks = if has_disk_warning {
+        Layout::vertical([
+            Constraint::Length(1),            // Header
+            Constraint::Length(1),            // Warning banner
+            Constraint::Min(3),               // Content (chat area)
+            Constraint::Length(input_height), // Input (dynamic)
+            Constraint::Length(1),            // Status bar
+        ])
+        .split(main_area)
+    } else {
+        Layout::vertical([
+            Constraint::Length(1),            // Header
+            Constraint::Min(3),               // Content (chat area)
+            Constraint::Length(input_height), // Input (dynamic)
+            Constraint::Length(1),            // Status bar
+        ])
+        .split(main_area)
+    };
 
-    render_header(app, frame, chunks[0]);
-    render_content(app, frame, chunks[1]);
-    render_input(app, frame, chunks[2]);
-    render_status_bar(app, frame, chunks[3]);
+    if has_disk_warning {
+        render_header(app, frame, chunks[0]);
+        render_warning_banner(app, frame, chunks[1]);
+        render_content(app, frame, chunks[2]);
+        render_input(app, frame, chunks[3]);
+        render_status_bar(app, frame, chunks[4]);
+    } else {
+        render_header(app, frame, chunks[0]);
+        render_content(app, frame, chunks[1]);
+        render_input(app, frame, chunks[2]);
+        render_status_bar(app, frame, chunks[3]);
+    }
 
     // Render command popup above input if visible
     if app.command_popup.is_visible() {
@@ -96,6 +119,11 @@ pub fn render(app: &App, frame: &mut Frame) {
         FocusTarget::CommandPalette => render_command_palette(app, frame, area),
         _ => {}
     }
+
+    // Render usage popup if visible (Ctrl+U)
+    if app.show_usage_popup {
+        render_usage_popup(app, frame, area);
+    }
 }
 
 /// Render the header bar.
@@ -118,17 +146,40 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
         Span::raw("")
     };
 
-    let workstream = Span::styled(
-        format!("ws:{} ", app.workstream),
-        Style::default().fg(Color::DarkGray),
-    );
+    // Workstream with usage indicator
+    let (workstream_text, usage_span) = if let Some(ref usage) = app.workstream_usage {
+        let ws_prefix = if usage.is_scratch { "⚡" } else { "" };
+        let ws_text = format!("{}ws:{} ", ws_prefix, app.workstream);
+
+        // Format usage: [~120MB/1GB] or [120MB] if no limit
+        let usage_text = if usage.limit_bytes > 0 {
+            format!("[~{}/{}] ", usage.total_size(), usage.limit_size())
+        } else {
+            format!("[~{}] ", usage.total_size())
+        };
+
+        // Color based on usage percentage
+        let usage_color = if usage.percent >= 90 {
+            Color::Red
+        } else if usage.percent >= 70 {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        };
+
+        (ws_text, Span::styled(usage_text, Style::default().fg(usage_color)))
+    } else {
+        (format!("ws:{} ", app.workstream), Span::raw(""))
+    };
+
+    let workstream = Span::styled(workstream_text, Style::default().fg(Color::DarkGray));
 
     // Create spans that fill the line
-    let right_width = status.width() + context_span.width() + workstream.width();
+    let right_width = status.width() + context_span.width() + workstream.width() + usage_span.width();
     let spacer_width = area.width.saturating_sub(title.width() as u16 + right_width as u16);
     let spacer = Span::raw("─".repeat(spacer_width as usize));
 
-    let line = Line::from(vec![title, spacer, status, context_span, workstream]);
+    let line = Line::from(vec![title, spacer, status, context_span, workstream, usage_span]);
     let header = Paragraph::new(line).style(Style::default().fg(Color::Cyan));
 
     frame.render_widget(header, area);
@@ -162,7 +213,8 @@ fn render_content(app: &App, frame: &mut Frame, area: Rect) {
 
 /// Render the input area.
 fn render_input(app: &App, frame: &mut Frame, area: Rect) {
-    render_input_area(&app.input, app.waiting, frame, area);
+    let read_only = !app.is_session_owner;
+    render_input_area(&app.input, app.waiting, read_only, frame, area);
 }
 
 /// Render the status bar.
@@ -293,4 +345,152 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
         Constraint::Percentage((100 - percent_x) / 2),
     ])
     .split(popup_layout[1])[1]
+}
+
+/// Render the disk warning banner.
+fn render_warning_banner(app: &App, frame: &mut Frame, area: Rect) {
+    if let Some(warning) = app.disk_warnings.first() {
+        let (icon, color) = if warning.level == "critical" {
+            ("⛔", Color::Red)
+        } else {
+            ("⚠", Color::Yellow)
+        };
+
+        let usage_str = crate::app::UsageStats::format_size(warning.usage_bytes);
+        let limit_str = crate::app::UsageStats::format_size(warning.limit_bytes);
+
+        let text = format!(
+            " {} Disk {}: {} at {}% ({}/{})",
+            icon, warning.level, warning.workstream, warning.percent, usage_str, limit_str
+        );
+
+        let banner = Paragraph::new(Line::from(vec![
+            Span::styled(text, Style::default().fg(color).add_modifier(Modifier::BOLD)),
+        ]))
+        .style(Style::default().bg(Color::DarkGray));
+
+        frame.render_widget(banner, area);
+    }
+}
+
+/// Render the usage stats popup (Ctrl+U).
+fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
+    let popup_area = centered_rect(50, 40, area);
+    frame.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .title(" Disk Usage (^U to close) ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+
+    let inner = block.inner(popup_area);
+    frame.render_widget(block, popup_area);
+
+    let mut lines = Vec::new();
+
+    // Current workstream usage
+    if let Some(ref usage) = app.workstream_usage {
+        let ws_type = if usage.is_scratch { "⚡ scratch" } else { "workstream" };
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!(" {} {} ", ws_type, usage.workstream_name),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("   production/  "),
+            Span::styled(
+                format!("{:>10}", usage.production_size()),
+                Style::default().fg(Color::Green),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::raw("   work/        "),
+            Span::styled(
+                format!("{:>10}", usage.work_size()),
+                Style::default().fg(Color::Yellow),
+            ),
+        ]));
+        lines.push(Line::from(vec![
+            Span::raw("   ─────────────────────"),
+        ]));
+        lines.push(Line::from(vec![
+            Span::raw("   total        "),
+            Span::styled(
+                format!("{:>10}", usage.total_size()),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+        ]));
+
+        if usage.limit_bytes > 0 {
+            let color = if usage.percent >= 90 {
+                Color::Red
+            } else if usage.percent >= 70 {
+                Color::Yellow
+            } else {
+                Color::Green
+            };
+
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::raw("   limit        "),
+                Span::styled(format!("{:>10}", usage.limit_size()), Style::default().fg(Color::DarkGray)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::raw("   usage        "),
+                Span::styled(format!("{:>9}%", usage.percent), Style::default().fg(color)),
+            ]));
+
+            // Progress bar
+            let bar_width = 20;
+            let filled = (usage.percent as usize * bar_width / 100).min(bar_width);
+            let empty = bar_width - filled;
+            lines.push(Line::from(vec![
+                Span::raw("   ["),
+                Span::styled("█".repeat(filled), Style::default().fg(color)),
+                Span::styled("░".repeat(empty), Style::default().fg(Color::DarkGray)),
+                Span::raw("]"),
+            ]));
+        }
+    } else {
+        lines.push(Line::from(vec![
+            Span::styled(
+                format!(" workstream: {} ", app.workstream),
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
+        ]));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "   No usage data available",
+            Style::default().fg(Color::DarkGray),
+        )));
+        lines.push(Line::from(Span::styled(
+            "   (requires server support)",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
+
+    // Show warnings section if any
+    if !app.disk_warnings.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled(" Active Warnings ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ]));
+
+        for warning in &app.disk_warnings {
+            let (icon, color) = if warning.level == "critical" {
+                ("⛔", Color::Red)
+            } else {
+                ("⚠", Color::Yellow)
+            };
+            lines.push(Line::from(vec![
+                Span::styled(format!("   {} ", icon), Style::default().fg(color)),
+                Span::raw(format!("{}: {}%", warning.workstream, warning.percent)),
+            ]));
+        }
+    }
+
+    let content = Paragraph::new(lines);
+    frame.render_widget(content, inner);
 }

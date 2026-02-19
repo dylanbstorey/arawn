@@ -342,12 +342,27 @@ pub fn default_format_tool_result(tool_use_id: &str, content: &str, is_error: bo
 
 /// A mock backend for testing purposes.
 ///
+/// A response or error that can be returned by MockBackend.
+#[derive(Debug, Clone)]
+pub enum MockResponse {
+    /// A successful response.
+    Success(CompletionResponse),
+    /// An error response.
+    Error(String),
+}
+
+impl From<CompletionResponse> for MockResponse {
+    fn from(response: CompletionResponse) -> Self {
+        MockResponse::Success(response)
+    }
+}
+
 /// Returns pre-configured responses in order, useful for deterministic testing
 /// of the agent loop and tool execution.
 #[derive(Debug)]
 pub struct MockBackend {
     name: String,
-    responses: std::sync::Mutex<Vec<CompletionResponse>>,
+    responses: std::sync::Mutex<Vec<MockResponse>>,
     request_log: std::sync::Mutex<Vec<CompletionRequest>>,
 }
 
@@ -357,6 +372,19 @@ impl MockBackend {
     /// Responses are returned in order. If more requests are made than
     /// responses available, an error is returned.
     pub fn new(responses: Vec<CompletionResponse>) -> Self {
+        Self {
+            name: "mock".to_string(),
+            responses: std::sync::Mutex::new(
+                responses.into_iter().map(MockResponse::Success).collect(),
+            ),
+            request_log: std::sync::Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Create a mock backend with mixed responses and errors.
+    ///
+    /// Use this when you need to test error handling and retry logic.
+    pub fn with_results(responses: Vec<MockResponse>) -> Self {
         Self {
             name: "mock".to_string(),
             responses: std::sync::Mutex::new(responses),
@@ -402,7 +430,11 @@ impl LlmBackend for MockBackend {
                 "MockBackend: no more responses available".to_string(),
             ));
         }
-        Ok(responses.remove(0))
+
+        match responses.remove(0) {
+            MockResponse::Success(response) => Ok(response),
+            MockResponse::Error(msg) => Err(LlmError::Backend(msg)),
+        }
     }
 
     async fn complete_stream(&self, request: CompletionRequest) -> Result<ResponseStream> {

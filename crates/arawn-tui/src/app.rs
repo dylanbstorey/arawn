@@ -158,6 +158,18 @@ pub struct App {
     pub command_progress: Option<String>,
     /// Context usage information for current session.
     pub context_info: Option<ContextState>,
+    /// Disk usage stats for current workstream.
+    pub workstream_usage: Option<UsageStats>,
+    /// Active disk warnings.
+    pub disk_warnings: Vec<DiskWarning>,
+    /// Whether to show usage popup (Ctrl+U).
+    pub show_usage_popup: bool,
+    /// Reconnect tokens for session ownership recovery after disconnect.
+    /// Maps session_id -> reconnect_token.
+    pub reconnect_tokens: std::collections::HashMap<String, String>,
+    /// Whether the current session is owned by this client (can send Chat).
+    /// When false, the client is in read-only mode.
+    pub is_session_owner: bool,
 }
 
 /// Context usage state for display in status bar.
@@ -171,6 +183,83 @@ pub struct ContextState {
     pub percent: u8,
     /// Status: "ok", "warning", or "critical".
     pub status: String,
+}
+
+/// Disk usage statistics for a workstream.
+#[derive(Debug, Clone, Default)]
+pub struct UsageStats {
+    /// Workstream ID.
+    pub workstream_id: String,
+    /// Workstream name.
+    pub workstream_name: String,
+    /// Whether this is a scratch workstream.
+    pub is_scratch: bool,
+    /// Size of production directory in bytes.
+    pub production_bytes: u64,
+    /// Size of work directory in bytes.
+    pub work_bytes: u64,
+    /// Total size in bytes.
+    pub total_bytes: u64,
+    /// Configured limit in bytes (0 = no limit).
+    pub limit_bytes: u64,
+    /// Usage percentage (0-100).
+    pub percent: u8,
+}
+
+impl UsageStats {
+    /// Format size as human-readable string.
+    pub fn format_size(bytes: u64) -> String {
+        if bytes >= 1024 * 1024 * 1024 {
+            format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+        } else if bytes >= 1024 * 1024 {
+            format!("{:.0} MB", bytes as f64 / (1024.0 * 1024.0))
+        } else if bytes >= 1024 {
+            format!("{:.0} KB", bytes as f64 / 1024.0)
+        } else {
+            format!("{} B", bytes)
+        }
+    }
+
+    /// Get formatted production size.
+    pub fn production_size(&self) -> String {
+        Self::format_size(self.production_bytes)
+    }
+
+    /// Get formatted work size.
+    pub fn work_size(&self) -> String {
+        Self::format_size(self.work_bytes)
+    }
+
+    /// Get formatted total size.
+    pub fn total_size(&self) -> String {
+        Self::format_size(self.total_bytes)
+    }
+
+    /// Get formatted limit.
+    pub fn limit_size(&self) -> String {
+        if self.limit_bytes == 0 {
+            "∞".to_string()
+        } else {
+            Self::format_size(self.limit_bytes)
+        }
+    }
+}
+
+/// A disk usage warning.
+#[derive(Debug, Clone)]
+pub struct DiskWarning {
+    /// Workstream that triggered the warning.
+    pub workstream: String,
+    /// Warning level: "warning" or "critical".
+    pub level: String,
+    /// Current usage in bytes.
+    pub usage_bytes: u64,
+    /// Limit in bytes.
+    pub limit_bytes: u64,
+    /// Usage percentage.
+    pub percent: u8,
+    /// When the warning was received.
+    pub timestamp: std::time::Instant,
 }
 
 impl App {
@@ -224,6 +313,11 @@ impl App {
             command_executing: false,
             command_progress: None,
             context_info: None,
+            workstream_usage: None,
+            disk_warnings: Vec::new(),
+            show_usage_popup: false,
+            reconnect_tokens: std::collections::HashMap::new(),
+            is_session_owner: true, // Default to owner until told otherwise
         })
     }
 
@@ -345,6 +439,9 @@ impl App {
                     name: workstream.title.clone(),
                     session_count: 0,
                     is_current: false,
+                    is_scratch: false,
+                    usage_bytes: None,
+                    limit_bytes: None,
                 });
 
                 // Switch to the new workstream
@@ -582,6 +679,9 @@ impl App {
                         name: ws.title.clone(),
                         session_count: 0, // Updated below when loading sessions
                         is_current: ws.title == self.workstream || (ws.is_scratch && self.workstream == "scratch"),
+                        is_scratch: ws.is_scratch,
+                        usage_bytes: None, // Updated via WebSocket events
+                        limit_bytes: None,
                     })
                     .collect();
 
@@ -682,8 +782,15 @@ impl App {
                 }
             }
 
-            ServerMessage::Error { message, .. } => {
-                self.status_message = Some(format!("Error: {}", message));
+            ServerMessage::Error { code, message } => {
+                // Handle specific error codes
+                if code == "session_not_owned" {
+                    // We tried to send a message but aren't the owner
+                    self.is_session_owner = false;
+                    self.status_message = Some("Read-only mode: session owned by another client".to_string());
+                } else {
+                    self.status_message = Some(format!("Error: {}", message));
+                }
                 self.waiting = false;
             }
 
@@ -759,6 +866,80 @@ impl App {
                     percent,
                     status,
                 });
+            }
+
+            ServerMessage::DiskPressure {
+                workstream_id,
+                workstream_name,
+                level,
+                usage_bytes,
+                limit_bytes,
+                percent,
+            } => {
+                // Add warning, replacing any existing warning for same workstream
+                self.disk_warnings.retain(|w| w.workstream != workstream_id);
+                self.disk_warnings.push(DiskWarning {
+                    workstream: workstream_name.clone(),
+                    level,
+                    usage_bytes,
+                    limit_bytes,
+                    percent,
+                    timestamp: std::time::Instant::now(),
+                });
+
+                // Show status message for critical warnings
+                if self.disk_warnings.last().map(|w| w.level.as_str()) == Some("critical") {
+                    self.status_message = Some(format!(
+                        "⚠ Disk critical: {} at {}% of limit",
+                        workstream_name, percent
+                    ));
+                }
+            }
+
+            ServerMessage::WorkstreamUsage {
+                workstream_id,
+                workstream_name,
+                is_scratch,
+                production_bytes,
+                work_bytes,
+                total_bytes,
+                limit_bytes,
+                percent,
+            } => {
+                // Update usage stats if it's for the current workstream
+                if self.workstream_id.as_deref() == Some(&workstream_id) {
+                    self.workstream_usage = Some(UsageStats {
+                        workstream_id,
+                        workstream_name,
+                        is_scratch,
+                        production_bytes,
+                        work_bytes,
+                        total_bytes,
+                        limit_bytes,
+                        percent,
+                    });
+                }
+            }
+
+            ServerMessage::SubscribeAck {
+                session_id,
+                owner,
+                reconnect_token,
+            } => {
+                // Update ownership state
+                self.is_session_owner = owner;
+
+                // Store reconnect token if we're the owner
+                if let Some(token) = reconnect_token {
+                    self.reconnect_tokens.insert(session_id.clone(), token);
+                }
+
+                if owner {
+                    tracing::info!(session_id = %session_id, "Subscribed as owner");
+                } else {
+                    tracing::info!(session_id = %session_id, "Subscribed as reader (read-only)");
+                    self.status_message = Some("Read-only mode".to_string());
+                }
             }
         }
     }
@@ -837,6 +1018,11 @@ impl App {
                     } else {
                         self.focus.return_to_input();
                     }
+                    return;
+                }
+                KeyCode::Char('u') => {
+                    // Toggle usage stats popup
+                    self.show_usage_popup = !self.show_usage_popup;
                     return;
                 }
                 _ => {}
@@ -978,6 +1164,11 @@ impl App {
                 }
             }
             KeyCode::Esc => {
+                // Close usage popup if open
+                if self.show_usage_popup {
+                    self.show_usage_popup = false;
+                    return;
+                }
                 // Cancel special mode or clear input
                 if self.input_mode != InputMode::Chat {
                     self.input_mode = InputMode::Chat;
@@ -1076,6 +1267,12 @@ impl App {
                 return;
             }
 
+            // Check read-only mode for server commands
+            if !self.is_session_owner {
+                self.status_message = Some("Read-only mode: cannot run commands".to_string());
+                return;
+            }
+
             // Build args JSON
             let args = self.build_command_args(&cmd);
 
@@ -1131,6 +1328,12 @@ impl App {
 
     /// Send the current input as a chat message.
     fn send_message(&mut self) {
+        // Check read-only mode
+        if !self.is_session_owner {
+            self.status_message = Some("Read-only mode: cannot send messages".to_string());
+            return;
+        }
+
         // Submit and get the message (also adds to history)
         let message = self.input.submit();
 
@@ -1298,10 +1501,18 @@ impl App {
     fn switch_to_session(&mut self, session_id: &str) {
         // Subscribe to the new session FIRST to avoid missing messages
         // that might arrive between subscribe and fetch
-        if let Err(e) = self.ws_client.subscribe(session_id.to_string()) {
+        // Use reconnect token if we have one to reclaim ownership
+        let reconnect_token = self.reconnect_tokens.get(session_id).cloned();
+        if let Err(e) = self
+            .ws_client
+            .subscribe(session_id.to_string(), reconnect_token)
+        {
             self.status_message = Some(format!("Failed to switch session: {}", e));
             return; // Don't clear state if we failed to subscribe
         }
+
+        // Reset ownership state - will be updated by SubscribeAck
+        self.is_session_owner = false;
 
         // Now clear current messages and tools
         self.messages.clear();
@@ -1725,6 +1936,9 @@ impl App {
         self.session_id = None;
         self.chat_scroll = 0;
         self.chat_auto_scroll = true;
+
+        // Clear usage stats (will be updated via WebSocket)
+        self.workstream_usage = None;
 
         // Queue fetch of sessions for this workstream
         if let Some(ref ws_id) = self.workstream_id {

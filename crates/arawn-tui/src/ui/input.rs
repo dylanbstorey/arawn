@@ -3,7 +3,7 @@
 use crate::input::InputState;
 use ratatui::{
     layout::Rect,
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
@@ -29,6 +29,7 @@ pub fn calculate_input_height(input: &InputState, available_height: u16) -> u16 
 pub fn render_input(
     input: &InputState,
     waiting: bool,
+    read_only: bool,
     frame: &mut Frame,
     area: Rect,
 ) {
@@ -38,6 +39,26 @@ pub fn render_input(
 
     let inner = input_block.inner(area);
     frame.render_widget(input_block, area);
+
+    // In read-only mode, show a badge and disabled prompt
+    if read_only {
+        let badge = Span::styled(
+            " READ ONLY ",
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
+        let hint = Span::styled(
+            " Another client owns this session",
+            Style::default().fg(Color::DarkGray),
+        );
+        let line = Line::from(vec![badge, hint]);
+        let paragraph = Paragraph::new(line);
+        frame.render_widget(paragraph, inner);
+        // No cursor in read-only mode
+        return;
+    }
 
     // Build lines with prompt on first line only
     let content = input.content();

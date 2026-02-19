@@ -329,6 +329,37 @@ impl LlmError {
     pub fn is_retryable(&self) -> bool {
         matches!(self, Self::Network(_) | Self::RateLimit(_))
     }
+
+    /// Returns true if this is a tool validation error (LLM hallucinated a tool name).
+    ///
+    /// These errors are recoverable by providing feedback to the LLM about available tools.
+    pub fn is_tool_validation_error(&self) -> bool {
+        match self {
+            Self::Backend(msg) => {
+                msg.contains("tool call validation failed")
+                    || msg.contains("was not in request.tools")
+                    || msg.contains("unknown tool")
+            }
+            _ => false,
+        }
+    }
+
+    /// Extract the invalid tool name from a tool validation error, if present.
+    pub fn invalid_tool_name(&self) -> Option<&str> {
+        match self {
+            Self::Backend(msg) => {
+                // Pattern: "attempted to call tool 'read_file' which was not"
+                if let Some(start) = msg.find("call tool '") {
+                    let rest = &msg[start + 11..];
+                    if let Some(end) = rest.find('\'') {
+                        return Some(&rest[..end]);
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 impl From<reqwest::Error> for LlmError {
@@ -510,5 +541,46 @@ mod tests {
         let val_err = ResponseValidationError::missing_field("id");
         let llm_err: LlmError = val_err.into();
         assert!(matches!(llm_err, LlmError::InvalidRequest(_)));
+    }
+
+    #[test]
+    fn test_is_tool_validation_error() {
+        // Should match tool validation errors
+        let err = LlmError::Backend(
+            "tool call validation failed: attempted to call tool 'read_file' which was not in request.tools".to_string()
+        );
+        assert!(err.is_tool_validation_error());
+
+        let err = LlmError::Backend("unknown tool: read_file".to_string());
+        assert!(err.is_tool_validation_error());
+
+        // Should not match other backend errors
+        let err = LlmError::Backend("server error".to_string());
+        assert!(!err.is_tool_validation_error());
+
+        // Should not match other error types
+        let err = LlmError::Network("timeout".to_string());
+        assert!(!err.is_tool_validation_error());
+    }
+
+    #[test]
+    fn test_invalid_tool_name_extraction() {
+        let err = LlmError::Backend(
+            "tool call validation failed: attempted to call tool 'read_file' which was not in request.tools".to_string()
+        );
+        assert_eq!(err.invalid_tool_name(), Some("read_file"));
+
+        let err = LlmError::Backend(
+            "attempted to call tool 'file_reader' which was not".to_string()
+        );
+        assert_eq!(err.invalid_tool_name(), Some("file_reader"));
+
+        // No tool name extractable
+        let err = LlmError::Backend("unknown tool error".to_string());
+        assert_eq!(err.invalid_tool_name(), None);
+
+        // Not a backend error
+        let err = LlmError::Network("timeout".to_string());
+        assert_eq!(err.invalid_tool_name(), None);
     }
 }

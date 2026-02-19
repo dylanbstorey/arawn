@@ -23,6 +23,9 @@ pub enum ClientMessage {
     Subscribe {
         /// Session ID to subscribe to.
         session_id: String,
+        /// Reconnect token for reclaiming ownership after disconnect.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reconnect_token: Option<String>,
     },
     /// Unsubscribe from session updates.
     Unsubscribe {
@@ -113,6 +116,17 @@ pub enum ServerMessage {
     },
     /// Pong response to ping.
     Pong,
+    /// Subscription acknowledgment.
+    SubscribeAck {
+        /// Session ID subscribed to.
+        session_id: String,
+        /// Whether this connection is the session owner (can send Chat).
+        owner: bool,
+        /// Reconnect token for reclaiming ownership after disconnect.
+        /// Only present if this connection is the owner.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reconnect_token: Option<String>,
+    },
     /// Command execution progress.
     CommandProgress {
         /// Command name.
@@ -144,6 +158,40 @@ pub enum ServerMessage {
         percent: u8,
         /// Status: "ok", "warning", or "critical".
         status: String,
+    },
+    /// Disk pressure warning from server.
+    DiskPressure {
+        /// Workstream ID.
+        workstream_id: String,
+        /// Workstream name.
+        workstream_name: String,
+        /// Warning level: "warning" or "critical".
+        level: String,
+        /// Current usage in bytes.
+        usage_bytes: u64,
+        /// Limit in bytes.
+        limit_bytes: u64,
+        /// Usage percentage (0-100).
+        percent: u8,
+    },
+    /// Workstream usage stats update.
+    WorkstreamUsage {
+        /// Workstream ID.
+        workstream_id: String,
+        /// Workstream name.
+        workstream_name: String,
+        /// Whether this is a scratch workstream.
+        is_scratch: bool,
+        /// Production directory size in bytes.
+        production_bytes: u64,
+        /// Work directory size in bytes.
+        work_bytes: u64,
+        /// Total size in bytes.
+        total_bytes: u64,
+        /// Configured limit in bytes (0 = no limit).
+        limit_bytes: u64,
+        /// Usage percentage (0-100).
+        percent: u8,
     },
 }
 
