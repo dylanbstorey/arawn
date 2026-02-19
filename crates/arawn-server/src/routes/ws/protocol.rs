@@ -19,6 +19,9 @@ pub enum ClientMessage {
     Subscribe {
         /// Session ID to subscribe to.
         session_id: String,
+        /// Reconnect token from previous session ownership (for reclaiming after disconnect).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reconnect_token: Option<String>,
     },
     /// Unsubscribe from session updates.
     Unsubscribe {
@@ -109,6 +112,17 @@ pub enum ServerMessage {
     },
     /// Pong response to ping.
     Pong,
+    /// Subscription acknowledgment.
+    SubscribeAck {
+        /// Session ID subscribed to.
+        session_id: String,
+        /// Whether this connection is the session owner (can send Chat).
+        owner: bool,
+        /// Reconnect token for reclaiming ownership after disconnect.
+        /// Only present if this connection is the owner.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reconnect_token: Option<String>,
+    },
     /// Command execution progress.
     CommandProgress {
         /// Command name.
@@ -140,6 +154,30 @@ pub enum ServerMessage {
         percent: u8,
         /// Status: "ok", "warning", or "critical".
         status: String,
+    },
+    /// Filesystem change notification.
+    FsChange {
+        /// Workstream where the change occurred.
+        workstream: String,
+        /// Relative path within the workstream.
+        path: String,
+        /// Action: "created", "modified", or "deleted".
+        action: String,
+        /// ISO 8601 timestamp.
+        timestamp: String,
+    },
+    /// Disk pressure alert.
+    DiskPressure {
+        /// Alert level: "ok", "warning", or "critical".
+        level: String,
+        /// Scope of the alert (e.g., "total" or workstream ID).
+        scope: String,
+        /// Current usage in megabytes.
+        usage_mb: f64,
+        /// Limit in megabytes.
+        limit_mb: f64,
+        /// ISO 8601 timestamp.
+        timestamp: String,
     },
 }
 
@@ -225,6 +263,40 @@ impl ServerMessage {
             status: status.to_string(),
         }
     }
+
+    /// Create a filesystem change notification from an FsChangeEvent.
+    pub fn fs_change(event: &arawn_workstream::FsChangeEvent) -> Self {
+        Self::FsChange {
+            workstream: event.workstream.clone(),
+            path: event.path.clone(),
+            action: event.action.to_string(),
+            timestamp: event.timestamp.to_rfc3339(),
+        }
+    }
+
+    /// Create a subscription acknowledgment message.
+    pub fn subscribe_ack(
+        session_id: impl Into<String>,
+        owner: bool,
+        reconnect_token: Option<String>,
+    ) -> Self {
+        Self::SubscribeAck {
+            session_id: session_id.into(),
+            owner,
+            reconnect_token,
+        }
+    }
+
+    /// Create a disk pressure alert from a DiskPressureEvent.
+    pub fn disk_pressure(event: &arawn_workstream::cleanup::DiskPressureEvent) -> Self {
+        Self::DiskPressure {
+            level: event.level.to_string(),
+            scope: event.scope.clone(),
+            usage_mb: event.usage_mb,
+            limit_mb: event.limit_mb,
+            timestamp: event.timestamp.to_rfc3339(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -257,7 +329,12 @@ mod tests {
 
         let json = r#"{"type": "subscribe", "session_id": "123"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Subscribe { session_id } if session_id == "123"));
+        assert!(matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: None } if session_id == "123"));
+
+        // Subscribe with reconnect token
+        let json = r#"{"type": "subscribe", "session_id": "456", "reconnect_token": "tok-xyz"}"#;
+        let msg: ClientMessage = serde_json::from_str(json).unwrap();
+        assert!(matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: Some(tok) } if session_id == "456" && tok == "tok-xyz"));
     }
 
     #[test]
@@ -323,6 +400,25 @@ mod tests {
         let json = serde_json::to_string(&failure).unwrap();
         assert!(json.contains("error"));
         assert!(json.contains("bad token"));
+    }
+
+    #[test]
+    fn test_subscribe_ack_serialization() {
+        // Owner with token
+        let msg = ServerMessage::subscribe_ack("session-123", true, Some("token-abc".to_string()));
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("subscribe_ack"));
+        assert!(json.contains("session-123"));
+        assert!(json.contains(r#""owner":true"#));
+        assert!(json.contains("token-abc"));
+
+        // Reader (non-owner, no token)
+        let msg = ServerMessage::subscribe_ack("session-456", false, None);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("subscribe_ack"));
+        assert!(json.contains("session-456"));
+        assert!(json.contains(r#""owner":false"#));
+        assert!(!json.contains("reconnect_token")); // should be omitted
     }
 
     #[test]
@@ -419,5 +515,62 @@ mod tests {
             }
             _ => panic!("Expected ContextInfo"),
         }
+    }
+
+    #[test]
+    fn test_fs_change_serialization() {
+        use arawn_workstream::{FsAction, FsChangeEvent};
+
+        let event = FsChangeEvent::new("my-blog", "production/post.md", FsAction::Modified);
+        let msg = ServerMessage::fs_change(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+
+        assert!(json.contains("fs_change"));
+        assert!(json.contains("my-blog"));
+        assert!(json.contains("production/post.md"));
+        assert!(json.contains("modified"));
+        assert!(json.contains("timestamp"));
+
+        // Test created action
+        let event = FsChangeEvent::new("scratch", "sessions/abc/work/file.txt", FsAction::Created);
+        let msg = ServerMessage::fs_change(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("created"));
+
+        // Test deleted action
+        let event = FsChangeEvent::new("project", "work/temp.txt", FsAction::Deleted);
+        let msg = ServerMessage::fs_change(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("deleted"));
+    }
+
+    #[test]
+    fn test_disk_pressure_serialization() {
+        use arawn_workstream::cleanup::{DiskPressureEvent, PressureLevel};
+
+        // Warning level
+        let event = DiskPressureEvent::new(PressureLevel::Warning, "my-workstream", 1800.0, 2048.0);
+        let msg = ServerMessage::disk_pressure(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+
+        assert!(json.contains("disk_pressure"));
+        assert!(json.contains("warning"));
+        assert!(json.contains("my-workstream"));
+        assert!(json.contains("1800"));
+        assert!(json.contains("2048"));
+        assert!(json.contains("timestamp"));
+
+        // Critical level for total
+        let event = DiskPressureEvent::new(PressureLevel::Critical, "total", 12000.0, 10000.0);
+        let msg = ServerMessage::disk_pressure(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("critical"));
+        assert!(json.contains("total"));
+
+        // Ok level
+        let event = DiskPressureEvent::new(PressureLevel::Ok, "scratch", 500.0, 2048.0);
+        let msg = ServerMessage::disk_pressure(&event);
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains(r#""level":"ok""#));
     }
 }

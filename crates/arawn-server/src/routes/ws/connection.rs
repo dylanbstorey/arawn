@@ -6,6 +6,7 @@ use std::time::Duration;
 use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt, StreamExt};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use arawn_agent::SessionId;
 
@@ -13,16 +14,44 @@ use crate::state::AppState;
 use super::handlers::{handle_message, MessageResponse};
 use super::protocol::{ClientMessage, ServerMessage};
 
+/// Unique identifier for a WebSocket connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ConnectionId(Uuid);
+
+impl ConnectionId {
+    /// Create a new unique connection ID.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
+impl Default for ConnectionId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for ConnectionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Idle timeout for WebSocket connections (5 minutes).
 /// Connections that receive no messages for this duration will be closed.
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
 /// State for a WebSocket connection.
 pub struct ConnectionState {
+    /// Unique identifier for this connection.
+    pub id: ConnectionId,
     /// Whether the connection is authenticated.
     pub authenticated: bool,
     /// Current subscribed sessions.
     pub subscriptions: std::collections::HashSet<SessionId>,
+    /// Reconnect tokens for owned sessions (session_id -> token).
+    /// Used to create pending reconnects on disconnect.
+    pub reconnect_tokens: std::collections::HashMap<SessionId, String>,
     /// Cancellation token for cleanup.
     pub cancellation: CancellationToken,
 }
@@ -31,8 +60,10 @@ impl ConnectionState {
     /// Create a new connection state.
     pub fn new() -> Self {
         Self {
+            id: ConnectionId::new(),
             authenticated: false,
             subscriptions: std::collections::HashSet::new(),
+            reconnect_tokens: std::collections::HashMap::new(),
             cancellation: CancellationToken::new(),
         }
     }
@@ -60,7 +91,7 @@ pub async fn handle_socket(socket: WebSocket, state: AppState) {
         conn_state.authenticated = true;
     }
 
-    tracing::debug!("WebSocket connection established");
+    tracing::debug!(connection_id = %conn_state.id, "WebSocket connection established");
 
     loop {
         // Wait for next message with idle timeout
@@ -148,6 +179,11 @@ pub async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
+    // Release all session ownerships held by this connection, creating pending reconnects
+    state
+        .release_all_session_ownerships(conn_state.id, &conn_state.reconnect_tokens)
+        .await;
+
     // Index any sessions this connection was subscribed to
     for session_id in &conn_state.subscriptions {
         if let Some(indexer) = &state.indexer {
@@ -172,7 +208,7 @@ pub async fn handle_socket(socket: WebSocket, state: AppState) {
         }
     }
 
-    tracing::debug!("WebSocket connection closed");
+    tracing::debug!(connection_id = %conn_state.id, "WebSocket connection closed");
 }
 
 /// Send a message over the WebSocket.

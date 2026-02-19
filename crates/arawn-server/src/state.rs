@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use arawn_agent::{Agent, Session, SessionId, SessionIndexer};
 use arawn_mcp::McpManager;
+use arawn_sandbox::SandboxManager;
 use arawn_types::{HasSessionConfig, SharedHookDispatcher};
-use arawn_workstream::WorkstreamManager;
+use arawn_workstream::{DirectoryManager, WatcherHandle, WorkstreamManager};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -14,7 +15,39 @@ use tracing::{debug, info, warn};
 
 use crate::config::ServerConfig;
 use crate::ratelimit::{SharedRateLimiter, create_rate_limiter};
+use crate::routes::ws::ConnectionId;
 use crate::session_cache::SessionCache;
+
+/// Session ownership tracking - maps session IDs to owning connection IDs.
+/// First subscriber to a session becomes the owner; others are readers.
+pub type SessionOwners = Arc<RwLock<HashMap<SessionId, ConnectionId>>>;
+
+/// Pending reconnect entry for session ownership recovery after disconnect.
+#[derive(Debug, Clone)]
+pub struct PendingReconnect {
+    /// The token required to reclaim ownership.
+    pub token: String,
+    /// When this pending reconnect expires.
+    pub expires_at: std::time::Instant,
+}
+
+impl PendingReconnect {
+    /// Create a new pending reconnect with the given grace period.
+    pub fn new(token: String, grace_period: std::time::Duration) -> Self {
+        Self {
+            token,
+            expires_at: std::time::Instant::now() + grace_period,
+        }
+    }
+
+    /// Check if this pending reconnect has expired.
+    pub fn is_expired(&self) -> bool {
+        std::time::Instant::now() > self.expires_at
+    }
+}
+
+/// Pending reconnects storage - maps session IDs to pending reconnect entries.
+pub type PendingReconnects = Arc<RwLock<HashMap<SessionId, PendingReconnect>>>;
 
 /// Thread-safe MCP manager.
 pub type SharedMcpManager = Arc<RwLock<McpManager>>;
@@ -149,6 +182,25 @@ pub struct AppState {
 
     /// Task store for tracking long-running operations.
     pub tasks: TaskStore,
+
+    /// Directory manager for workstream/session path management.
+    pub directory_manager: Option<Arc<DirectoryManager>>,
+
+    /// Sandbox manager for secure shell command execution.
+    pub sandbox_manager: Option<Arc<SandboxManager>>,
+
+    /// File watcher for filesystem monitoring (optional — None if monitoring disabled).
+    pub file_watcher: Option<Arc<WatcherHandle>>,
+
+    /// Session ownership tracking for WebSocket connections.
+    /// Maps session IDs to the connection ID that owns them (first subscriber).
+    /// Non-owners can subscribe as readers but cannot send Chat messages.
+    pub session_owners: SessionOwners,
+
+    /// Pending reconnects for session ownership recovery after disconnect.
+    /// When a connection disconnects, ownership is held for a grace period
+    /// allowing the client to reconnect with a token to reclaim ownership.
+    pub pending_reconnects: PendingReconnects,
 }
 
 impl AppState {
@@ -167,6 +219,11 @@ impl AppState {
             hook_dispatcher: None,
             mcp_manager: None,
             tasks: Arc::new(RwLock::new(HashMap::new())),
+            directory_manager: None,
+            sandbox_manager: None,
+            file_watcher: None,
+            session_owners: Arc::new(RwLock::new(HashMap::new())),
+            pending_reconnects: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -196,6 +253,46 @@ impl AppState {
         self
     }
 
+    /// Create application state with directory manager for path management.
+    pub fn with_directory_manager(mut self, manager: DirectoryManager) -> Self {
+        self.directory_manager = Some(Arc::new(manager));
+        self
+    }
+
+    /// Create application state with sandbox manager for shell execution.
+    pub fn with_sandbox_manager(mut self, manager: SandboxManager) -> Self {
+        self.sandbox_manager = Some(Arc::new(manager));
+        self
+    }
+
+    /// Create application state with file watcher for filesystem monitoring.
+    pub fn with_file_watcher(mut self, watcher: WatcherHandle) -> Self {
+        self.file_watcher = Some(Arc::new(watcher));
+        self
+    }
+
+    /// Get allowed paths for a session based on its workstream.
+    ///
+    /// Returns `None` if no directory manager is configured.
+    pub fn allowed_paths(&self, workstream_id: &str, session_id: &str) -> Option<Vec<std::path::PathBuf>> {
+        self.directory_manager
+            .as_ref()
+            .map(|dm| dm.allowed_paths(workstream_id, session_id))
+    }
+
+    /// Get a PathValidator for a session.
+    ///
+    /// Returns `None` if no directory manager is configured.
+    pub fn path_validator(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Option<arawn_workstream::PathValidator> {
+        self.directory_manager.as_ref().map(|dm| {
+            arawn_workstream::PathValidator::for_session(dm, workstream_id, session_id)
+        })
+    }
+
     /// Configure session cache using a config provider.
     ///
     /// This applies session cache settings (max sessions, TTL, etc.) from any
@@ -221,6 +318,7 @@ impl AppState {
     /// Get or create a session in a specific workstream.
     ///
     /// Sessions are loaded from workstream storage on cache miss and persisted back.
+    /// For scratch workstreams, also creates the session's isolated work directory.
     pub async fn get_or_create_session_in_workstream(
         &self,
         session_id: Option<SessionId>,
@@ -240,8 +338,17 @@ impl AppState {
             }
         };
 
-        // Fire SessionStart hook for new sessions
+        // Create scratch session directory for new sessions
         if is_new {
+            if workstream_id == arawn_workstream::SCRATCH_ID {
+                if let Some(ref dm) = self.directory_manager {
+                    if let Err(e) = dm.create_scratch_session(&id.to_string()) {
+                        warn!(session_id = %id, error = %e, "Failed to create scratch session directory");
+                    }
+                }
+            }
+
+            // Fire SessionStart hook for new sessions
             if let Some(ref dispatcher) = self.hook_dispatcher {
                 let outcome = dispatcher.dispatch_session_start(&id.to_string()).await;
                 debug!(session_id = %id, ?outcome, "SessionStart hook dispatched");
@@ -317,6 +424,205 @@ impl AppState {
     /// Invalidate a cached session (e.g., after workstream reassignment).
     pub async fn invalidate_session(&self, session_id: SessionId) {
         self.session_cache.invalidate(&session_id).await;
+    }
+
+    /// Try to claim ownership of a session for a connection.
+    ///
+    /// Returns `true` if the connection is now the owner (either it was already,
+    /// or it successfully claimed ownership of an unowned session).
+    /// Returns `false` if another connection owns this session or if there's
+    /// a pending reconnect for the session (ownership reserved for reconnection).
+    pub async fn try_claim_session_ownership(
+        &self,
+        session_id: SessionId,
+        connection_id: ConnectionId,
+    ) -> bool {
+        // Check for pending reconnect first (ownership reserved for reconnection)
+        {
+            let pending = self.pending_reconnects.read().await;
+            if let Some(entry) = pending.get(&session_id) {
+                if !entry.is_expired() {
+                    debug!(session_id = %session_id, "Ownership claim rejected: pending reconnect exists");
+                    return false;
+                }
+            }
+        }
+
+        let mut owners: tokio::sync::RwLockWriteGuard<'_, HashMap<SessionId, ConnectionId>> =
+            self.session_owners.write().await;
+        match owners.get(&session_id) {
+            Some(&existing_owner) if existing_owner == connection_id => {
+                // Already the owner
+                true
+            }
+            Some(_) => {
+                // Another connection owns it
+                false
+            }
+            None => {
+                // No owner - claim it
+                owners.insert(session_id, connection_id);
+                debug!(session_id = %session_id, connection_id = %connection_id, "Session ownership claimed");
+                true
+            }
+        }
+    }
+
+    /// Check if a connection owns a session.
+    pub async fn is_session_owner(
+        &self,
+        session_id: SessionId,
+        connection_id: ConnectionId,
+    ) -> bool {
+        let owners = self.session_owners.read().await;
+        owners.get(&session_id) == Some(&connection_id)
+    }
+
+    /// Release ownership of a session.
+    ///
+    /// Only the current owner can release ownership.
+    /// Returns `true` if ownership was released.
+    pub async fn release_session_ownership(
+        &self,
+        session_id: SessionId,
+        connection_id: ConnectionId,
+    ) -> bool {
+        let mut owners = self.session_owners.write().await;
+        if owners.get(&session_id) == Some(&connection_id) {
+            owners.remove(&session_id);
+            debug!(session_id = %session_id, connection_id = %connection_id, "Session ownership released");
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Release all session ownerships held by a connection, creating pending reconnects.
+    ///
+    /// Called when a WebSocket connection disconnects. Instead of immediately releasing
+    /// ownership, creates pending reconnect entries that allow the client to reclaim
+    /// ownership within the grace period using the provided tokens.
+    ///
+    /// `reconnect_tokens` maps session IDs to the tokens that were given to the client.
+    pub async fn release_all_session_ownerships(
+        &self,
+        connection_id: ConnectionId,
+        reconnect_tokens: &HashMap<SessionId, String>,
+    ) {
+        let mut owners = self.session_owners.write().await;
+        let mut pending = self.pending_reconnects.write().await;
+
+        let sessions_to_release: Vec<_> = owners
+            .iter()
+            .filter(|(_, owner)| **owner == connection_id)
+            .map(|(session_id, _)| *session_id)
+            .collect();
+
+        let grace_period = self.config.reconnect_grace_period;
+        let mut pending_count = 0;
+
+        for session_id in &sessions_to_release {
+            owners.remove(session_id);
+
+            // Create pending reconnect if we have a token for this session
+            if let Some(token) = reconnect_tokens.get(session_id) {
+                pending.insert(*session_id, PendingReconnect::new(token.clone(), grace_period));
+                pending_count += 1;
+            }
+        }
+
+        if !sessions_to_release.is_empty() {
+            debug!(
+                connection_id = %connection_id,
+                released = sessions_to_release.len(),
+                pending_reconnects = pending_count,
+                grace_period_secs = grace_period.as_secs(),
+                "Released session ownerships on disconnect"
+            );
+        }
+    }
+
+    /// Try to reclaim session ownership using a reconnect token.
+    ///
+    /// Returns `Some(new_token)` if ownership was successfully reclaimed.
+    /// Returns `None` if the token is invalid or expired.
+    pub async fn try_reclaim_with_token(
+        &self,
+        session_id: SessionId,
+        token: &str,
+        connection_id: ConnectionId,
+    ) -> Option<String> {
+        let mut pending = self.pending_reconnects.write().await;
+
+        // Check if there's a valid pending reconnect
+        if let Some(entry) = pending.get(&session_id) {
+            if entry.is_expired() {
+                // Expired - clean up and deny
+                pending.remove(&session_id);
+                debug!(session_id = %session_id, "Reconnect token expired");
+                return None;
+            }
+
+            if entry.token != token {
+                // Wrong token
+                debug!(session_id = %session_id, "Reconnect token mismatch");
+                return None;
+            }
+
+            // Valid token - remove pending entry and restore ownership
+            pending.remove(&session_id);
+            drop(pending); // Release lock before acquiring owners lock
+
+            let mut owners = self.session_owners.write().await;
+
+            // Double-check no one else claimed it while we were checking
+            if owners.contains_key(&session_id) {
+                debug!(session_id = %session_id, "Session already claimed by another connection");
+                return None;
+            }
+
+            owners.insert(session_id, connection_id);
+
+            // Generate new token for future reconnects
+            let new_token = uuid::Uuid::new_v4().to_string();
+            debug!(session_id = %session_id, connection_id = %connection_id, "Session ownership reclaimed via token");
+            Some(new_token)
+        } else {
+            None
+        }
+    }
+
+    /// Clean up expired pending reconnects.
+    ///
+    /// Called lazily during subscribe operations. Returns the number cleaned up.
+    pub async fn cleanup_expired_pending_reconnects(&self) -> usize {
+        let mut pending = self.pending_reconnects.write().await;
+
+        let expired: Vec<_> = pending
+            .iter()
+            .filter(|(_, entry)| entry.is_expired())
+            .map(|(session_id, _)| *session_id)
+            .collect();
+
+        for session_id in &expired {
+            pending.remove(session_id);
+        }
+
+        if !expired.is_empty() {
+            debug!(count = expired.len(), "Cleaned up expired pending reconnects");
+        }
+
+        expired.len()
+    }
+
+    /// Check if a session has a pending reconnect (ownership held for reconnection).
+    pub async fn has_pending_reconnect(&self, session_id: SessionId) -> bool {
+        let pending = self.pending_reconnects.read().await;
+        if let Some(entry) = pending.get(&session_id) {
+            !entry.is_expired()
+        } else {
+            false
+        }
     }
 }
 
@@ -454,5 +760,194 @@ mod tests {
     fn test_default_state_has_no_indexer() {
         let state = create_test_state();
         assert!(state.indexer.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_session_ownership_first_claimer_wins() {
+        let state = create_test_state();
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+        let conn_b = ConnectionId::new();
+
+        // First connection claims ownership
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+        assert!(state.is_session_owner(session_id, conn_a).await);
+
+        // Second connection cannot claim
+        assert!(!state.try_claim_session_ownership(session_id, conn_b).await);
+        assert!(!state.is_session_owner(session_id, conn_b).await);
+
+        // First connection still owns it
+        assert!(state.is_session_owner(session_id, conn_a).await);
+    }
+
+    #[tokio::test]
+    async fn test_session_ownership_release() {
+        let state = create_test_state();
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+        let conn_b = ConnectionId::new();
+
+        // Claim ownership
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+
+        // Non-owner cannot release
+        assert!(!state.release_session_ownership(session_id, conn_b).await);
+        assert!(state.is_session_owner(session_id, conn_a).await);
+
+        // Owner can release
+        assert!(state.release_session_ownership(session_id, conn_a).await);
+        assert!(!state.is_session_owner(session_id, conn_a).await);
+
+        // Now conn_b can claim
+        assert!(state.try_claim_session_ownership(session_id, conn_b).await);
+        assert!(state.is_session_owner(session_id, conn_b).await);
+    }
+
+    #[tokio::test]
+    async fn test_session_ownership_release_all_on_disconnect() {
+        let state = create_test_state();
+        let session_1 = SessionId::new();
+        let session_2 = SessionId::new();
+        let session_3 = SessionId::new();
+        let conn_a = ConnectionId::new();
+        let conn_b = ConnectionId::new();
+
+        // conn_a owns sessions 1 and 2
+        assert!(state.try_claim_session_ownership(session_1, conn_a).await);
+        assert!(state.try_claim_session_ownership(session_2, conn_a).await);
+
+        // conn_b owns session 3
+        assert!(state.try_claim_session_ownership(session_3, conn_b).await);
+
+        // conn_a disconnects with tokens
+        let mut tokens = HashMap::new();
+        tokens.insert(session_1, "token1".to_string());
+        tokens.insert(session_2, "token2".to_string());
+        state.release_all_session_ownerships(conn_a, &tokens).await;
+
+        // Sessions 1 and 2 are now unowned (but have pending reconnects)
+        assert!(!state.is_session_owner(session_1, conn_a).await);
+        assert!(!state.is_session_owner(session_2, conn_a).await);
+
+        // Pending reconnects exist
+        assert!(state.has_pending_reconnect(session_1).await);
+        assert!(state.has_pending_reconnect(session_2).await);
+
+        // Session 3 still owned by conn_b
+        assert!(state.is_session_owner(session_3, conn_b).await);
+
+        // conn_b cannot claim sessions 1 and 2 (pending reconnects block)
+        assert!(!state.try_claim_session_ownership(session_1, conn_b).await);
+        assert!(!state.try_claim_session_ownership(session_2, conn_b).await);
+
+        // But conn_a can reclaim with token
+        let new_token = state.try_reclaim_with_token(session_1, "token1", conn_a).await;
+        assert!(new_token.is_some());
+        assert!(state.is_session_owner(session_1, conn_a).await);
+    }
+
+    #[tokio::test]
+    async fn test_session_ownership_same_connection_reclaim() {
+        let state = create_test_state();
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+
+        // First claim
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+
+        // Same connection re-claiming should succeed (idempotent)
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+        assert!(state.is_session_owner(session_id, conn_a).await);
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_token_wrong_token_rejected() {
+        let state = create_test_state();
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+        let conn_b = ConnectionId::new();
+
+        // conn_a owns session
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+
+        // conn_a disconnects with token
+        let mut tokens = HashMap::new();
+        tokens.insert(session_id, "correct-token".to_string());
+        state.release_all_session_ownerships(conn_a, &tokens).await;
+
+        // conn_b tries to reclaim with wrong token
+        let result = state
+            .try_reclaim_with_token(session_id, "wrong-token", conn_b)
+            .await;
+        assert!(result.is_none());
+
+        // Session still has pending reconnect
+        assert!(state.has_pending_reconnect(session_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_token_new_connection_can_reclaim() {
+        let state = create_test_state();
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+        let conn_a_new = ConnectionId::new(); // New connection (same client, new WebSocket)
+
+        // conn_a owns session
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+
+        // conn_a disconnects with token
+        let mut tokens = HashMap::new();
+        tokens.insert(session_id, "my-token".to_string());
+        state.release_all_session_ownerships(conn_a, &tokens).await;
+
+        // conn_a_new (different connection ID, same token) can reclaim
+        let new_token = state
+            .try_reclaim_with_token(session_id, "my-token", conn_a_new)
+            .await;
+        assert!(new_token.is_some());
+        assert!(state.is_session_owner(session_id, conn_a_new).await);
+        assert!(!state.has_pending_reconnect(session_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_reconnect_cleanup_expired() {
+        use std::time::Duration;
+
+        // Create state with very short grace period for testing
+        let backend = MockBackend::with_text("Test");
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_tools(ToolRegistry::new())
+            .build()
+            .unwrap();
+        let config = ServerConfig::new(Some("test-token".to_string()))
+            .with_reconnect_grace_period(Duration::from_millis(10));
+        let state = AppState::new(agent, config);
+
+        let session_id = SessionId::new();
+        let conn_a = ConnectionId::new();
+
+        // conn_a owns session
+        assert!(state.try_claim_session_ownership(session_id, conn_a).await);
+
+        // conn_a disconnects with token
+        let mut tokens = HashMap::new();
+        tokens.insert(session_id, "my-token".to_string());
+        state.release_all_session_ownerships(conn_a, &tokens).await;
+
+        // Wait for grace period to expire
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        // Cleanup should remove expired entries
+        let cleaned = state.cleanup_expired_pending_reconnects().await;
+        assert_eq!(cleaned, 1);
+
+        // No longer has pending reconnect
+        assert!(!state.has_pending_reconnect(session_id).await);
+
+        // Now another connection can claim
+        let conn_b = ConnectionId::new();
+        assert!(state.try_claim_session_ownership(session_id, conn_b).await);
     }
 }

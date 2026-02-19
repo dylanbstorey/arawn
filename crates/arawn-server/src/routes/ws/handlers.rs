@@ -31,12 +31,12 @@ pub async fn handle_message(
 
         ClientMessage::Auth { token } => handle_auth(token, conn_state, app_state),
 
-        ClientMessage::Subscribe { session_id } => {
-            handle_subscribe(session_id, conn_state)
+        ClientMessage::Subscribe { session_id, reconnect_token } => {
+            handle_subscribe(session_id, reconnect_token, conn_state, app_state).await
         }
 
         ClientMessage::Unsubscribe { session_id } => {
-            handle_unsubscribe(session_id, conn_state)
+            handle_unsubscribe(session_id, conn_state, app_state).await
         }
 
         ClientMessage::Cancel { session_id } => {
@@ -76,9 +76,15 @@ fn handle_auth(
 }
 
 /// Handle session subscription.
-fn handle_subscribe(
+///
+/// First subscriber to a session becomes the owner (can send Chat messages).
+/// Subsequent subscribers are readers (receive messages but cannot send Chat).
+/// If a reconnect_token is provided, attempts to reclaim ownership after disconnect.
+async fn handle_subscribe(
     session_id: String,
+    reconnect_token: Option<String>,
     conn_state: &mut ConnectionState,
+    app_state: &AppState,
 ) -> MessageResponse {
     if !conn_state.authenticated {
         return MessageResponse::Single(ServerMessage::error(
@@ -89,8 +95,56 @@ fn handle_subscribe(
 
     match Uuid::parse_str(&session_id) {
         Ok(uuid) => {
-            conn_state.subscriptions.insert(SessionId::from_uuid(uuid));
-            MessageResponse::None
+            let sid = SessionId::from_uuid(uuid);
+            conn_state.subscriptions.insert(sid);
+
+            // Lazy cleanup of expired pending reconnects
+            app_state.cleanup_expired_pending_reconnects().await;
+
+            // Try to reclaim with token first
+            if let Some(token) = reconnect_token {
+                if let Some(new_token) = app_state
+                    .try_reclaim_with_token(sid, &token, conn_state.id)
+                    .await
+                {
+                    // Successfully reclaimed ownership
+                    return MessageResponse::Single(ServerMessage::subscribe_ack(
+                        &session_id,
+                        true,
+                        Some(new_token),
+                    ));
+                }
+                // Token invalid or expired - fall through to normal subscription
+            }
+
+            // Check if session has a pending reconnect (someone else is expected to reconnect)
+            if app_state.has_pending_reconnect(sid).await {
+                // Session is reserved for reconnection - subscribe as reader
+                return MessageResponse::Single(ServerMessage::subscribe_ack(
+                    &session_id,
+                    false,
+                    None,
+                ));
+            }
+
+            // Try to claim ownership - first subscriber becomes owner
+            let is_owner = app_state
+                .try_claim_session_ownership(sid, conn_state.id)
+                .await;
+
+            // Generate reconnect token if we became the owner
+            let token = if is_owner {
+                Some(uuid::Uuid::new_v4().to_string())
+            } else {
+                None
+            };
+
+            // Store the token in connection state for later use
+            if let Some(ref t) = token {
+                conn_state.reconnect_tokens.insert(sid, t.clone());
+            }
+
+            MessageResponse::Single(ServerMessage::subscribe_ack(&session_id, is_owner, token))
         }
         Err(_) => MessageResponse::Single(ServerMessage::error(
             "invalid_session",
@@ -100,12 +154,23 @@ fn handle_subscribe(
 }
 
 /// Handle session unsubscription.
-fn handle_unsubscribe(
+///
+/// Releases session ownership if this connection was the owner.
+/// Unlike disconnect, explicit unsubscribe does not create a pending reconnect.
+async fn handle_unsubscribe(
     session_id: String,
     conn_state: &mut ConnectionState,
+    app_state: &AppState,
 ) -> MessageResponse {
     if let Ok(uuid) = Uuid::parse_str(&session_id) {
-        conn_state.subscriptions.remove(&SessionId::from_uuid(uuid));
+        let sid = SessionId::from_uuid(uuid);
+        conn_state.subscriptions.remove(&sid);
+        conn_state.reconnect_tokens.remove(&sid);
+
+        // Release ownership if we were the owner (no pending reconnect for explicit unsubscribe)
+        app_state
+            .release_session_ownership(sid, conn_state.id)
+            .await;
     }
     MessageResponse::None
 }
@@ -240,6 +305,9 @@ fn inject_session_context(
 }
 
 /// Handle chat message.
+///
+/// Only the session owner can send chat messages. If no session ID is provided,
+/// a new session is created and this connection becomes the owner.
 async fn handle_chat(
     session_id: Option<String>,
     workstream_id: Option<String>,
@@ -259,6 +327,27 @@ async fn handle_chat(
         .as_ref()
         .and_then(|s| Uuid::parse_str(s).ok())
         .map(SessionId::from_uuid);
+
+    // If a specific session is requested, check ownership
+    if let Some(sid) = session_id {
+        let is_owner = app_state.is_session_owner(sid, conn_state.id).await;
+        if !is_owner {
+            // Check if session has any owner at all
+            let owners = app_state.session_owners.read().await;
+            if owners.contains_key(&sid) {
+                return MessageResponse::Single(ServerMessage::error(
+                    "session_not_owned",
+                    "Session is owned by another client. Subscribe first to become a reader, or wait for the owner to disconnect.",
+                ));
+            }
+            // No owner - this is a new chat to an existing session without prior subscribe
+            // Allow it and claim ownership
+            drop(owners);
+            app_state
+                .try_claim_session_ownership(sid, conn_state.id)
+                .await;
+        }
+    }
 
     // Resolve workstream ID (default to "scratch")
     let ws_id = workstream_id.as_deref().unwrap_or("scratch");

@@ -23,6 +23,7 @@ use axum::{
 use crate::state::AppState;
 
 // Re-export public types
+pub use connection::ConnectionId;
 pub use protocol::{ClientMessage, ServerMessage};
 pub use handlers::MessageResponse;
 

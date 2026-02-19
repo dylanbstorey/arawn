@@ -1,6 +1,10 @@
 //! Server configuration.
 
 use std::net::SocketAddr;
+use std::time::Duration;
+
+/// Default grace period for session reconnect tokens (30 seconds).
+pub const DEFAULT_RECONNECT_GRACE_PERIOD: Duration = Duration::from_secs(30);
 
 /// Server configuration.
 #[derive(Debug, Clone)]
@@ -25,6 +29,10 @@ pub struct ServerConfig {
 
     /// CORS allowed origins (empty = no CORS).
     pub cors_origins: Vec<String>,
+
+    /// Grace period for session ownership reconnect tokens.
+    /// After disconnect, ownership is held for this duration to allow reconnection.
+    pub reconnect_grace_period: Duration,
 }
 
 impl Default for ServerConfig {
@@ -37,6 +45,7 @@ impl Default for ServerConfig {
             api_rpm: 120,
             request_logging: true,
             cors_origins: Vec::new(),
+            reconnect_grace_period: DEFAULT_RECONNECT_GRACE_PERIOD,
         }
     }
 }
@@ -84,6 +93,12 @@ impl ServerConfig {
     /// Set the API rate limit (requests per minute).
     pub fn with_api_rpm(mut self, rpm: u32) -> Self {
         self.api_rpm = rpm;
+        self
+    }
+
+    /// Set the reconnect grace period for session ownership.
+    pub fn with_reconnect_grace_period(mut self, duration: Duration) -> Self {
+        self.reconnect_grace_period = duration;
         self
     }
 }
