@@ -117,7 +117,20 @@ Implemented combined sidebar approach instead of overlay (user-approved design):
 - Current workstream/session marked with green bullet
 
 **Remaining**:
-- [ ] Connect to real workstream API (currently mock data)
+- [x] Connect to real workstream API (previously mock data) - DONE 2026-02-19
 - [ ] Create workstream dialog
 - [ ] Delete workstream confirmation
 - [ ] Filter/search implementation
+
+### 2026-02-19: Connected to Real API
+
+Removed all mock data from sidebar - now uses real REST API:
+
+**Changes**:
+- Removed `populate_mock_workstreams()`, `populate_mock_sessions()`, `refresh_sessions_for_workstream()` from `sidebar.rs`
+- Updated `select_prev()` and `select_next()` to return `Option<String>` (workstream ID) when selection changes
+- Updated `app.rs` to trigger `FetchWorkstreamSessions` API call when workstream selection changes
+- Workstreams loaded via `refresh_sidebar_data()` on WebSocket connect
+- Sessions loaded via `do_fetch_workstream_sessions()` from real API
+
+The sidebar now displays real workstreams and sessions from the server.

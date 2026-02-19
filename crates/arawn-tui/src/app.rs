@@ -1763,10 +1763,18 @@ impl App {
                 self.sidebar.toggle_section();
             }
             KeyCode::Up => {
-                self.sidebar.select_prev();
+                if let Some(ws_id) = self.sidebar.select_prev() {
+                    // Workstream selection changed, fetch sessions from API
+                    self.pending_actions
+                        .push(PendingAction::FetchWorkstreamSessions(ws_id));
+                }
             }
             KeyCode::Down => {
-                self.sidebar.select_next();
+                if let Some(ws_id) = self.sidebar.select_next() {
+                    // Workstream selection changed, fetch sessions from API
+                    self.pending_actions
+                        .push(PendingAction::FetchWorkstreamSessions(ws_id));
+                }
             }
             KeyCode::Enter => {
                 // Select current item

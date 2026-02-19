@@ -1,7 +1,6 @@
 //! Sidebar state for workstreams and sessions navigation.
 
 use crate::sessions::SessionSummary;
-use chrono::{Duration, Utc};
 
 /// A workstream entry for display.
 #[derive(Debug, Clone)]
@@ -14,6 +13,12 @@ pub struct WorkstreamEntry {
     pub session_count: usize,
     /// Whether this is the current workstream.
     pub is_current: bool,
+    /// Whether this is a scratch workstream.
+    pub is_scratch: bool,
+    /// Total disk usage in bytes.
+    pub usage_bytes: Option<u64>,
+    /// Usage limit in bytes (None = no limit).
+    pub limit_bytes: Option<u64>,
 }
 
 /// Which section of the sidebar has focus.
@@ -99,11 +104,13 @@ impl Sidebar {
     }
 
     /// Move selection up in current section (circular).
-    pub fn select_prev(&mut self) {
+    ///
+    /// Returns Some(workstream_id) if workstream selection changed and sessions should be refreshed.
+    pub fn select_prev(&mut self) -> Option<String> {
         match self.section {
             SidebarSection::Workstreams => {
                 if self.workstreams.is_empty() {
-                    return;
+                    return None;
                 }
                 if self.workstream_index > 0 {
                     self.workstream_index -= 1;
@@ -111,7 +118,10 @@ impl Sidebar {
                     // Wrap to bottom
                     self.workstream_index = self.workstreams.len() - 1;
                 }
-                self.refresh_sessions_for_workstream();
+                // Clear sessions and return workstream ID for refresh
+                self.session_index = 0;
+                self.sessions.clear();
+                self.selected_workstream().map(|ws| ws.id.clone())
             }
             SidebarSection::Sessions => {
                 // Index 0 = "+ New Session", indices 1..=len = actual sessions
@@ -123,16 +133,19 @@ impl Sidebar {
                     // Wrap to bottom (last actual session)
                     self.session_index = total - 1;
                 }
+                None
             }
         }
     }
 
     /// Move selection down in current section (circular).
-    pub fn select_next(&mut self) {
+    ///
+    /// Returns Some(workstream_id) if workstream selection changed and sessions should be refreshed.
+    pub fn select_next(&mut self) -> Option<String> {
         match self.section {
             SidebarSection::Workstreams => {
                 if self.workstreams.is_empty() {
-                    return;
+                    return None;
                 }
                 if self.workstream_index < self.workstreams.len() - 1 {
                     self.workstream_index += 1;
@@ -140,7 +153,10 @@ impl Sidebar {
                     // Wrap to top
                     self.workstream_index = 0;
                 }
-                self.refresh_sessions_for_workstream();
+                // Clear sessions and return workstream ID for refresh
+                self.session_index = 0;
+                self.sessions.clear();
+                self.selected_workstream().map(|ws| ws.id.clone())
             }
             SidebarSection::Sessions => {
                 // Index 0 = "+ New Session", indices 1..=len = actual sessions
@@ -152,6 +168,7 @@ impl Sidebar {
                     // Wrap to top ("+ New Session")
                     self.session_index = 0;
                 }
+                None
             }
         }
     }
@@ -213,201 +230,6 @@ impl Sidebar {
             .map(move |(i, s)| (i + 1 == session_index, s))
     }
 
-    /// Refresh sessions list when workstream selection changes.
-    fn refresh_sessions_for_workstream(&mut self) {
-        // TODO: In the future, fetch sessions from server for the selected workstream
-        // For now, generate mock data based on selected workstream
-        self.session_index = 0;
-        self.populate_mock_sessions();
-    }
-
-    /// Populate with mock workstreams for UI demonstration.
-    pub fn populate_mock_workstreams(&mut self, current_workstream: &str) {
-        self.workstreams = vec![
-            WorkstreamEntry {
-                id: "mock-1".to_string(),
-                name: "default".to_string(),
-                session_count: 5,
-                is_current: current_workstream == "default",
-            },
-            WorkstreamEntry {
-                id: "mock-2".to_string(),
-                name: "project-alpha".to_string(),
-                session_count: 3,
-                is_current: current_workstream == "project-alpha",
-            },
-            WorkstreamEntry {
-                id: "mock-3".to_string(),
-                name: "research-notes".to_string(),
-                session_count: 8,
-                is_current: current_workstream == "research-notes",
-            },
-            WorkstreamEntry {
-                id: "mock-4".to_string(),
-                name: "code-reviews".to_string(),
-                session_count: 2,
-                is_current: current_workstream == "code-reviews",
-            },
-        ];
-
-        // Set initial selection to current workstream
-        self.workstream_index = self
-            .workstreams
-            .iter()
-            .position(|ws| ws.is_current)
-            .unwrap_or(0);
-
-        self.populate_mock_sessions();
-    }
-
-    /// Populate sessions for the currently selected workstream.
-    fn populate_mock_sessions(&mut self) {
-        let now = Utc::now();
-        let ws_name = self
-            .selected_workstream()
-            .map(|ws| ws.name.as_str())
-            .unwrap_or("default");
-
-        // Generate different sessions based on workstream
-        self.sessions = match ws_name {
-            "default" => vec![
-                SessionSummary {
-                    id: "default-1".to_string(),
-                    title: "Current session".to_string(),
-                    last_active: now,
-                    message_count: 0,
-                    is_current: true,
-                },
-                SessionSummary {
-                    id: "default-2".to_string(),
-                    title: "async/await explanation".to_string(),
-                    last_active: now - Duration::minutes(15),
-                    message_count: 8,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "default-3".to_string(),
-                    title: "Debug auth middleware".to_string(),
-                    last_active: now - Duration::hours(2),
-                    message_count: 12,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "default-4".to_string(),
-                    title: "Rust workspace setup".to_string(),
-                    last_active: now - Duration::days(1),
-                    message_count: 5,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "default-5".to_string(),
-                    title: "Memory indexing questions".to_string(),
-                    last_active: now - Duration::days(3),
-                    message_count: 15,
-                    is_current: false,
-                },
-            ],
-            "project-alpha" => vec![
-                SessionSummary {
-                    id: "alpha-1".to_string(),
-                    title: "API design discussion".to_string(),
-                    last_active: now - Duration::hours(1),
-                    message_count: 20,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "alpha-2".to_string(),
-                    title: "Database schema review".to_string(),
-                    last_active: now - Duration::days(2),
-                    message_count: 8,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "alpha-3".to_string(),
-                    title: "Performance optimization".to_string(),
-                    last_active: now - Duration::days(5),
-                    message_count: 35,
-                    is_current: false,
-                },
-            ],
-            "research-notes" => vec![
-                SessionSummary {
-                    id: "research-1".to_string(),
-                    title: "LLM fine-tuning approaches".to_string(),
-                    last_active: now - Duration::minutes(30),
-                    message_count: 45,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-2".to_string(),
-                    title: "RAG implementation patterns".to_string(),
-                    last_active: now - Duration::hours(4),
-                    message_count: 28,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-3".to_string(),
-                    title: "Vector database comparison".to_string(),
-                    last_active: now - Duration::days(1),
-                    message_count: 15,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-4".to_string(),
-                    title: "Embedding models review".to_string(),
-                    last_active: now - Duration::days(3),
-                    message_count: 22,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-5".to_string(),
-                    title: "Prompt engineering tips".to_string(),
-                    last_active: now - Duration::days(4),
-                    message_count: 18,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-6".to_string(),
-                    title: "Agent architecture patterns".to_string(),
-                    last_active: now - Duration::days(6),
-                    message_count: 32,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-7".to_string(),
-                    title: "Tool use strategies".to_string(),
-                    last_active: now - Duration::days(7),
-                    message_count: 12,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "research-8".to_string(),
-                    title: "Memory systems comparison".to_string(),
-                    last_active: now - Duration::days(10),
-                    message_count: 40,
-                    is_current: false,
-                },
-            ],
-            "code-reviews" => vec![
-                SessionSummary {
-                    id: "review-1".to_string(),
-                    title: "PR #142: Auth refactor".to_string(),
-                    last_active: now - Duration::hours(3),
-                    message_count: 15,
-                    is_current: false,
-                },
-                SessionSummary {
-                    id: "review-2".to_string(),
-                    title: "PR #139: WebSocket fixes".to_string(),
-                    last_active: now - Duration::days(2),
-                    message_count: 8,
-                    is_current: false,
-                },
-            ],
-            _ => vec![],
-        };
-    }
-
     /// Set the current session as selected in sessions list.
     pub fn set_current_session(&mut self, session_id: &str) {
         for session in &mut self.sessions {
@@ -423,6 +245,7 @@ impl Sidebar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_sidebar_toggle() {
@@ -455,10 +278,95 @@ mod tests {
         assert_eq!(sidebar.section, SidebarSection::Workstreams);
     }
 
+    /// Helper to set up test workstreams.
+    fn setup_test_workstreams(sidebar: &mut Sidebar) {
+        sidebar.workstreams = vec![
+            WorkstreamEntry {
+                id: "ws-1".to_string(),
+                name: "default".to_string(),
+                session_count: 5,
+                is_current: true,
+                is_scratch: false,
+                usage_bytes: None,
+                limit_bytes: None,
+            },
+            WorkstreamEntry {
+                id: "ws-2".to_string(),
+                name: "project-alpha".to_string(),
+                session_count: 3,
+                is_current: false,
+                is_scratch: false,
+                usage_bytes: None,
+                limit_bytes: None,
+            },
+            WorkstreamEntry {
+                id: "ws-3".to_string(),
+                name: "research".to_string(),
+                session_count: 8,
+                is_current: false,
+                is_scratch: false,
+                usage_bytes: None,
+                limit_bytes: None,
+            },
+            WorkstreamEntry {
+                id: "ws-4".to_string(),
+                name: "reviews".to_string(),
+                session_count: 2,
+                is_current: false,
+                is_scratch: false,
+                usage_bytes: None,
+                limit_bytes: None,
+            },
+        ];
+    }
+
+    /// Helper to set up test sessions.
+    fn setup_test_sessions(sidebar: &mut Sidebar) {
+        let now = Utc::now();
+        sidebar.sessions = vec![
+            SessionSummary {
+                id: "sess-1".to_string(),
+                title: "Session 1".to_string(),
+                last_active: now,
+                message_count: 5,
+                is_current: true,
+            },
+            SessionSummary {
+                id: "sess-2".to_string(),
+                title: "Session 2".to_string(),
+                last_active: now,
+                message_count: 10,
+                is_current: false,
+            },
+            SessionSummary {
+                id: "sess-3".to_string(),
+                title: "Session 3".to_string(),
+                last_active: now,
+                message_count: 3,
+                is_current: false,
+            },
+            SessionSummary {
+                id: "sess-4".to_string(),
+                title: "Session 4".to_string(),
+                last_active: now,
+                message_count: 8,
+                is_current: false,
+            },
+            SessionSummary {
+                id: "sess-5".to_string(),
+                title: "Session 5".to_string(),
+                last_active: now,
+                message_count: 12,
+                is_current: false,
+            },
+        ];
+    }
+
     #[test]
     fn test_navigation() {
         let mut sidebar = Sidebar::new();
-        sidebar.populate_mock_workstreams("default");
+        setup_test_workstreams(&mut sidebar);
+        setup_test_sessions(&mut sidebar);
 
         // Navigate workstreams
         assert_eq!(sidebar.workstream_index, 0);
@@ -475,7 +383,8 @@ mod tests {
         sidebar.select_next();
         assert_eq!(sidebar.workstream_index, 0);
 
-        // Switch to sessions
+        // Switch to sessions (re-add sessions since workstream navigation clears them)
+        setup_test_sessions(&mut sidebar);
         sidebar.toggle_section();
 
         // Session index 0 = "+ New Session" (no actual session selected)
@@ -496,7 +405,7 @@ mod tests {
 
         // Circular sessions: wrap from top to bottom
         sidebar.select_prev();
-        // "default" workstream has 5 sessions, so total items = 6 (including "+ New Session")
+        // 5 sessions, so total items = 6 (including "+ New Session")
         // Last index = 5
         assert_eq!(sidebar.session_index, 5);
         assert!(!sidebar.is_new_session_selected());
@@ -505,5 +414,29 @@ mod tests {
         sidebar.select_next();
         assert_eq!(sidebar.session_index, 0);
         assert!(sidebar.is_new_session_selected());
+    }
+
+    #[test]
+    fn test_workstream_navigation_returns_id() {
+        let mut sidebar = Sidebar::new();
+        setup_test_workstreams(&mut sidebar);
+
+        // Navigate down returns new workstream ID
+        let id = sidebar.select_next();
+        assert_eq!(id, Some("ws-2".to_string()));
+        assert_eq!(sidebar.workstream_index, 1);
+        // Sessions should be cleared
+        assert!(sidebar.sessions.is_empty());
+
+        // Navigate up returns new workstream ID
+        let id = sidebar.select_prev();
+        assert_eq!(id, Some("ws-1".to_string()));
+        assert_eq!(sidebar.workstream_index, 0);
+
+        // Session navigation returns None
+        setup_test_sessions(&mut sidebar);
+        sidebar.toggle_section();
+        let id = sidebar.select_next();
+        assert_eq!(id, None);
     }
 }
