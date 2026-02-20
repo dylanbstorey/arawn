@@ -4,14 +4,14 @@ level: initiative
 title: "TUI Client"
 short_code: "ARAWN-I-0025"
 created_at: 2026-02-10T14:10:49.442536+00:00
-updated_at: 2026-02-11T01:01:11.351229+00:00
+updated_at: 2026-02-20T02:28:52.129781+00:00
 parent: ARAWN-V-0001
 blocked_by: []
 archived: false
 
 tags:
   - "#initiative"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
