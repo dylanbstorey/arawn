@@ -4,7 +4,7 @@ level: task
 title: "Testing Gaps: CLI Commands, Property Tests, Panic Fix"
 short_code: "ARAWN-T-0216"
 created_at: 2026-02-20T14:06:01.890765+00:00
-updated_at: 2026-02-20T14:09:10.054585+00:00
+updated_at: 2026-02-20T14:43:37.562419+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -43,6 +43,8 @@ Address critical testing gaps: add tests for CLI commands (17 untested files), i
   - No concurrent/stress tests for workstream and memory
 - **Benefits of Fixing**: Catch regressions, prevent production panics, increase confidence
 - **Risk Assessment**: HIGH for panic issue; MEDIUM for coverage gaps
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

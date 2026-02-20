@@ -4,15 +4,15 @@ level: task
 title: "Architecture: Domain Facade, Storage Traits, Unified Config"
 short_code: "ARAWN-T-0215"
 created_at: 2026-02-20T13:41:44.507525+00:00
-updated_at: 2026-02-20T13:41:44.507525+00:00
+updated_at: 2026-02-20T14:45:00.160319+00:00
 parent: 
 blocked_by: []
-archived: false
+archived: true
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -44,6 +44,12 @@ Reduce coupling in arawn-server by introducing a domain facade crate, add storag
   - `AppState` mixes 10+ concerns in one struct
 - **Benefits of Fixing**: Testability, swappable backends, clearer architecture
 - **Risk Assessment**: MEDIUM - large refactoring effort, but improves long-term maintainability
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

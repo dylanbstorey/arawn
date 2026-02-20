@@ -4,6 +4,7 @@ members = [
     "crates/arawn",
     "crates/arawn-client",
     "crates/arawn-config",
+    "crates/arawn-domain",
     "crates/arawn-types",
     "crates/arawn-memory",
     "crates/arawn-llm",
@@ -104,6 +105,7 @@ arawn-mcp = { path = "crates/arawn-mcp" }
 arawn-session = { path = "crates/arawn-session" }
 arawn-tui = { path = "crates/arawn-tui" }
 arawn-sandbox = { path = "crates/arawn-sandbox" }
+arawn-domain = { path = "crates/arawn-domain" }
 orp-vendored = { path = "crates/orp-vendored" }
 gline-rs-vendored = { path = "crates/gline-rs-vendored", default-features = false }
 

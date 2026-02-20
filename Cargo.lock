@@ -226,6 +226,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "arawn-domain"
+version = "0.1.0"
+dependencies = [
+ "arawn-agent",
+ "arawn-config",
+ "arawn-llm",
+ "arawn-mcp",
+ "arawn-memory",
+ "arawn-sandbox",
+ "arawn-session",
+ "arawn-types",
+ "arawn-workstream",
+ "async-trait",
+ "chrono",
+ "futures-core",
+ "parking_lot",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "arawn-llm"
 version = "0.1.0"
 dependencies = [
