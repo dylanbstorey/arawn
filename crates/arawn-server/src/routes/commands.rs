@@ -14,6 +14,7 @@ use axum::{
 };
 use futures::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use tokio::sync::RwLock;
 
 use arawn_agent::{CompactionResult, CompactorConfig, SessionCompactor, SessionId};
@@ -161,7 +162,7 @@ pub type SharedCommandRegistry = Arc<RwLock<CommandRegistry>>;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Command info for API responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CommandInfo {
     /// Command name.
     pub name: String,
@@ -170,14 +171,14 @@ pub struct CommandInfo {
 }
 
 /// Response for listing commands.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListCommandsResponse {
     /// Available commands.
     pub commands: Vec<CommandInfo>,
 }
 
 /// Request to execute the compact command.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CompactRequest {
     /// Session ID to compact.
     pub session_id: String,
@@ -187,7 +188,7 @@ pub struct CompactRequest {
 }
 
 /// Response from compact command.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CompactResponse {
     /// Whether compaction was performed.
     pub compacted: bool,
@@ -344,6 +345,16 @@ impl CommandHandler for CompactCommand {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/commands - List available commands.
+#[utoipa::path(
+    get,
+    path = "/api/v1/commands",
+    responses(
+        (status = 200, description = "List of commands", body = ListCommandsResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "commands"
+)]
 pub async fn list_commands_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -356,6 +367,19 @@ pub async fn list_commands_handler(
 }
 
 /// POST /api/v1/commands/compact - Execute compact command.
+#[utoipa::path(
+    post,
+    path = "/api/v1/commands/compact",
+    request_body = CompactRequest,
+    responses(
+        (status = 200, description = "Compact result", body = CompactResponse),
+        (status = 400, description = "Invalid session ID"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "commands"
+)]
 pub async fn compact_command_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -379,6 +403,19 @@ pub async fn compact_command_handler(
 }
 
 /// POST /api/v1/commands/compact/stream - Execute compact command with SSE.
+#[utoipa::path(
+    post,
+    path = "/api/v1/commands/compact/stream",
+    request_body = CompactRequest,
+    responses(
+        (status = 200, description = "SSE stream of compact events", content_type = "text/event-stream"),
+        (status = 400, description = "Invalid session ID"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "commands"
+)]
 pub async fn compact_command_stream_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

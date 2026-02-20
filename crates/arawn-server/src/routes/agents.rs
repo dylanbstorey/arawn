@@ -6,6 +6,7 @@
 
 use axum::{Extension, Json, extract::{Path, State}};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::auth::Identity;
 use crate::error::ServerError;
@@ -16,7 +17,7 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Information about a tool available to an agent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentToolInfo {
     /// Tool name.
     pub name: String,
@@ -25,7 +26,7 @@ pub struct AgentToolInfo {
 }
 
 /// Summary information about an agent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentSummary {
     /// Agent ID.
     pub id: String,
@@ -38,7 +39,7 @@ pub struct AgentSummary {
 }
 
 /// Detailed information about an agent.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentDetail {
     /// Agent ID.
     pub id: String,
@@ -53,7 +54,7 @@ pub struct AgentDetail {
 }
 
 /// Agent capabilities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AgentCapabilities {
     /// Whether the agent supports streaming.
     pub streaming: bool,
@@ -64,7 +65,7 @@ pub struct AgentCapabilities {
 }
 
 /// Response for listing agents.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListAgentsResponse {
     /// List of agents.
     pub agents: Vec<AgentSummary>,
@@ -77,6 +78,16 @@ pub struct ListAgentsResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/agents - List available agents.
+#[utoipa::path(
+    get,
+    path = "/api/v1/agents",
+    responses(
+        (status = 200, description = "List of agents", body = ListAgentsResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "agents"
+)]
 pub async fn list_agents_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -98,6 +109,20 @@ pub async fn list_agents_handler(
 }
 
 /// GET /api/v1/agents/:id - Get agent details.
+#[utoipa::path(
+    get,
+    path = "/api/v1/agents/{id}",
+    params(
+        ("id" = String, Path, description = "Agent ID"),
+    ),
+    responses(
+        (status = 200, description = "Agent details", body = AgentDetail),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Agent not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "agents"
+)]
 pub async fn get_agent_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

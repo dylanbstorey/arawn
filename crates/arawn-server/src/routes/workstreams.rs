@@ -8,6 +8,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use arawn_workstream::WorkstreamManager;
 
@@ -16,56 +17,80 @@ use crate::state::AppState;
 
 // ── Request/Response types ──────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateWorkstreamRequest {
+    /// Workstream title.
     pub title: String,
+    /// Default model for this workstream.
     #[serde(default)]
     pub default_model: Option<String>,
+    /// Tags for categorization.
     #[serde(default)]
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WorkstreamResponse {
+    /// Unique workstream ID.
     pub id: String,
+    /// Workstream title.
     pub title: String,
+    /// Workstream summary.
     pub summary: Option<String>,
+    /// Workstream state (active, archived).
     pub state: String,
+    /// Default model for this workstream.
     pub default_model: Option<String>,
+    /// Whether this is the scratch workstream.
     pub is_scratch: bool,
+    /// Creation timestamp (RFC 3339).
     pub created_at: String,
+    /// Last update timestamp (RFC 3339).
     pub updated_at: String,
+    /// Tags for categorization.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct WorkstreamListResponse {
+    /// List of workstreams.
     pub workstreams: Vec<WorkstreamResponse>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct SendMessageRequest {
+    /// Message role (user, assistant, system, agent_push). Defaults to "user".
     pub role: Option<String>,
+    /// Message content.
     pub content: String,
+    /// Optional metadata JSON.
     #[serde(default)]
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageResponse {
+    /// Unique message ID.
     pub id: String,
+    /// Workstream this message belongs to.
     pub workstream_id: String,
+    /// Session this message belongs to, if any.
     pub session_id: Option<String>,
+    /// Message role.
     pub role: String,
+    /// Message content.
     pub content: String,
+    /// Message timestamp (RFC 3339).
     pub timestamp: String,
+    /// Optional metadata JSON.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct MessageListResponse {
+    /// List of messages.
     pub messages: Vec<MessageResponse>,
 }
 
@@ -81,17 +106,20 @@ pub struct ListWorkstreamsQuery {
     pub include_archived: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PromoteRequest {
+    /// Title for the promoted workstream.
     pub title: String,
+    /// Tags for the promoted workstream.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Default model for the promoted workstream.
     #[serde(default)]
     pub default_model: Option<String>,
 }
 
 /// Request to promote a file from work/ to production/.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PromoteFileRequest {
     /// Source path relative to work/.
     pub source: String,
@@ -100,7 +128,7 @@ pub struct PromoteFileRequest {
 }
 
 /// Response from file promotion.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct PromoteFileResponse {
     /// Final path of the promoted file (relative to production/).
     pub path: String,
@@ -112,7 +140,7 @@ pub struct PromoteFileResponse {
 }
 
 /// Request to export a file from production/ to external path.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct ExportFileRequest {
     /// Source path relative to production/.
     pub source: String,
@@ -121,7 +149,7 @@ pub struct ExportFileRequest {
 }
 
 /// Response from file export.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExportFileResponse {
     /// Final path of the exported file.
     pub exported_to: String,
@@ -130,7 +158,7 @@ pub struct ExportFileResponse {
 }
 
 /// Request to clone a git repository into production/.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CloneRepoRequest {
     /// Git repository URL (HTTPS or SSH).
     pub url: String,
@@ -140,7 +168,7 @@ pub struct CloneRepoRequest {
 }
 
 /// Response from git clone operation.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CloneRepoResponse {
     /// Path where the repository was cloned (relative to production/).
     pub path: String,
@@ -149,7 +177,7 @@ pub struct CloneRepoResponse {
 }
 
 /// Per-session disk usage info.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SessionUsageResponse {
     /// Session ID.
     pub id: String,
@@ -158,7 +186,7 @@ pub struct SessionUsageResponse {
 }
 
 /// Response from usage stats endpoint.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct UsageResponse {
     /// Production directory size in megabytes.
     pub production_mb: f64,
@@ -175,7 +203,7 @@ pub struct UsageResponse {
 }
 
 /// Request to clean up work directory files.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CleanupRequest {
     /// Only delete files older than this many days.
     #[serde(default)]
@@ -186,7 +214,7 @@ pub struct CleanupRequest {
 }
 
 /// Response from cleanup operation.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct CleanupResponse {
     /// Number of files deleted.
     pub deleted_files: usize,
@@ -204,29 +232,39 @@ fn is_zero(v: &usize) -> bool {
     *v == 0
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateWorkstreamRequest {
+    /// New title.
     #[serde(default)]
     pub title: Option<String>,
+    /// New summary.
     #[serde(default)]
     pub summary: Option<String>,
+    /// New default model.
     #[serde(default)]
     pub default_model: Option<String>,
+    /// New tags.
     #[serde(default)]
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SessionResponse {
+    /// Session ID.
     pub id: String,
+    /// Workstream this session belongs to.
     pub workstream_id: String,
+    /// Session start timestamp (RFC 3339).
     pub started_at: String,
+    /// Session end timestamp, if ended (RFC 3339).
     pub ended_at: Option<String>,
+    /// Whether the session is currently active.
     pub is_active: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct SessionListResponse {
+    /// List of sessions.
     pub sessions: Vec<SessionResponse>,
 }
 
@@ -270,7 +308,19 @@ fn to_message_response(msg: &arawn_workstream::WorkstreamMessage) -> MessageResp
 
 // ── Handlers ────────────────────────────────────────────────────────
 
-/// POST /api/v1/workstreams
+/// POST /api/v1/workstreams - Create a new workstream.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams",
+    request_body = CreateWorkstreamRequest,
+    responses(
+        (status = 201, description = "Workstream created", body = WorkstreamResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn create_workstream_handler(
     State(state): State<AppState>,
     Json(req): Json<CreateWorkstreamRequest>,
@@ -293,7 +343,21 @@ pub async fn create_workstream_handler(
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
 }
 
-/// GET /api/v1/workstreams
+/// GET /api/v1/workstreams - List all workstreams.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workstreams",
+    params(
+        ("include_archived" = Option<bool>, Query, description = "Include archived workstreams"),
+    ),
+    responses(
+        (status = 200, description = "List of workstreams", body = WorkstreamListResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn list_workstreams_handler(
     State(state): State<AppState>,
     Query(query): Query<ListWorkstreamsQuery>,
@@ -313,7 +377,22 @@ pub async fn list_workstreams_handler(
     Ok(Json(WorkstreamListResponse { workstreams }))
 }
 
-/// GET /api/v1/workstreams/:id
+/// GET /api/v1/workstreams/:id - Get a workstream by ID.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workstreams/{id}",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    responses(
+        (status = 200, description = "Workstream details", body = WorkstreamResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn get_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -326,7 +405,22 @@ pub async fn get_workstream_handler(
     Ok(Json(to_workstream_response(&ws, tags)))
 }
 
-/// DELETE /api/v1/workstreams/:id
+/// DELETE /api/v1/workstreams/:id - Archive a workstream.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/workstreams/{id}",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    responses(
+        (status = 204, description = "Workstream archived"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn delete_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -338,7 +432,23 @@ pub async fn delete_workstream_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// PATCH /api/v1/workstreams/:id
+/// PATCH /api/v1/workstreams/:id - Update a workstream.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/workstreams/{id}",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = UpdateWorkstreamRequest,
+    responses(
+        (status = 200, description = "Workstream updated", body = WorkstreamResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn update_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -365,7 +475,22 @@ pub async fn update_workstream_handler(
     Ok(Json(to_workstream_response(&ws, tags)))
 }
 
-/// GET /api/v1/workstreams/:id/sessions
+/// GET /api/v1/workstreams/:id/sessions - List sessions for a workstream.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workstreams/{id}/sessions",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    responses(
+        (status = 200, description = "List of sessions", body = SessionListResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn list_workstream_sessions_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -387,7 +512,24 @@ pub async fn list_workstream_sessions_handler(
     Ok(Json(SessionListResponse { sessions }))
 }
 
-/// POST /api/v1/workstreams/:id/messages
+/// POST /api/v1/workstreams/:id/messages - Send a message to a workstream.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{id}/messages",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = SendMessageRequest,
+    responses(
+        (status = 201, description = "Message sent", body = MessageResponse),
+        (status = 400, description = "Invalid role"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn send_message_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -412,7 +554,24 @@ pub async fn send_message_handler(
     Ok((StatusCode::CREATED, Json(to_message_response(&msg))))
 }
 
-/// GET /api/v1/workstreams/:id/messages
+/// GET /api/v1/workstreams/:id/messages - List messages for a workstream.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workstreams/{id}/messages",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+        ("since" = Option<String>, Query, description = "Only return messages after this timestamp (RFC 3339)"),
+    ),
+    responses(
+        (status = 200, description = "List of messages", body = MessageListResponse),
+        (status = 400, description = "Invalid timestamp format"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn list_messages_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -435,7 +594,23 @@ pub async fn list_messages_handler(
     Ok(Json(MessageListResponse { messages }))
 }
 
-/// POST /api/v1/workstreams/:id/promote
+/// POST /api/v1/workstreams/:id/promote - Promote scratch workstream.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{id}/promote",
+    params(
+        ("id" = String, Path, description = "Workstream ID (must be scratch)"),
+    ),
+    request_body = PromoteRequest,
+    responses(
+        (status = 201, description = "Workstream promoted", body = WorkstreamResponse),
+        (status = 400, description = "Only scratch workstream can be promoted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 503, description = "Workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn promote_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -457,9 +632,24 @@ pub async fn promote_handler(
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
 }
 
-/// POST /api/v1/workstreams/:ws/files/promote
-///
-/// Promotes a file from work/ to production/ within a workstream.
+/// POST /api/v1/workstreams/:ws/files/promote - Promote a file to production.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{ws}/files/promote",
+    params(
+        ("ws" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = PromoteFileRequest,
+    responses(
+        (status = 200, description = "File promoted", body = PromoteFileResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream or file not found"),
+        (status = 503, description = "Workstreams or directory management not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn promote_file_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,
@@ -516,9 +706,24 @@ pub async fn promote_file_handler(
     ))
 }
 
-/// POST /api/v1/workstreams/:ws/files/export
-///
-/// Exports a file from production/ to an external path.
+/// POST /api/v1/workstreams/:ws/files/export - Export a file to external path.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{ws}/files/export",
+    params(
+        ("ws" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = ExportFileRequest,
+    responses(
+        (status = 200, description = "File exported", body = ExportFileResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream or file not found"),
+        (status = 503, description = "Workstreams or directory management not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn export_file_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,
@@ -563,9 +768,25 @@ pub async fn export_file_handler(
     ))
 }
 
-/// POST /api/v1/workstreams/:ws/clone
-///
-/// Clones a git repository into the workstream's production/ directory.
+/// POST /api/v1/workstreams/:ws/clone - Clone a git repository.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{ws}/clone",
+    params(
+        ("ws" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = CloneRepoRequest,
+    responses(
+        (status = 201, description = "Repository cloned", body = CloneRepoResponse),
+        (status = 400, description = "Clone failed"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 409, description = "Destination already exists"),
+        (status = 503, description = "Git not available or workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn clone_repo_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,
@@ -623,9 +844,22 @@ pub async fn clone_repo_handler(
     ))
 }
 
-/// GET /api/v1/workstreams/:ws/usage
-///
-/// Returns disk usage statistics for a workstream.
+/// GET /api/v1/workstreams/:ws/usage - Get disk usage statistics.
+#[utoipa::path(
+    get,
+    path = "/api/v1/workstreams/{ws}/usage",
+    params(
+        ("ws" = String, Path, description = "Workstream ID"),
+    ),
+    responses(
+        (status = 200, description = "Usage statistics", body = UsageResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams or directory management not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn get_usage_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,
@@ -669,12 +903,26 @@ pub async fn get_usage_handler(
     }))
 }
 
-/// POST /api/v1/workstreams/:ws/cleanup
+/// POST /api/v1/workstreams/:ws/cleanup - Clean up work directory.
 ///
-/// Cleans up files from the work directory.
 /// Does NOT delete from production/ (safety feature).
-///
 /// If more than 100 files would be deleted, requires `confirm: true` in the request.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{ws}/cleanup",
+    params(
+        ("ws" = String, Path, description = "Workstream ID"),
+    ),
+    request_body = CleanupRequest,
+    responses(
+        (status = 200, description = "Cleanup result", body = CleanupResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Workstreams or directory management not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
 pub async fn cleanup_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,

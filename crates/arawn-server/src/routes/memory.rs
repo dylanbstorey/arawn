@@ -11,6 +11,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -27,7 +28,7 @@ use crate::state::AppState;
 pub type NoteStore = Arc<RwLock<HashMap<String, Note>>>;
 
 /// A simple note.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Note {
     /// Note ID.
     pub id: String,
@@ -41,7 +42,7 @@ pub struct Note {
 }
 
 /// Request to create a note.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateNoteRequest {
     /// Note content.
     pub content: String,
@@ -51,7 +52,7 @@ pub struct CreateNoteRequest {
 }
 
 /// Response with created note.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct CreateNoteResponse {
     /// The created note.
     pub note: Note,
@@ -67,7 +68,7 @@ pub struct ListNotesQuery {
 }
 
 /// Request to update a note.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateNoteRequest {
     /// New content for the note.
     #[serde(default)]
@@ -78,14 +79,14 @@ pub struct UpdateNoteRequest {
 }
 
 /// Response for getting a single note.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct GetNoteResponse {
     /// The note.
     pub note: Note,
 }
 
 /// Response for listing notes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListNotesResponse {
     /// List of notes.
     pub notes: Vec<Note>,
@@ -110,7 +111,7 @@ fn default_limit() -> usize {
 }
 
 /// Memory search result item.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MemorySearchResult {
     /// Result ID.
     pub id: String,
@@ -127,11 +128,12 @@ pub struct MemorySearchResult {
     pub source: String,
     /// Citation metadata for provenance tracking.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
     pub citation: Option<serde_json::Value>,
 }
 
 /// Response for memory search.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MemorySearchResponse {
     /// Search results.
     pub results: Vec<MemorySearchResult>,
@@ -145,7 +147,7 @@ pub struct MemorySearchResponse {
 }
 
 /// Request to store a memory directly.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct StoreMemoryRequest {
     /// The memory content.
     pub content: String,
@@ -157,6 +159,7 @@ pub struct StoreMemoryRequest {
     pub session_id: Option<String>,
     /// Optional metadata.
     #[serde(default)]
+    #[schema(value_type = Object)]
     pub metadata: HashMap<String, serde_json::Value>,
     /// Confidence score (0.0 - 1.0).
     #[serde(default = "default_confidence")]
@@ -172,7 +175,7 @@ fn default_confidence() -> f32 {
 }
 
 /// Response after storing a memory.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct StoreMemoryResponse {
     /// The stored memory ID.
     pub id: String,
@@ -213,6 +216,17 @@ fn get_note_store() -> NoteStore {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// POST /api/v1/notes - Create a new note.
+#[utoipa::path(
+    post,
+    path = "/api/v1/notes",
+    request_body = CreateNoteRequest,
+    responses(
+        (status = 200, description = "Note created", body = CreateNoteResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn create_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -234,6 +248,20 @@ pub async fn create_note_handler(
 }
 
 /// GET /api/v1/notes - List notes.
+#[utoipa::path(
+    get,
+    path = "/api/v1/notes",
+    params(
+        ("tag" = Option<String>, Query, description = "Filter by tag"),
+        ("limit" = Option<usize>, Query, description = "Maximum notes to return"),
+    ),
+    responses(
+        (status = 200, description = "List of notes", body = ListNotesResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn list_notes_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -263,6 +291,20 @@ pub async fn list_notes_handler(
 }
 
 /// GET /api/v1/notes/:id - Get a single note.
+#[utoipa::path(
+    get,
+    path = "/api/v1/notes/{id}",
+    params(
+        ("id" = String, Path, description = "Note ID"),
+    ),
+    responses(
+        (status = 200, description = "Note found", body = GetNoteResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Note not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn get_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -280,6 +322,21 @@ pub async fn get_note_handler(
 }
 
 /// PUT /api/v1/notes/:id - Update a note.
+#[utoipa::path(
+    put,
+    path = "/api/v1/notes/{id}",
+    params(
+        ("id" = String, Path, description = "Note ID"),
+    ),
+    request_body = UpdateNoteRequest,
+    responses(
+        (status = 200, description = "Note updated", body = GetNoteResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Note not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn update_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -308,6 +365,20 @@ pub async fn update_note_handler(
 }
 
 /// DELETE /api/v1/notes/:id - Delete a note.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/notes/{id}",
+    params(
+        ("id" = String, Path, description = "Note ID"),
+    ),
+    responses(
+        (status = 204, description = "Note deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Note not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn delete_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -327,6 +398,21 @@ pub async fn delete_note_handler(
 ///
 /// Searches the MemoryStore (text match on indexed facts, summaries, etc.)
 /// and falls back to in-memory notes if no indexer is configured.
+#[utoipa::path(
+    get,
+    path = "/api/v1/memory/search",
+    params(
+        ("q" = String, Query, description = "Search query text"),
+        ("limit" = Option<usize>, Query, description = "Maximum results (default: 10)"),
+        ("session_id" = Option<String>, Query, description = "Filter by session ID"),
+    ),
+    responses(
+        (status = 200, description = "Search results", body = MemorySearchResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn memory_search_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -411,6 +497,18 @@ pub async fn memory_search_handler(
 }
 
 /// POST /api/v1/memory - Store a memory directly.
+#[utoipa::path(
+    post,
+    path = "/api/v1/memory",
+    request_body = StoreMemoryRequest,
+    responses(
+        (status = 201, description = "Memory stored", body = StoreMemoryResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 503, description = "Memory storage not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn store_memory_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -452,6 +550,21 @@ pub async fn store_memory_handler(
 }
 
 /// DELETE /api/v1/memory/:id - Delete a memory.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/memory/{id}",
+    params(
+        ("id" = String, Path, description = "Memory ID (UUID)"),
+    ),
+    responses(
+        (status = 204, description = "Memory deleted"),
+        (status = 400, description = "Invalid memory ID"),
+        (status = 401, description = "Unauthorized"),
+        (status = 503, description = "Memory storage not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "memory"
+)]
 pub async fn delete_memory_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

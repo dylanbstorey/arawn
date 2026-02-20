@@ -4,6 +4,7 @@
 
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::auth::Identity;
 use crate::error::ServerError;
@@ -14,7 +15,7 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Server feature flags.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigFeatures {
     /// Whether workstreams are enabled.
     pub workstreams_enabled: bool,
@@ -29,14 +30,14 @@ pub struct ConfigFeatures {
 }
 
 /// Server limits configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigLimits {
     /// Maximum concurrent requests (if rate limiting enabled).
     pub max_concurrent_requests: Option<u32>,
 }
 
 /// Server configuration response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigResponse {
     /// Server version.
     pub version: String,
@@ -55,6 +56,16 @@ pub struct ConfigResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/config - Get server configuration.
+#[utoipa::path(
+    get,
+    path = "/api/v1/config",
+    responses(
+        (status = 200, description = "Server configuration", body = ConfigResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "config"
+)]
 pub async fn get_config_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

@@ -13,6 +13,7 @@ arawn-config = { workspace = true }
 arawn-llm = { workspace = true }
 arawn-memory = { workspace = true }
 arawn-mcp = { workspace = true }
+arawn-sandbox = { workspace = true }
 arawn-session = { workspace = true }
 arawn-workstream = { workspace = true }
 
@@ -34,6 +35,11 @@ async-trait = "0.1"
 governor = "0.10"
 tower_governor = "0.8"
 lru = "0.12"
+
+# OpenAPI documentation
+utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-axum = "0.2"
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
 arawn-agent = { workspace = true }

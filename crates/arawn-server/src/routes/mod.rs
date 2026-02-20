@@ -7,6 +7,7 @@ pub mod config;
 pub mod health;
 pub mod mcp;
 pub mod memory;
+pub mod openapi;
 pub mod sessions;
 pub mod tasks;
 pub mod workstreams;
@@ -26,10 +27,11 @@ pub use mcp::{
     remove_server_handler,
 };
 pub use memory::{
-    CreateNoteRequest, GetNoteResponse, ListNotesResponse, MemorySearchResponse, Note,
-    StoreMemoryRequest, StoreMemoryResponse, UpdateNoteRequest, create_note_handler,
-    delete_memory_handler, delete_note_handler, get_note_handler, list_notes_handler,
-    memory_search_handler, store_memory_handler, update_note_handler,
+    CreateNoteRequest, CreateNoteResponse, GetNoteResponse, ListNotesResponse,
+    MemorySearchResponse, MemorySearchResult, Note, StoreMemoryRequest, StoreMemoryResponse,
+    UpdateNoteRequest, create_note_handler, delete_memory_handler, delete_note_handler,
+    get_note_handler, list_notes_handler, memory_search_handler, store_memory_handler,
+    update_note_handler,
 };
 pub use sessions::{
     CreateSessionRequest, ListSessionsResponse, MessageInfo, SessionDetail,
@@ -42,11 +44,14 @@ pub use tasks::{
     list_tasks_handler,
 };
 pub use workstreams::{
-    clone_repo_handler, create_workstream_handler, delete_workstream_handler, export_file_handler,
-    get_workstream_handler, list_messages_handler, list_workstream_sessions_handler,
-    list_workstreams_handler, promote_file_handler, promote_handler, send_message_handler,
-    update_workstream_handler, CloneRepoRequest, CloneRepoResponse, ExportFileRequest,
-    ExportFileResponse, PromoteFileRequest, PromoteFileResponse,
+    cleanup_handler, clone_repo_handler, create_workstream_handler, delete_workstream_handler,
+    export_file_handler, get_usage_handler, get_workstream_handler, list_messages_handler,
+    list_workstream_sessions_handler, list_workstreams_handler, promote_file_handler, promote_handler,
+    send_message_handler, update_workstream_handler, CleanupRequest, CleanupResponse, CloneRepoRequest,
+    CloneRepoResponse, CreateWorkstreamRequest, ExportFileRequest, ExportFileResponse,
+    MessageListResponse, MessageResponse, PromoteFileRequest, PromoteFileResponse, PromoteRequest,
+    SendMessageRequest, SessionListResponse, SessionResponse, SessionUsageResponse,
+    UpdateWorkstreamRequest, UsageResponse, WorkstreamListResponse, WorkstreamResponse,
 };
 pub use ws::{ClientMessage, ServerMessage, ws_handler};
 pub use commands::{

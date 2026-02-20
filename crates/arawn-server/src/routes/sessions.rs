@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use utoipa::ToSchema;
 
 use arawn_agent::{Session, SessionId};
 
@@ -19,24 +20,26 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request to create a new session.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct CreateSessionRequest {
     /// Optional title for the session.
     #[serde(default)]
     pub title: Option<String>,
     /// Optional metadata to attach to the session.
     #[serde(default)]
+    #[schema(value_type = Object)]
     pub metadata: HashMap<String, serde_json::Value>,
 }
 
 /// Request to update a session.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct UpdateSessionRequest {
     /// New title for the session.
     #[serde(default)]
     pub title: Option<String>,
     /// Metadata to merge into the session (existing keys will be overwritten).
     #[serde(default)]
+    #[schema(value_type = Option<Object>)]
     pub metadata: Option<HashMap<String, serde_json::Value>>,
     /// Move session to a different workstream.
     #[serde(default)]
@@ -44,7 +47,7 @@ pub struct UpdateSessionRequest {
 }
 
 /// Message info for conversation history.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MessageInfo {
     /// Role of the message sender.
     pub role: String,
@@ -55,7 +58,7 @@ pub struct MessageInfo {
 }
 
 /// Response containing session messages.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionMessagesResponse {
     /// Session ID.
     pub session_id: String,
@@ -66,7 +69,7 @@ pub struct SessionMessagesResponse {
 }
 
 /// Summary info for a session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionSummary {
     /// Session ID.
     pub id: String,
@@ -82,7 +85,7 @@ pub struct SessionSummary {
 }
 
 /// Full session details.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionDetail {
     /// Session ID.
     pub id: String,
@@ -94,6 +97,7 @@ pub struct SessionDetail {
     pub updated_at: String,
     /// Session metadata.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    #[schema(value_type = Object)]
     pub metadata: std::collections::HashMap<String, serde_json::Value>,
     /// Current workstream ID.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -107,7 +111,7 @@ pub struct SessionDetail {
 }
 
 /// Turn info for API responses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TurnInfo {
     /// Turn ID.
     pub id: String,
@@ -124,7 +128,7 @@ pub struct TurnInfo {
 }
 
 /// Response for list sessions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListSessionsResponse {
     /// List of sessions.
     pub sessions: Vec<SessionSummary>,
@@ -137,6 +141,17 @@ pub struct ListSessionsResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// POST /api/v1/sessions - Create a new session.
+#[utoipa::path(
+    post,
+    path = "/api/v1/sessions",
+    request_body = CreateSessionRequest,
+    responses(
+        (status = 201, description = "Session created", body = SessionDetail),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn create_session_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -171,10 +186,38 @@ pub async fn create_session_handler(
         .await
         .ok_or_else(|| ServerError::Internal("Failed to retrieve created session".to_string()))?;
 
-    Ok((StatusCode::CREATED, Json(session_to_detail(&session))))
+    // Get workstream ID and allowed paths
+    let workstream_id = state
+        .session_cache
+        .get_workstream_id(&session_id)
+        .await
+        .unwrap_or_else(|| "scratch".to_string());
+    let allowed_paths = state
+        .allowed_paths(&workstream_id, &session_id.to_string())
+        .map(|paths| paths.iter().map(|p| p.display().to_string()).collect());
+
+    Ok((
+        StatusCode::CREATED,
+        Json(session_to_detail_with_migration(
+            &session,
+            Some(workstream_id),
+            None,
+            allowed_paths,
+        )),
+    ))
 }
 
 /// GET /api/v1/sessions - List all sessions.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions",
+    responses(
+        (status = 200, description = "List of sessions", body = ListSessionsResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn list_sessions_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -240,6 +283,18 @@ pub async fn list_sessions_handler(
 }
 
 /// GET /api/v1/sessions/:id - Get session details.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}",
+    params(("id" = String, Path, description = "Session ID")),
+    responses(
+        (status = 200, description = "Session details", body = SessionDetail),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn get_session_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -247,9 +302,27 @@ pub async fn get_session_handler(
 ) -> Result<Json<SessionDetail>, ServerError> {
     let id = parse_session_id(&session_id)?;
 
+    // Helper to get allowed paths for a session
+    let get_allowed_paths = |ws_id: &str, sess_id: &str| {
+        state
+            .allowed_paths(ws_id, sess_id)
+            .map(|paths| paths.iter().map(|p| p.display().to_string()).collect())
+    };
+
     // Try session cache first
     if let Some(session) = state.session_cache.get(&id).await {
-        return Ok(Json(session_to_detail(&session)));
+        let workstream_id = state
+            .session_cache
+            .get_workstream_id(&id)
+            .await
+            .unwrap_or_else(|| "scratch".to_string());
+        let allowed_paths = get_allowed_paths(&workstream_id, &session_id);
+        return Ok(Json(session_to_detail_with_migration(
+            &session,
+            Some(workstream_id),
+            None,
+            allowed_paths,
+        )));
     }
 
     // Try to load from workstream if workstreams are configured
@@ -261,7 +334,13 @@ pub async fn get_session_handler(
                     if ws_sessions.iter().any(|s| s.id == session_id) {
                         // Found the workstream, try to load the session
                         if let Ok((session, _)) = state.session_cache.get_or_load(id, &ws.id).await {
-                            return Ok(Json(session_to_detail(&session)));
+                            let allowed_paths = get_allowed_paths(&ws.id, &session_id);
+                            return Ok(Json(session_to_detail_with_migration(
+                                &session,
+                                Some(ws.id),
+                                None,
+                                allowed_paths,
+                            )));
                         }
                     }
                 }
@@ -275,6 +354,18 @@ pub async fn get_session_handler(
 /// DELETE /api/v1/sessions/:id - Delete a session.
 ///
 /// Removes the session and triggers background indexing (if enabled).
+#[utoipa::path(
+    delete,
+    path = "/api/v1/sessions/{id}",
+    params(("id" = String, Path, description = "Session ID")),
+    responses(
+        (status = 204, description = "Session deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn delete_session_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -293,6 +384,20 @@ pub async fn delete_session_handler(
 }
 
 /// PATCH /api/v1/sessions/:id - Update session metadata.
+#[utoipa::path(
+    patch,
+    path = "/api/v1/sessions/{id}",
+    params(("id" = String, Path, description = "Session ID")),
+    request_body = UpdateSessionRequest,
+    responses(
+        (status = 200, description = "Session updated", body = SessionDetail),
+        (status = 400, description = "Bad request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn update_session_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -484,6 +589,18 @@ pub async fn update_session_handler(
 }
 
 /// GET /api/v1/sessions/:id/messages - Get session conversation history.
+#[utoipa::path(
+    get,
+    path = "/api/v1/sessions/{id}/messages",
+    params(("id" = String, Path, description = "Session ID")),
+    responses(
+        (status = 200, description = "Session messages", body = SessionMessagesResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Session not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "sessions"
+)]
 pub async fn get_session_messages_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

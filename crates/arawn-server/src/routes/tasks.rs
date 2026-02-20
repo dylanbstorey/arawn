@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::auth::Identity;
 use crate::error::ServerError;
@@ -36,13 +37,14 @@ fn default_limit() -> usize {
 }
 
 /// Summary info for a task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TaskSummary {
     /// Task ID.
     pub id: String,
     /// Task type.
     pub task_type: String,
     /// Current status.
+    #[schema(value_type = String)]
     pub status: TaskStatus,
     /// Progress percentage (0-100).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,13 +54,14 @@ pub struct TaskSummary {
 }
 
 /// Full task details.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct TaskDetail {
     /// Task ID.
     pub id: String,
     /// Task type.
     pub task_type: String,
     /// Current status.
+    #[schema(value_type = String)]
     pub status: TaskStatus,
     /// Progress percentage (0-100).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,7 +86,7 @@ pub struct TaskDetail {
 }
 
 /// Response for listing tasks.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListTasksResponse {
     /// List of tasks.
     pub tasks: Vec<TaskSummary>,
@@ -136,6 +139,21 @@ fn parse_status(s: &str) -> Option<TaskStatus> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// GET /api/v1/tasks - List tasks.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks",
+    params(
+        ("status" = Option<String>, Query, description = "Filter by status"),
+        ("session_id" = Option<String>, Query, description = "Filter by session ID"),
+        ("limit" = Option<usize>, Query, description = "Maximum tasks to return (default: 50)"),
+    ),
+    responses(
+        (status = 200, description = "List of tasks", body = ListTasksResponse),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "tasks"
+)]
 pub async fn list_tasks_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -181,6 +199,20 @@ pub async fn list_tasks_handler(
 }
 
 /// GET /api/v1/tasks/:id - Get task details.
+#[utoipa::path(
+    get,
+    path = "/api/v1/tasks/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID"),
+    ),
+    responses(
+        (status = 200, description = "Task details", body = TaskDetail),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "tasks"
+)]
 pub async fn get_task_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -196,6 +228,21 @@ pub async fn get_task_handler(
 }
 
 /// DELETE /api/v1/tasks/:id - Cancel a running task.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/tasks/{id}",
+    params(
+        ("id" = String, Path, description = "Task ID"),
+    ),
+    responses(
+        (status = 204, description = "Task cancelled"),
+        (status = 400, description = "Cannot cancel task in current state"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "tasks"
+)]
 pub async fn cancel_task_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,

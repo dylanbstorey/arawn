@@ -2,11 +2,12 @@
 
 use axum::{Json, Router, extract::State, routing::get};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::state::AppState;
 
 /// Health check response.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct HealthResponse {
     /// Service status.
     pub status: String,
@@ -15,7 +16,7 @@ pub struct HealthResponse {
 }
 
 /// Detailed health check response.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct DetailedHealthResponse {
     /// Service status.
     pub status: String,
@@ -26,14 +27,22 @@ pub struct DetailedHealthResponse {
 }
 
 /// Agent health status.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AgentHealth {
     /// Whether the agent is ready.
     pub ready: bool,
 }
 
 /// Simple health check (no auth required).
-async fn health() -> Json<HealthResponse> {
+#[utoipa::path(
+    get,
+    path = "/health",
+    responses(
+        (status = 200, description = "Service is healthy", body = HealthResponse),
+    ),
+    tag = "health"
+)]
+pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -43,7 +52,15 @@ async fn health() -> Json<HealthResponse> {
 /// Detailed health check (requires auth).
 ///
 /// Checks actual service dependencies to report accurate health status.
-async fn health_detailed(State(state): State<AppState>) -> Json<DetailedHealthResponse> {
+#[utoipa::path(
+    get,
+    path = "/health/detailed",
+    responses(
+        (status = 200, description = "Detailed health status", body = DetailedHealthResponse),
+    ),
+    tag = "health"
+)]
+pub async fn health_detailed(State(state): State<AppState>) -> Json<DetailedHealthResponse> {
     // Agent is always present (not optional), so it's always ready
     // In the future, we could add a ping/health method to Agent
     let agent_ready = true;

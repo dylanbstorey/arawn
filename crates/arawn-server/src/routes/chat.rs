@@ -11,6 +11,7 @@ use axum::{
 };
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -25,7 +26,7 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request body for chat endpoints.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ChatRequest {
     /// Optional session ID. If not provided, a new session is created.
     #[serde(default)]
@@ -36,7 +37,7 @@ pub struct ChatRequest {
 }
 
 /// Response from the synchronous chat endpoint.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ChatResponse {
     /// The session ID (new or existing).
     pub session_id: String,
@@ -56,7 +57,7 @@ pub struct ChatResponse {
 }
 
 /// Simplified tool call info for API response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ToolCallInfo {
     /// Tool call ID.
     pub id: String,
@@ -67,7 +68,7 @@ pub struct ToolCallInfo {
 }
 
 /// Token usage info.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UsageInfo {
     /// Input tokens used.
     pub input_tokens: u32,
@@ -85,6 +86,19 @@ const MAX_MESSAGE_BYTES: usize = 100 * 1024;
 /// POST /api/v1/chat - Synchronous chat endpoint.
 ///
 /// Sends a message to the agent and waits for the complete response.
+#[utoipa::path(
+    post,
+    path = "/api/v1/chat",
+    request_body = ChatRequest,
+    responses(
+        (status = 200, description = "Chat response", body = ChatResponse),
+        (status = 400, description = "Invalid request (message too large)"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Agent error"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "chat"
+)]
 pub async fn chat_handler(
     State(state): State<AppState>,
     Extension(identity): Extension<Identity>,
@@ -185,6 +199,18 @@ pub async fn chat_handler(
 /// POST /api/v1/chat/stream - SSE streaming chat endpoint.
 ///
 /// Sends a message to the agent and streams the response via Server-Sent Events.
+#[utoipa::path(
+    post,
+    path = "/api/v1/chat/stream",
+    request_body = ChatRequest,
+    responses(
+        (status = 200, description = "SSE stream of chat events", content_type = "text/event-stream"),
+        (status = 400, description = "Invalid request (message too large)"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "chat"
+)]
 pub async fn chat_stream_handler(
     State(state): State<AppState>,
     Extension(identity): Extension<Identity>,

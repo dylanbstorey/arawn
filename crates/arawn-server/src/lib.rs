@@ -77,6 +77,8 @@ impl Server {
         Router::new()
             // Health routes (no auth required for basic health)
             .merge(routes::health_routes())
+            // OpenAPI documentation (no auth required)
+            .merge(routes::openapi::swagger_ui())
             // WebSocket (auth happens via message, not HTTP header)
             .route("/ws", get(routes::ws_handler))
             // API routes will be added here
@@ -168,6 +170,8 @@ impl Server {
                 post(routes::export_file_handler),
             )
             .route("/workstreams/{ws}/clone", post(routes::clone_repo_handler))
+            .route("/workstreams/{ws}/usage", get(routes::get_usage_handler))
+            .route("/workstreams/{ws}/cleanup", post(routes::cleanup_handler))
             // Config endpoint
             .route("/config", get(routes::get_config_handler))
             // Agent endpoints

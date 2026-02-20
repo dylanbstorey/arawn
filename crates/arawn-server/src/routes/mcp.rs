@@ -12,6 +12,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use arawn_mcp::McpServerConfig;
 
@@ -24,7 +25,7 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request to add a new MCP server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AddServerRequest {
     /// Unique name for this server.
     pub name: String,
@@ -47,10 +48,12 @@ pub struct AddServerRequest {
 
     /// Environment variables as key-value pairs (for stdio transport).
     #[serde(default)]
+    #[schema(value_type = Vec<Vec<String>>)]
     pub env: Vec<(String, String)>,
 
     /// HTTP headers as key-value pairs (for http transport).
     #[serde(default)]
+    #[schema(value_type = Vec<Vec<String>>)]
     pub headers: Vec<(String, String)>,
 
     /// Request timeout in seconds (for http transport).
@@ -71,7 +74,7 @@ fn default_connect() -> bool {
 }
 
 /// Response after adding a server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AddServerResponse {
     /// Server name.
     pub name: String,
@@ -84,7 +87,7 @@ pub struct AddServerResponse {
 }
 
 /// Information about a connected MCP server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ServerInfo {
     /// Server name.
     pub name: String,
@@ -97,7 +100,7 @@ pub struct ServerInfo {
 }
 
 /// Response for listing servers.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListServersResponse {
     /// List of servers.
     pub servers: Vec<ServerInfo>,
@@ -108,7 +111,7 @@ pub struct ListServersResponse {
 }
 
 /// Information about a tool.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ToolInfo {
     /// Tool name.
     pub name: String,
@@ -116,11 +119,12 @@ pub struct ToolInfo {
     pub description: Option<String>,
     /// Input schema (JSON Schema).
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
     pub input_schema: Option<serde_json::Value>,
 }
 
 /// Response for listing tools from a server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListToolsResponse {
     /// Server name.
     pub server: String,
@@ -129,7 +133,7 @@ pub struct ListToolsResponse {
 }
 
 /// Response after removing a server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct RemoveServerResponse {
     /// Server name.
     pub name: String,
@@ -142,6 +146,19 @@ pub struct RemoveServerResponse {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// POST /api/v1/mcp/servers - Add a new MCP server.
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers",
+    request_body = AddServerRequest,
+    responses(
+        (status = 200, description = "Server added", body = AddServerResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "MCP not enabled"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn add_server_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -237,6 +254,21 @@ pub async fn add_server_handler(
 }
 
 /// DELETE /api/v1/mcp/servers/:name - Remove an MCP server.
+#[utoipa::path(
+    delete,
+    path = "/api/v1/mcp/servers/{name}",
+    params(
+        ("name" = String, Path, description = "Server name"),
+    ),
+    responses(
+        (status = 200, description = "Server removed", body = RemoveServerResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Server not found"),
+        (status = 500, description = "MCP not enabled"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn remove_server_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -265,6 +297,17 @@ pub async fn remove_server_handler(
 }
 
 /// GET /api/v1/mcp/servers - List all MCP servers.
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/servers",
+    responses(
+        (status = 200, description = "List of servers", body = ListServersResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "MCP not enabled"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn list_servers_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -311,6 +354,22 @@ pub async fn list_servers_handler(
 }
 
 /// GET /api/v1/mcp/servers/:name/tools - List tools for a specific server.
+#[utoipa::path(
+    get,
+    path = "/api/v1/mcp/servers/{name}/tools",
+    params(
+        ("name" = String, Path, description = "Server name"),
+    ),
+    responses(
+        (status = 200, description = "List of tools", body = ListToolsResponse),
+        (status = 400, description = "Server not connected"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Server not found"),
+        (status = 500, description = "MCP not enabled"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn list_server_tools_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -363,6 +422,21 @@ pub async fn list_server_tools_handler(
 }
 
 /// POST /api/v1/mcp/servers/:name/connect - Connect to a specific server.
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers/{name}/connect",
+    params(
+        ("name" = String, Path, description = "Server name"),
+    ),
+    responses(
+        (status = 200, description = "Server connected"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Server not found"),
+        (status = 500, description = "MCP not enabled or connection failed"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn connect_server_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
@@ -393,6 +467,21 @@ pub async fn connect_server_handler(
 }
 
 /// POST /api/v1/mcp/servers/:name/disconnect - Disconnect from a specific server.
+#[utoipa::path(
+    post,
+    path = "/api/v1/mcp/servers/{name}/disconnect",
+    params(
+        ("name" = String, Path, description = "Server name"),
+    ),
+    responses(
+        (status = 200, description = "Server disconnected"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Server not found"),
+        (status = 500, description = "MCP not enabled"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "mcp"
+)]
 pub async fn disconnect_server_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
