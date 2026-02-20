@@ -19,6 +19,15 @@ pub struct WorkstreamEntry {
     pub usage_bytes: Option<u64>,
     /// Usage limit in bytes (None = no limit).
     pub limit_bytes: Option<u64>,
+    /// Workstream state ("active" or "archived").
+    pub state: String,
+}
+
+impl WorkstreamEntry {
+    /// Check if this workstream is archived.
+    pub fn is_archived(&self) -> bool {
+        self.state == "archived"
+    }
 }
 
 /// Which section of the sidebar has focus.
@@ -207,14 +216,29 @@ impl Sidebar {
         self.filter.clear();
     }
 
-    /// Get visible workstreams (filtered).
+    /// Get visible active workstreams (filtered).
     pub fn visible_workstreams(&self) -> impl Iterator<Item = (bool, &WorkstreamEntry)> {
         let filter = self.filter.to_lowercase();
         self.workstreams
             .iter()
             .enumerate()
-            .filter(move |(_, ws)| filter.is_empty() || ws.name.to_lowercase().contains(&filter))
+            .filter(move |(_, ws)| !ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter)))
             .map(move |(i, ws)| (i == self.workstream_index, ws))
+    }
+
+    /// Get visible archived workstreams (filtered).
+    pub fn visible_archived_workstreams(&self) -> impl Iterator<Item = (bool, &WorkstreamEntry)> {
+        let filter = self.filter.to_lowercase();
+        self.workstreams
+            .iter()
+            .enumerate()
+            .filter(move |(_, ws)| ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter)))
+            .map(move |(i, ws)| (i == self.workstream_index, ws))
+    }
+
+    /// Check if there are any archived workstreams.
+    pub fn has_archived_workstreams(&self) -> bool {
+        self.workstreams.iter().any(|ws| ws.is_archived())
     }
 
     /// Get visible sessions (filtered).
@@ -289,6 +313,7 @@ mod tests {
                 is_scratch: false,
                 usage_bytes: None,
                 limit_bytes: None,
+                state: "active".to_string(),
             },
             WorkstreamEntry {
                 id: "ws-2".to_string(),
@@ -298,6 +323,7 @@ mod tests {
                 is_scratch: false,
                 usage_bytes: None,
                 limit_bytes: None,
+                state: "active".to_string(),
             },
             WorkstreamEntry {
                 id: "ws-3".to_string(),
@@ -307,6 +333,7 @@ mod tests {
                 is_scratch: false,
                 usage_bytes: None,
                 limit_bytes: None,
+                state: "active".to_string(),
             },
             WorkstreamEntry {
                 id: "ws-4".to_string(),
@@ -316,6 +343,7 @@ mod tests {
                 is_scratch: false,
                 usage_bytes: None,
                 limit_bytes: None,
+                state: "active".to_string(),
             },
         ];
     }

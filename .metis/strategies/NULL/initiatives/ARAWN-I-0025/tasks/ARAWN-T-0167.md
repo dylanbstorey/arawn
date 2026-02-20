@@ -32,13 +32,15 @@ Implement the workstream list overlay (Ctrl+W) for browsing, searching, and swit
 - [x] Ctrl+W opens workstream navigation (sidebar-based design)
 - [x] Workstreams listed with name and session count
 - [x] Active workstream marked with green bullet (●)
-- [ ] Archived workstreams shown in separate section (dimmed)
+- [x] Archived workstreams shown in separate section (dimmed)
 - [x] Arrow keys navigate, Enter selects, Esc/Right closes
-- [ ] Typing filters workstreams
+- [x] Typing filters workstreams
 - [x] Current workstream shown in header bar
 - [x] Tab switches focus between workstreams and sessions sections
 - [x] Sessions update when workstream highlighted
 - [x] Sidebar collapsible (Ctrl+W cycles: focus → collapse → hide)
+- [x] Create workstream dialog with validation (empty name, duplicates, length)
+- [x] Delete confirmation (press 'd' twice)
 
 ## Implementation Notes
 
@@ -121,6 +123,41 @@ Implemented combined sidebar approach instead of overlay (user-approved design):
 - [ ] Create workstream dialog
 - [ ] Delete workstream confirmation
 - [ ] Filter/search implementation
+
+### 2026-02-19: Implementing Remaining Features
+
+**Completed all remaining features:**
+
+1. **Delete confirmation (press 'd' twice)** ✅
+   - Added `pending_delete_workstream` and `pending_delete_session` fields to App
+   - First 'd' press: shows confirmation message in status bar
+   - Second 'd' press: executes delete
+   - Clears pending on: Esc, navigation, Tab, Enter, other actions
+   - Cannot delete: current workstream, scratch workstream, current session
+
+2. **Create workstream validation** ✅
+   - Empty name rejected with message
+   - Length validation (max 100 chars)
+   - Duplicate name check (case-insensitive)
+   - Better status message: "New workstream: Enter name (Esc to cancel)"
+
+3. **Archived workstreams section** ✅
+   - Added `list_all_workstreams()` to WorkstreamManager
+   - Added `include_archived` query param to server endpoint
+   - Added `list_all()` to client API
+   - Added `state` field to WorkstreamEntry
+   - Sidebar shows archived workstreams in separate section with "─ archived ─" header
+   - Archived items rendered with DarkGray + Italic styling
+
+**Files Modified:**
+- `crates/arawn-workstream/src/manager.rs` - Added list_all_workstreams()
+- `crates/arawn-server/src/routes/workstreams.rs` - Added ListWorkstreamsQuery with include_archived
+- `crates/arawn-client/src/api/workstreams.rs` - Added list_all() method
+- `crates/arawn-tui/src/sidebar.rs` - Added state field, is_archived(), archived iteration methods
+- `crates/arawn-tui/src/app.rs` - Delete confirmation logic, validation, uses list_all()
+- `crates/arawn-tui/src/ui/sidebar.rs` - Archived section rendering with dimmed styling
+
+All tests passing.
 
 ### 2026-02-19: Connected to Real API
 

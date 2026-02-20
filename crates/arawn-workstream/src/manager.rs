@@ -116,6 +116,11 @@ impl WorkstreamManager {
         self.store.list_workstreams(Some("active"))
     }
 
+    /// List all workstreams (including archived).
+    pub fn list_all_workstreams(&self) -> Result<Vec<Workstream>> {
+        self.store.list_workstreams(None)
+    }
+
     pub fn archive_workstream(&self, id: &str) -> Result<()> {
         if id == SCRATCH_ID {
             return Err(WorkstreamError::Migration(

@@ -170,6 +170,12 @@ pub struct App {
     /// Whether the current session is owned by this client (can send Chat).
     /// When false, the client is in read-only mode.
     pub is_session_owner: bool,
+    /// Pending delete confirmation for workstream (id, name).
+    /// Set on first 'd' press, cleared on second 'd' (executes delete) or any other action.
+    pub pending_delete_workstream: Option<(String, String)>,
+    /// Pending delete confirmation for session (id).
+    /// Set on first 'd' press, cleared on second 'd' (executes delete) or any other action.
+    pub pending_delete_session: Option<String>,
 }
 
 /// Context usage state for display in status bar.
@@ -318,6 +324,8 @@ impl App {
             show_usage_popup: false,
             reconnect_tokens: std::collections::HashMap::new(),
             is_session_owner: true, // Default to owner until told otherwise
+            pending_delete_workstream: None,
+            pending_delete_session: None,
         })
     }
 
@@ -442,6 +450,7 @@ impl App {
                     is_scratch: false,
                     usage_bytes: None,
                     limit_bytes: None,
+                    state: "active".to_string(),
                 });
 
                 // Switch to the new workstream
@@ -668,8 +677,8 @@ impl App {
 
     /// Refresh sidebar data from the server API.
     async fn refresh_sidebar_data(&mut self) {
-        // Fetch workstreams
-        match self.api.workstreams().list().await {
+        // Fetch workstreams (including archived)
+        match self.api.workstreams().list_all().await {
             Ok(response) => {
                 self.sidebar.workstreams = response
                     .workstreams
@@ -682,11 +691,13 @@ impl App {
                         is_scratch: ws.is_scratch,
                         usage_bytes: None, // Updated via WebSocket events
                         limit_bytes: None,
+                        state: ws.state.clone(),
                     })
                     .collect();
 
                 // Set initial selection to current workstream and store the ID
-                if let Some(pos) = self.sidebar.workstreams.iter().position(|ws| ws.is_current) {
+                // Only consider active workstreams for selection
+                if let Some(pos) = self.sidebar.workstreams.iter().position(|ws| ws.is_current && !ws.is_archived()) {
                     self.sidebar.workstream_index = pos;
                     self.workstream_id = Some(self.sidebar.workstreams[pos].id.clone());
                     self.workstream = self.sidebar.workstreams[pos].name.clone();
@@ -1146,7 +1157,25 @@ impl App {
                             }
                         }
                         InputMode::NewWorkstream => {
-                            let title = self.input.content().to_string();
+                            let title = self.input.content().trim().to_string();
+
+                            // Validation
+                            if title.is_empty() {
+                                self.status_message = Some("Workstream name cannot be empty".to_string());
+                                return;
+                            }
+                            if title.len() > 100 {
+                                self.status_message = Some("Workstream name too long (max 100 chars)".to_string());
+                                return;
+                            }
+                            // Check for duplicate names
+                            let name_exists = self.sidebar.workstreams.iter()
+                                .any(|ws| ws.name.eq_ignore_ascii_case(&title));
+                            if name_exists {
+                                self.status_message = Some(format!("Workstream '{}' already exists", title));
+                                return;
+                            }
+
                             self.pending_actions.push(PendingAction::CreateWorkstream(title));
                             self.input.clear();
                             self.input_mode = InputMode::Chat;
@@ -1486,7 +1515,7 @@ impl App {
                 self.input_mode = InputMode::NewWorkstream;
                 self.input.clear();
                 self.focus.return_to_input();
-                self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
+                self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
             }
             ActionId::ViewToggleToolPane => {
                 self.focus.toggle(FocusTarget::ToolPane);
@@ -1749,6 +1778,12 @@ impl App {
         }
     }
 
+    /// Clear any pending delete confirmations.
+    fn clear_pending_deletes(&mut self) {
+        self.pending_delete_workstream = None;
+        self.pending_delete_session = None;
+    }
+
     /// Handle sidebar key events.
     fn handle_sidebar_key(&mut self, key: crossterm::event::KeyEvent) {
         match key.code {
@@ -1756,13 +1791,16 @@ impl App {
                 // Close sidebar and return focus to input
                 self.sidebar.close();
                 self.moving_session_to_workstream = false;
+                self.clear_pending_deletes();
                 self.focus.return_to_input();
             }
             KeyCode::Tab => {
                 // Switch between workstreams and sessions sections
                 self.sidebar.toggle_section();
+                self.clear_pending_deletes();
             }
             KeyCode::Up => {
+                self.clear_pending_deletes();
                 if let Some(ws_id) = self.sidebar.select_prev() {
                     // Workstream selection changed, fetch sessions from API
                     self.pending_actions
@@ -1770,6 +1808,7 @@ impl App {
                 }
             }
             KeyCode::Down => {
+                self.clear_pending_deletes();
                 if let Some(ws_id) = self.sidebar.select_next() {
                     // Workstream selection changed, fetch sessions from API
                     self.pending_actions
@@ -1777,6 +1816,7 @@ impl App {
                 }
             }
             KeyCode::Enter => {
+                self.clear_pending_deletes();
                 // Select current item
                 match self.sidebar.section {
                     SidebarSection::Workstreams => {
@@ -1830,6 +1870,7 @@ impl App {
                 }
             }
             KeyCode::Char('n') => {
+                self.clear_pending_deletes();
                 // Create new item in current section
                 match self.sidebar.section {
                     SidebarSection::Workstreams => {
@@ -1838,7 +1879,7 @@ impl App {
                         self.input.clear();
                         self.sidebar.close();
                         self.focus.return_to_input();
-                        self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
+                        self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
                     }
                     SidebarSection::Sessions => {
                         // Switch to selected workstream if different
@@ -1856,14 +1897,16 @@ impl App {
                 }
             }
             KeyCode::Char('N') => {
+                self.clear_pending_deletes();
                 // Create new workstream regardless of current section
                 self.input_mode = InputMode::NewWorkstream;
                 self.input.clear();
                 self.sidebar.close();
                 self.focus.return_to_input();
-                self.status_message = Some("Enter workstream name (Esc to cancel)".to_string());
+                self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
             }
             KeyCode::Char('r') => {
+                self.clear_pending_deletes();
                 // Rename selected workstream
                 if self.sidebar.section == SidebarSection::Workstreams {
                     if let Some(ws) = self.sidebar.selected_workstream() {
@@ -1880,22 +1923,62 @@ impl App {
                 }
             }
             KeyCode::Char('d') => {
-                // Delete current item
+                // Delete current item (requires confirmation - press 'd' twice)
                 match self.sidebar.section {
                     SidebarSection::Workstreams => {
                         if let Some(ws) = self.sidebar.selected_workstream() {
-                            if ws.is_current {
+                            // Check if this is a confirmation (second 'd' press)
+                            if let Some((pending_id, _)) = &self.pending_delete_workstream {
+                                if pending_id == &ws.id {
+                                    // Confirmed - execute delete
+                                    let id = ws.id.clone();
+                                    self.pending_actions.push(PendingAction::DeleteWorkstream(id));
+                                    self.clear_pending_deletes();
+                                    return;
+                                }
+                            }
+
+                            // First 'd' press - check if deletable and show confirmation
+                            if ws.is_scratch {
+                                self.status_message = Some("Cannot delete scratch workstream".to_string());
+                            } else if ws.is_current {
                                 self.status_message = Some("Cannot delete current workstream".to_string());
                             } else {
+                                // Set pending and show confirmation message
                                 let name = ws.name.clone();
-                                self.pending_actions.push(PendingAction::DeleteWorkstream(name));
+                                let id = ws.id.clone();
+                                self.pending_delete_workstream = Some((id, name.clone()));
+                                self.status_message = Some(format!(
+                                    "Delete '{}'? Press 'd' again to confirm, Esc to cancel",
+                                    name
+                                ));
                             }
                         }
                     }
                     SidebarSection::Sessions => {
                         if let Some(session) = self.sidebar.selected_session() {
-                            let id = session.id.clone();
-                            self.pending_actions.push(PendingAction::DeleteSession(id));
+                            // Check if this is a confirmation (second 'd' press)
+                            if let Some(pending_id) = &self.pending_delete_session {
+                                if pending_id == &session.id {
+                                    // Confirmed - execute delete
+                                    let id = session.id.clone();
+                                    self.pending_actions.push(PendingAction::DeleteSession(id));
+                                    self.clear_pending_deletes();
+                                    return;
+                                }
+                            }
+
+                            // First 'd' press - check if deletable and show confirmation
+                            if session.is_current {
+                                self.status_message = Some("Cannot delete current session".to_string());
+                            } else {
+                                // Set pending and show confirmation message
+                                let id = session.id.clone();
+                                self.pending_delete_session = Some(id);
+                                self.status_message = Some(format!(
+                                    "Delete session? Press 'd' again to confirm, Esc to cancel"
+                                ));
+                            }
                         }
                     }
                 }

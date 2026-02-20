@@ -16,6 +16,14 @@ pub struct ListMessagesQuery {
     pub since: Option<String>,
 }
 
+/// Query parameters for listing workstreams.
+#[derive(Debug, Default, serde::Serialize)]
+pub struct ListWorkstreamsQuery {
+    /// Include archived workstreams in the response.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub include_archived: bool,
+}
+
 /// Workstreams API client.
 pub struct WorkstreamsApi {
     client: ArawnClient,
@@ -26,9 +34,17 @@ impl WorkstreamsApi {
         Self { client }
     }
 
-    /// List all workstreams.
+    /// List all active workstreams.
     pub async fn list(&self) -> Result<ListWorkstreamsResponse> {
         self.client.get("workstreams").await
+    }
+
+    /// List all workstreams including archived.
+    pub async fn list_all(&self) -> Result<ListWorkstreamsResponse> {
+        let query = ListWorkstreamsQuery {
+            include_archived: true,
+        };
+        self.client.get_with_query("workstreams", &query).await
     }
 
     /// Get a workstream by ID.

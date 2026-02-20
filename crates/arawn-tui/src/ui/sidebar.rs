@@ -75,27 +75,32 @@ fn render_workstreams_header(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 fn render_workstreams_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
     let mut lines = Vec::new();
 
+    // Render active workstreams
     for (is_selected, ws) in sidebar.visible_workstreams() {
-        let prefix = if ws.is_current { "● " } else { "  " };
-        let name = truncate_str(&ws.name, (area.width as usize).saturating_sub(6));
-        let count = format!("{:>2}", ws.session_count);
+        lines.push(render_workstream_line(sidebar, ws, is_selected, area.width, false));
+    }
 
-        let style = if is_selected && sidebar.section == SidebarSection::Workstreams {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-        } else if ws.is_current {
-            Style::default().add_modifier(Modifier::BOLD)
-        } else {
-            Style::default()
-        };
+    // Render archived section if there are archived workstreams
+    if sidebar.has_archived_workstreams() {
+        // Add separator
+        let separator_width = area.width.saturating_sub(2) as usize;
+        let label = " archived ";
+        let dash_count = separator_width.saturating_sub(label.len()) / 2;
+        let separator = format!(
+            "{}{}{}",
+            "─".repeat(dash_count),
+            label,
+            "─".repeat(separator_width.saturating_sub(dash_count + label.len()))
+        );
+        lines.push(Line::from(Span::styled(
+            separator,
+            Style::default().fg(Color::DarkGray),
+        )));
 
-        // Active workstream gets a dark dot indicator
-        let prefix_style = Style::default().fg(Color::DarkGray);
-
-        lines.push(Line::from(vec![
-            Span::styled(prefix, prefix_style),
-            Span::styled(name, style),
-            Span::styled(format!(" {}", count), Style::default().fg(Color::DarkGray)),
-        ]));
+        // Render archived workstreams
+        for (is_selected, ws) in sidebar.visible_archived_workstreams() {
+            lines.push(render_workstream_line(sidebar, ws, is_selected, area.width, true));
+        }
     }
 
     if lines.is_empty() {
@@ -107,6 +112,99 @@ fn render_workstreams_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 
     let list = Paragraph::new(lines);
     frame.render_widget(list, area);
+}
+
+/// Render a single workstream line.
+fn render_workstream_line(
+    sidebar: &Sidebar,
+    ws: &crate::sidebar::WorkstreamEntry,
+    is_selected: bool,
+    width: u16,
+    is_archived: bool,
+) -> Line<'static> {
+    let prefix = if ws.is_current { "● " } else { "  " };
+
+    // Visual distinction for scratch workstreams
+    let name_display = if ws.is_scratch {
+        format!("⚡{}", ws.name) // Lightning bolt for scratch
+    } else {
+        ws.name.clone()
+    };
+
+    // Format usage if available
+    let usage_str = if let Some(usage) = ws.usage_bytes {
+        format_size(usage)
+    } else {
+        String::new()
+    };
+
+    // Calculate available width for name
+    let usage_width = if usage_str.is_empty() { 0 } else { usage_str.len() + 1 };
+    let name_width = (width as usize).saturating_sub(3 + usage_width); // 3 = prefix + space
+    let name = truncate_str(&name_display, name_width);
+
+    // Style based on state
+    let style = if is_archived {
+        // Archived workstreams: dimmed and italic
+        if is_selected && sidebar.section == SidebarSection::Workstreams {
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC | Modifier::BOLD)
+        } else {
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC)
+        }
+    } else if is_selected && sidebar.section == SidebarSection::Workstreams {
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+    } else if ws.is_current {
+        Style::default().add_modifier(Modifier::BOLD)
+    } else if ws.is_scratch {
+        Style::default().fg(Color::Yellow) // Scratch workstreams in yellow
+    } else {
+        Style::default()
+    };
+
+    // Active workstream gets a dark dot indicator
+    let prefix_style = Style::default().fg(Color::DarkGray);
+
+    // Usage color based on percentage
+    let usage_color = if let (Some(usage), Some(limit)) = (ws.usage_bytes, ws.limit_bytes) {
+        let percent = (usage as f64 / limit as f64 * 100.0) as u8;
+        if percent >= 90 {
+            Color::Red
+        } else if percent >= 70 {
+            Color::Yellow
+        } else {
+            Color::DarkGray
+        }
+    } else {
+        Color::DarkGray
+    };
+
+    let mut spans = vec![
+        Span::styled(prefix.to_string(), prefix_style),
+        Span::styled(name, style),
+    ];
+
+    if !usage_str.is_empty() {
+        spans.push(Span::styled(format!(" {}", usage_str), Style::default().fg(usage_color)));
+    }
+
+    Line::from(spans)
+}
+
+/// Format byte size as human-readable string.
+fn format_size(bytes: u64) -> String {
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.1}G", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else if bytes >= 1024 * 1024 {
+        format!("{}M", bytes / (1024 * 1024))
+    } else if bytes >= 1024 {
+        format!("{}K", bytes / 1024)
+    } else {
+        format!("{}B", bytes)
+    }
 }
 
 /// Render the sessions section header.

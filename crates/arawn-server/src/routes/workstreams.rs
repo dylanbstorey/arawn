@@ -75,6 +75,13 @@ pub struct MessageQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ListWorkstreamsQuery {
+    /// Include archived workstreams in the response.
+    #[serde(default)]
+    pub include_archived: bool,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PromoteRequest {
     pub title: String,
     #[serde(default)]
@@ -139,6 +146,62 @@ pub struct CloneRepoResponse {
     pub path: String,
     /// HEAD commit hash.
     pub commit: String,
+}
+
+/// Per-session disk usage info.
+#[derive(Debug, Serialize)]
+pub struct SessionUsageResponse {
+    /// Session ID.
+    pub id: String,
+    /// Disk usage in megabytes.
+    pub mb: f64,
+}
+
+/// Response from usage stats endpoint.
+#[derive(Debug, Serialize)]
+pub struct UsageResponse {
+    /// Production directory size in megabytes.
+    pub production_mb: f64,
+    /// Work directory size in megabytes.
+    pub work_mb: f64,
+    /// Per-session breakdown (only for scratch workstream).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sessions: Vec<SessionUsageResponse>,
+    /// Total disk usage in megabytes.
+    pub total_mb: f64,
+    /// Warnings based on configured thresholds.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
+}
+
+/// Request to clean up work directory files.
+#[derive(Debug, Deserialize)]
+pub struct CleanupRequest {
+    /// Only delete files older than this many days.
+    #[serde(default)]
+    pub older_than_days: Option<u32>,
+    /// Confirm deletion of more than 100 files.
+    #[serde(default)]
+    pub confirm: bool,
+}
+
+/// Response from cleanup operation.
+#[derive(Debug, Serialize)]
+pub struct CleanupResponse {
+    /// Number of files deleted.
+    pub deleted_files: usize,
+    /// Total megabytes freed.
+    pub freed_mb: f64,
+    /// Number of files pending deletion (if confirmation required).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub pending_files: usize,
+    /// Whether confirmation is required for this operation.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub requires_confirmation: bool,
+}
+
+fn is_zero(v: &usize) -> bool {
+    *v == 0
 }
 
 #[derive(Debug, Deserialize)]
@@ -218,6 +281,14 @@ pub async fn create_workstream_handler(
         .create_workstream(&req.title, req.default_model.as_deref(), &req.tags)
         ?;
 
+    // Create directory structure for the new workstream
+    if let Some(ref dm) = state.directory_manager {
+        dm.create_workstream(&ws.id).map_err(|e| {
+            tracing::warn!(workstream = %ws.id, error = %e, "Failed to create workstream directories");
+            ServerError::Internal(format!("Failed to create workstream directories: {}", e))
+        })?;
+    }
+
     let tags = mgr.get_tags(&ws.id).ok();
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
 }
@@ -225,10 +296,15 @@ pub async fn create_workstream_handler(
 /// GET /api/v1/workstreams
 pub async fn list_workstreams_handler(
     State(state): State<AppState>,
+    Query(query): Query<ListWorkstreamsQuery>,
 ) -> Result<Json<WorkstreamListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
-    let list = mgr.list_workstreams()?;
+    let list = if query.include_archived {
+        mgr.list_all_workstreams()?
+    } else {
+        mgr.list_workstreams()?
+    };
     let workstreams: Vec<_> = list
         .iter()
         .map(|ws| to_workstream_response(ws, None))
@@ -545,4 +621,89 @@ pub async fn clone_repo_handler(
             commit: result.commit,
         }),
     ))
+}
+
+/// GET /api/v1/workstreams/:ws/usage
+///
+/// Returns disk usage statistics for a workstream.
+pub async fn get_usage_handler(
+    State(state): State<AppState>,
+    Path(workstream_id): Path<String>,
+) -> Result<Json<UsageResponse>, ServerError> {
+    let mgr = get_manager(&state)?;
+
+    // Get the directory manager
+    let dir_mgr = mgr.directory_manager().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Directory management not configured".to_string())
+    })?;
+
+    // Get usage statistics
+    let stats = dir_mgr
+        .get_usage(&workstream_id)
+        .map_err(|e| match e {
+            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+                ServerError::NotFound(format!("Workstream not found: {ws}"))
+            }
+            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+            }
+            other => ServerError::Internal(format!("Failed to get usage stats: {other}")),
+        })?;
+
+    // Convert session usages to response format
+    let sessions: Vec<SessionUsageResponse> = stats
+        .sessions
+        .iter()
+        .map(|s| SessionUsageResponse {
+            id: s.id.clone(),
+            mb: s.bytes as f64 / 1_048_576.0,
+        })
+        .collect();
+
+    Ok(Json(UsageResponse {
+        production_mb: stats.production_mb(),
+        work_mb: stats.work_mb(),
+        sessions,
+        total_mb: stats.total_mb(),
+        warnings: stats.warnings,
+    }))
+}
+
+/// POST /api/v1/workstreams/:ws/cleanup
+///
+/// Cleans up files from the work directory.
+/// Does NOT delete from production/ (safety feature).
+///
+/// If more than 100 files would be deleted, requires `confirm: true` in the request.
+pub async fn cleanup_handler(
+    State(state): State<AppState>,
+    Path(workstream_id): Path<String>,
+    Json(req): Json<CleanupRequest>,
+) -> Result<Json<CleanupResponse>, ServerError> {
+    let mgr = get_manager(&state)?;
+
+    // Get the directory manager
+    let dir_mgr = mgr.directory_manager().ok_or_else(|| {
+        ServerError::ServiceUnavailable("Directory management not configured".to_string())
+    })?;
+
+    // Perform cleanup
+    let result = dir_mgr
+        .cleanup_work(&workstream_id, req.older_than_days, req.confirm)
+        .map_err(|e| match e {
+            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+                ServerError::NotFound(format!("Workstream not found: {ws}"))
+            }
+            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+            }
+            other => ServerError::Internal(format!("Cleanup failed: {other}")),
+        })?;
+
+    Ok(Json(CleanupResponse {
+        deleted_files: result.deleted_files,
+        freed_mb: result.freed_mb(),
+        pending_files: result.pending_files,
+        requires_confirmation: result.requires_confirmation,
+    }))
 }
