@@ -3,6 +3,7 @@
 //! Provides persistent conversational contexts (workstreams) with JSONL message
 //! history as the source of truth and SQLite as an operational cache layer.
 
+pub mod cleanup;
 pub mod compression;
 pub mod context;
 pub mod directory;
@@ -15,6 +16,7 @@ pub mod session;
 pub mod session_loader;
 pub mod store;
 pub mod types;
+pub mod watcher;
 
 pub use compression::{Compressor, CompressorConfig};
 pub use context::{AssembledContext, ContextAssembler, ContextMessage, ContextRole};
@@ -29,5 +31,9 @@ pub use session_loader::{
 };
 pub use store::WorkstreamStore;
 pub use types::{MessageRole, WorkstreamMessage};
-pub use directory::{AttachResult, CloneResult, DirectoryError, DirectoryManager, DirectoryResult, ExportResult, PromoteResult, SCRATCH_WORKSTREAM};
+pub use directory::{AttachResult, CloneResult, DirectoryError, DirectoryManager, DirectoryResult, ExportResult, ManualCleanupResult, PromoteResult, SCRATCH_WORKSTREAM, SessionUsage, UsageStats};
 pub use path_validator::{PathError, PathResult, PathValidator};
+pub use watcher::{
+    FileWatcher, FileWatcherConfig, FsAction, FsChangeEvent, WatcherError, WatcherHandle,
+    WatcherResult, DEFAULT_DEBOUNCE_MS, DEFAULT_POLL_INTERVAL_SECS,
+};

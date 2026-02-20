@@ -69,6 +69,9 @@ pub struct ArawnConfig {
 
     /// Tool execution configuration.
     pub tools: Option<ToolsConfig>,
+
+    /// Path management configuration.
+    pub paths: Option<crate::paths::PathConfig>,
 }
 
 impl ArawnConfig {
@@ -148,6 +151,10 @@ impl ArawnConfig {
         if other.tools.is_some() {
             self.tools = other.tools;
         }
+
+        if other.paths.is_some() {
+            self.paths = other.paths;
+        }
     }
 
     /// Resolve the LLM config for a given agent name.
@@ -222,6 +229,7 @@ struct RawConfig {
     workstream: Option<WorkstreamConfig>,
     session: Option<SessionConfig>,
     tools: Option<ToolsConfig>,
+    paths: Option<crate::paths::PathConfig>,
 }
 
 /// The `[llm]` section which can contain both direct fields and named sub-tables.
@@ -285,6 +293,7 @@ impl From<RawConfig> for ArawnConfig {
             workstream: raw.workstream,
             session: raw.session,
             tools: raw.tools,
+            paths: raw.paths,
         }
     }
 }
@@ -321,6 +330,7 @@ impl From<ArawnConfig> for RawConfig {
             workstream: config.workstream,
             session: config.session,
             tools: config.tools,
+            paths: config.paths,
         }
     }
 }
@@ -2567,5 +2577,120 @@ max_context_tokens = 200000
             reparsed.llm.as_ref().unwrap().max_context_tokens,
             Some(200_000)
         );
+    }
+
+    // ── Path Config Tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_paths_config() {
+        let toml = r#"
+[paths]
+base_path = "/custom/arawn"
+
+[paths.usage]
+total_warning_gb = 20
+workstream_warning_gb = 2
+session_warning_mb = 500
+
+[paths.cleanup]
+scratch_cleanup_days = 14
+dry_run = true
+
+[paths.monitoring]
+enabled = false
+debounce_ms = 1000
+polling_interval_secs = 60
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let paths = config.paths.as_ref().unwrap();
+        assert_eq!(
+            paths.base_path.as_ref().unwrap().to_str().unwrap(),
+            "/custom/arawn"
+        );
+        assert_eq!(paths.usage.total_warning_gb, 20);
+        assert_eq!(paths.usage.workstream_warning_gb, 2);
+        assert_eq!(paths.usage.session_warning_mb, 500);
+        assert_eq!(paths.cleanup.scratch_cleanup_days, 14);
+        assert!(paths.cleanup.dry_run);
+        assert!(!paths.monitoring.enabled);
+        assert_eq!(paths.monitoring.debounce_ms, 1000);
+        assert_eq!(paths.monitoring.polling_interval_secs, 60);
+    }
+
+    #[test]
+    fn test_no_paths_section_uses_default() {
+        let toml = r#"
+[llm]
+backend = "groq"
+model = "default"
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        assert!(config.paths.is_none());
+        let paths = config.paths.unwrap_or_default();
+        assert!(paths.base_path.is_none());
+        assert_eq!(paths.usage.total_warning_gb, 10);
+        assert!(paths.monitoring.enabled);
+    }
+
+    #[test]
+    fn test_merge_paths_override() {
+        let base_toml = r#"
+[paths]
+base_path = "/base/path"
+
+[paths.usage]
+total_warning_gb = 10
+"#;
+        let override_toml = r#"
+[paths]
+base_path = "/override/path"
+
+[paths.usage]
+total_warning_gb = 50
+"#;
+        let mut base = ArawnConfig::from_toml(base_toml).unwrap();
+        let over = ArawnConfig::from_toml(override_toml).unwrap();
+        base.merge(over);
+
+        let paths = base.paths.as_ref().unwrap();
+        assert_eq!(
+            paths.base_path.as_ref().unwrap().to_str().unwrap(),
+            "/override/path"
+        );
+        assert_eq!(paths.usage.total_warning_gb, 50);
+    }
+
+    #[test]
+    fn test_paths_roundtrip() {
+        let toml = r#"
+[paths]
+base_path = "/my/arawn"
+
+[paths.usage]
+total_warning_gb = 15
+workstream_warning_gb = 3
+session_warning_mb = 300
+
+[paths.cleanup]
+scratch_cleanup_days = 30
+dry_run = false
+
+[paths.monitoring]
+enabled = true
+debounce_ms = 250
+polling_interval_secs = 15
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let serialized = config.to_toml().unwrap();
+        let reparsed = ArawnConfig::from_toml(&serialized).unwrap();
+
+        let paths = reparsed.paths.as_ref().unwrap();
+        assert_eq!(
+            paths.base_path.as_ref().unwrap().to_str().unwrap(),
+            "/my/arawn"
+        );
+        assert_eq!(paths.usage.total_warning_gb, 15);
+        assert_eq!(paths.cleanup.scratch_cleanup_days, 30);
+        assert!(paths.monitoring.enabled);
     }
 }

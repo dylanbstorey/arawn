@@ -43,7 +43,7 @@ dirs = "5"
 # Local embeddings (optional)
 ort = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
-ndarray = { version = "0.16", optional = true }
+ndarray = { version = "0.16.1", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

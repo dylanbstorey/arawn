@@ -4,14 +4,14 @@ level: task
 title: "TUI: Workstream panel and management"
 short_code: "ARAWN-T-0167"
 created_at: 2026-02-11T00:28:46.928805+00:00
-updated_at: 2026-02-12T03:05:49.166515+00:00
+updated_at: 2026-02-20T02:03:25.981547+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -24,6 +24,8 @@ initiative_id: ARAWN-I-0025
 ## Objective
 
 Implement the workstream list overlay (Ctrl+W) for browsing, searching, and switching between workstreams (persistent project contexts).
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

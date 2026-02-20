@@ -4,14 +4,14 @@ level: task
 title: "TUI: Client configuration (kubeconfig-style)"
 short_code: "ARAWN-T-0169"
 created_at: 2026-02-11T18:26:43.450400+00:00
-updated_at: 2026-02-12T01:28:36.612607+00:00
+updated_at: 2026-02-19T18:10:44.045822+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ Implement a kubeconfig-style client configuration system that allows:
 - Easy switching between contexts
 - Pre-configured distributions (just update DNS/endpoint before shipping)
 - Secure credential storage per context
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

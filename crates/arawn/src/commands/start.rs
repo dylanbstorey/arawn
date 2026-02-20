@@ -250,7 +250,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         );
     }
 
-    let embedder = arawn_llm::build_embedder(&embedder_spec)?;
+    let embedder = arawn_llm::build_embedder(&embedder_spec).await?;
 
     if ctx.verbose {
         println!("Embedder: {} ({}d)", embedder.name(), embedder.dimensions());

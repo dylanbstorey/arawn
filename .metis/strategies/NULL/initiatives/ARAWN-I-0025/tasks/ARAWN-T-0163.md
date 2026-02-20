@@ -4,14 +4,14 @@ level: task
 title: "TUI: Chat view with streaming"
 short_code: "ARAWN-T-0163"
 created_at: 2026-02-11T00:28:43.552077+00:00
-updated_at: 2026-02-11T22:04:09.461291+00:00
+updated_at: 2026-02-19T18:10:42.380589+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -24,6 +24,8 @@ initiative_id: ARAWN-I-0025
 ## Objective
 
 Implement the main chat view that displays conversation history and handles streaming responses with visual feedback.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

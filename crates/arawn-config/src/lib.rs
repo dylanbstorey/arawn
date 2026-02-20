@@ -16,6 +16,7 @@
 pub mod client;
 pub mod discovery;
 pub mod error;
+pub mod paths;
 pub mod resolver;
 pub mod secrets;
 pub mod types;
@@ -29,5 +30,8 @@ pub use discovery::{
     xdg_config_path, LoadedConfig,
 };
 pub use error::{ConfigError, Result};
+pub use paths::{
+    CleanupConfig as PathCleanupConfig, MonitoringConfig, PathConfig, UsageThresholds,
+};
 pub use resolver::{resolve_all_profiles, resolve_for_agent, ResolvedFrom, ResolvedLlm};
 pub use types::*;

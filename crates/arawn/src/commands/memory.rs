@@ -186,6 +186,7 @@ async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
 
     let embedder_spec = build_embedder_spec(&embedding_config);
     let embedder = arawn_llm::build_embedder(&embedder_spec)
+        .await
         .map_err(|e| anyhow::anyhow!("Failed to build embedder: {e}"))?;
 
     let new_dims = embedding_config.effective_dimensions();

@@ -27,6 +27,11 @@ tracing = { workspace = true }
 
 # Paths
 dirs = { workspace = true }
+walkdir = "2.5"
+
+# Filesystem watching
+notify = "7"
+notify-debouncer-mini = "0.5"
 
 # Synchronization (non-poisoning locks)
 parking_lot = { workspace = true }

@@ -4,14 +4,14 @@ level: task
 title: "TUI: Session panel and switching"
 short_code: "ARAWN-T-0166"
 created_at: 2026-02-11T00:28:46.193611+00:00
-updated_at: 2026-02-12T01:18:40.130827+00:00
+updated_at: 2026-02-19T18:10:43.502850+00:00
 parent: ARAWN-I-0025
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -24,6 +24,8 @@ initiative_id: ARAWN-I-0025
 ## Objective
 
 Implement the session list overlay (Ctrl+S) for browsing, searching, and switching between chat sessions.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

@@ -305,17 +305,20 @@ pub mod local {
     //! This module requires the `local-embeddings` feature to be enabled.
 
     use super::*;
-    use ndarray::Array2;
-    use ort::{GraphOptimizationLevel, Session};
+    use ort::session::{builder::GraphOptimizationLevel, Session};
     use std::path::Path;
+    use std::sync::Mutex;
     use tokenizers::Tokenizer;
 
     /// Local embedder using ONNX Runtime.
     ///
     /// This embedder runs inference locally using an ONNX model, enabling
     /// offline operation and avoiding API costs.
+    ///
+    /// The session is wrapped in a Mutex because ONNX Runtime's `run()` requires
+    /// mutable access, but the Embedder trait uses `&self`.
     pub struct LocalEmbedder {
-        session: Session,
+        session: Mutex<Session>,
         tokenizer: Tokenizer,
         dimensions: usize,
         name: String,
@@ -365,7 +368,7 @@ pub mod local {
             })?;
 
             Ok(Self {
-                session,
+                session: Mutex::new(session),
                 tokenizer,
                 dimensions,
                 name: "local".to_string(),
@@ -453,66 +456,71 @@ pub mod local {
                 // Rest stays zero-padded
             }
 
-            let input_ids_array = Array2::from_shape_vec((batch_size, max_len), input_ids_flat)
-                .map_err(|e| crate::error::LlmError::Internal(format!("Array error: {}", e)))?;
-            let attention_mask_array =
-                Array2::from_shape_vec((batch_size, max_len), attention_mask_flat.clone())
-                    .map_err(|e| crate::error::LlmError::Internal(format!("Array error: {}", e)))?;
-            let token_type_ids_array =
-                Array2::from_shape_vec((batch_size, max_len), token_type_ids_flat)
-                    .map_err(|e| crate::error::LlmError::Internal(format!("Array error: {}", e)))?;
+            // Create tensors using (shape, Vec<T>) tuple form to avoid ndarray version issues
+            let shape = [batch_size, max_len];
+            let input_ids_tensor = ort::value::Tensor::from_array((shape, input_ids_flat))
+                .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
+            let attention_mask_tensor =
+                ort::value::Tensor::from_array((shape, attention_mask_flat.clone()))
+                    .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
+            let token_type_ids_tensor =
+                ort::value::Tensor::from_array((shape, token_type_ids_flat))
+                    .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
 
-            let outputs = self
-                .session
-                .run(
-                    ort::inputs![
-                        "input_ids" => input_ids_array.view(),
-                        "attention_mask" => attention_mask_array.view(),
-                        "token_type_ids" => token_type_ids_array.view(),
-                    ]
-                    .map_err(|e| crate::error::LlmError::Internal(format!("Input error: {}", e)))?,
-                )
+            // Acquire the session lock for inference
+            let mut session = self.session.lock().map_err(|e| {
+                crate::error::LlmError::Internal(format!("Session lock poisoned: {}", e))
+            })?;
+
+            let outputs = session
+                .run(ort::inputs![
+                    "input_ids" => input_ids_tensor,
+                    "attention_mask" => attention_mask_tensor,
+                    "token_type_ids" => token_type_ids_tensor,
+                ])
                 .map_err(|e| {
                     crate::error::LlmError::Internal(format!("ONNX inference failed: {}", e))
                 })?;
 
-            let embeddings = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
+            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
                 crate::error::LlmError::Internal(format!("Output extraction failed: {}", e))
             })?;
 
-            let embeddings_array = embeddings.view().to_owned();
-            let shape = embeddings_array.shape();
-            // shape is (batch_size, seq_len, hidden_dim) → reshape to (batch_size, seq_len * hidden_dim)
-            // Actually for mean pooling we need (batch_size, seq_len, hidden_dim)
-            // then pool over seq_len axis per sample
+            // Shape is (batch_size, seq_len, hidden_dim)
+            // Shape derefs to &[i64]
+            if shape.len() != 3 {
+                return Err(crate::error::LlmError::Internal(format!(
+                    "Expected 3D output tensor, got shape: {:?}",
+                    &**shape
+                )));
+            }
+            let _out_batch = shape[0] as usize;
+            let seq_len_out = shape[1] as usize;
+            let hidden_dim = shape[2] as usize;
 
-            let hidden_dim = shape[2];
-            let seq_len_out = shape[1];
+            // Data is laid out as: [batch0_seq0_hidden..., batch0_seq1_hidden..., batch1_seq0_hidden..., ...]
+            let stride_batch = seq_len_out * hidden_dim;
+            let stride_seq = hidden_dim;
 
             let mut results = Vec::with_capacity(batch_size);
 
             for i in 0..batch_size {
-                // Extract this sample's embeddings: (seq_len, hidden_dim)
-                let sample = embeddings_array
-                    .slice(ndarray::s![i..i + 1, .., ..])
-                    .to_owned();
-                let sample_2d = sample
-                    .into_shape_with_order((seq_len_out, hidden_dim))
-                    .map_err(|e| {
-                        crate::error::LlmError::Internal(format!("Reshape error: {}", e))
-                    })?;
-
                 // This sample's attention mask
                 let mask_slice = &attention_mask_flat[i * max_len..(i + 1) * max_len];
 
                 // Mean pooling with attention mask
                 let mut sum = vec![0.0f32; hidden_dim];
                 let mut count = 0.0f32;
+
                 for (j, &mask_val) in mask_slice.iter().enumerate() {
+                    if j >= seq_len_out {
+                        break; // Don't exceed output sequence length
+                    }
                     if mask_val > 0 {
-                        let row = sample_2d.row(j);
-                        for (k, &v) in row.iter().enumerate() {
-                            sum[k] += v;
+                        // Get embedding for position j in sample i
+                        let offset = i * stride_batch + j * stride_seq;
+                        for k in 0..hidden_dim {
+                            sum[k] += data[offset + k];
                         }
                         count += 1.0;
                     }
@@ -570,7 +578,10 @@ pub struct EmbedderSpec {
 ///
 /// Falls back to `MockEmbedder` if the requested provider is unavailable
 /// (e.g., "local" requested but `local-embeddings` feature disabled).
-pub fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
+///
+/// For local embeddings, this will automatically download model files
+/// from HuggingFace if they don't exist (~22MB).
+pub async fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
     match spec.provider.as_str() {
         "openai" => {
             let api_key = spec.openai_api_key.as_deref().ok_or_else(|| {
@@ -592,42 +603,49 @@ pub fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
         #[cfg(feature = "local-embeddings")]
         "local" => {
             let dims = spec.dimensions.unwrap_or(384);
-            match (&spec.local_model_path, &spec.local_tokenizer_path) {
-                (Some(model_path), Some(tokenizer_path)) => {
-                    let embedder = local::LocalEmbedder::load(model_path, tokenizer_path, dims)?;
-                    Ok(Arc::new(embedder))
-                }
-                _ => {
-                    // Try default model location
-                    let default_dir = default_local_model_dir();
-                    if let Some(dir) = default_dir {
-                        let model_path = dir.join("model.onnx");
-                        let tokenizer_path = dir.join("tokenizer.json");
-                        if model_path.exists() && tokenizer_path.exists() {
-                            let embedder =
-                                local::LocalEmbedder::load(&model_path, &tokenizer_path, dims)?;
+
+            // First try explicit paths from config
+            if let (Some(model_path), Some(tokenizer_path)) =
+                (&spec.local_model_path, &spec.local_tokenizer_path)
+            {
+                let embedder = local::LocalEmbedder::load(model_path, tokenizer_path, dims)?;
+                return Ok(Arc::new(embedder));
+            }
+
+            // Try to ensure model files exist (downloads if missing)
+            if let Some(dir) = ensure_model_files().await {
+                let model_path = dir.join("model.onnx");
+                let tokenizer_path = dir.join("tokenizer.json");
+                if model_path.exists() && tokenizer_path.exists() {
+                    match local::LocalEmbedder::load(&model_path, &tokenizer_path, dims) {
+                        Ok(embedder) => {
+                            tracing::info!("Local embeddings loaded (all-MiniLM-L6-v2)");
                             return Ok(Arc::new(embedder));
                         }
+                        Err(e) => {
+                            tracing::warn!("Failed to load local embedder: {}", e);
+                        }
                     }
-                    tracing::warn!(
-                        "Local embedding model not found. Falling back to mock embedder. \
-                         Download all-MiniLM-L6-v2 ONNX model to ~/.local/share/arawn/models/embeddings/"
-                    );
-                    Ok(Arc::new(MockEmbedder::new(dims)))
                 }
             }
+
+            // Fallback to mock
+            tracing::info!(
+                "Using mock embeddings (semantic search will use deterministic matching)"
+            );
+            Ok(Arc::new(MockEmbedder::new(dims)))
         }
         #[cfg(not(feature = "local-embeddings"))]
         "local" => {
-            tracing::warn!(
-                "Local embeddings requested but 'local-embeddings' feature is not enabled. \
-                 Falling back to mock embedder."
+            tracing::info!(
+                "Local embeddings not available (feature disabled), using mock embeddings"
             );
             let dims = spec.dimensions.unwrap_or(384);
             Ok(Arc::new(MockEmbedder::new(dims)))
         }
         "mock" => {
             let dims = spec.dimensions.unwrap_or(384);
+            tracing::info!("Using mock embeddings (configured)");
             Ok(Arc::new(MockEmbedder::new(dims)))
         }
         other => Err(crate::error::LlmError::Config(format!(
@@ -640,6 +658,102 @@ pub fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
 /// Default directory for local embedding model files.
 fn default_local_model_dir() -> Option<std::path::PathBuf> {
     dirs::data_dir().map(|d| d.join("arawn").join("models").join("embeddings"))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model Download
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// HuggingFace model URLs for all-MiniLM-L6-v2
+const MODEL_URL: &str = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
+const TOKENIZER_URL: &str = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json";
+
+/// Download embedding model files if they don't exist.
+///
+/// Returns the directory path where files were downloaded, or None if download failed.
+#[cfg(feature = "local-embeddings")]
+async fn ensure_model_files() -> Option<std::path::PathBuf> {
+    let dir = default_local_model_dir()?;
+    let model_path = dir.join("model.onnx");
+    let tokenizer_path = dir.join("tokenizer.json");
+
+    // Check if files already exist
+    if model_path.exists() && tokenizer_path.exists() {
+        return Some(dir);
+    }
+
+    // Create directory if needed
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::warn!("Failed to create model directory: {}", e);
+        return None;
+    }
+
+    tracing::info!("Downloading embedding model (all-MiniLM-L6-v2)...");
+
+    // Download model file
+    if !model_path.exists() {
+        if let Err(e) = download_file(MODEL_URL, &model_path).await {
+            tracing::warn!("Failed to download model.onnx: {}", e);
+            return None;
+        }
+        tracing::info!("Downloaded model.onnx");
+    }
+
+    // Download tokenizer
+    if !tokenizer_path.exists() {
+        if let Err(e) = download_file(TOKENIZER_URL, &tokenizer_path).await {
+            tracing::warn!("Failed to download tokenizer.json: {}", e);
+            // Clean up partial download
+            let _ = std::fs::remove_file(&model_path);
+            return None;
+        }
+        tracing::info!("Downloaded tokenizer.json");
+    }
+
+    tracing::info!("Embedding model ready");
+    Some(dir)
+}
+
+/// Download a file from URL to path.
+#[cfg(feature = "local-embeddings")]
+async fn download_file(url: &str, path: &std::path::Path) -> Result<()> {
+    use std::io::Write;
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(300)) // 5 min timeout for large files
+        .build()
+        .map_err(|e| crate::error::LlmError::Internal(format!("HTTP client error: {}", e)))?;
+
+    let response = client.get(url).send().await.map_err(|e| {
+        crate::error::LlmError::Internal(format!("Download request failed: {}", e))
+    })?;
+
+    if !response.status().is_success() {
+        return Err(crate::error::LlmError::Internal(format!(
+            "Download failed: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let bytes = response.bytes().await.map_err(|e| {
+        crate::error::LlmError::Internal(format!("Failed to read response: {}", e))
+    })?;
+
+    // Write to temp file first, then rename for atomicity
+    let temp_path = path.with_extension("tmp");
+    let mut file = std::fs::File::create(&temp_path).map_err(|e| {
+        crate::error::LlmError::Internal(format!("Failed to create file: {}", e))
+    })?;
+
+    file.write_all(&bytes).map_err(|e| {
+        crate::error::LlmError::Internal(format!("Failed to write file: {}", e))
+    })?;
+
+    std::fs::rename(&temp_path, path).map_err(|e| {
+        crate::error::LlmError::Internal(format!("Failed to rename file: {}", e))
+    })?;
+
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
