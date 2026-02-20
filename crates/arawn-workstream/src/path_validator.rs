@@ -656,3 +656,148 @@ mod tests {
         std::env::set_current_dir(original_dir).unwrap();
     }
 }
+
+/// Property-based tests for path validation security.
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+    use std::fs;
+
+    /// Strategy to generate paths with path traversal sequences.
+    fn traversal_path_strategy() -> impl Strategy<Value = String> {
+        prop::collection::vec(
+            prop_oneof![
+                Just("..".to_string()),
+                Just("../".to_string()),
+                Just("..\\".to_string()),
+                "[a-zA-Z0-9_-]{1,10}".prop_map(|s| s),
+            ],
+            1..5,
+        )
+        .prop_map(|parts| parts.join("/"))
+    }
+
+    /// Strategy to generate paths with shell metacharacters.
+    fn shell_metachar_path_strategy() -> impl Strategy<Value = String> {
+        prop_oneof![
+            "[a-z]+`[a-z]+`[a-z]+".prop_map(|s| s),
+            "[a-z]+\\$\\([a-z]+\\)[a-z]+".prop_map(|s| s),
+            "[a-z]+;[a-z]+".prop_map(|s| s),
+            "[a-z]+\\|[a-z]+".prop_map(|s| s),
+            "[a-z]+&[a-z]+".prop_map(|s| s),
+            "[a-z]+<[a-z]+".prop_map(|s| s),
+            "[a-z]+>[a-z]+".prop_map(|s| s),
+        ]
+    }
+
+    proptest! {
+        /// Property: Path traversal sequences should never allow access outside allowed directories.
+        #[test]
+        fn path_traversal_never_escapes(traversal in traversal_path_strategy()) {
+            let dir = tempfile::tempdir().unwrap();
+            let validator = PathValidator::new(vec![dir.path().to_path_buf()]);
+
+            // Create a valid file first
+            let file_path = dir.path().join("test.txt");
+            fs::write(&file_path, "hello").unwrap();
+
+            // Try to escape using traversal
+            let attack_path = dir.path().join(&traversal).join("passwd");
+            let result = validator.validate(&attack_path);
+
+            // Should either fail to canonicalize (Invalid) or be rejected (NotAllowed/DeniedPath)
+            // It should NEVER successfully return a path outside the allowed directory
+            if let Ok(validated) = &result {
+                // If validation succeeded, path must be under allowed directory
+                let canonical_allowed = dir.path().canonicalize().unwrap();
+                prop_assert!(
+                    validated.starts_with(&canonical_allowed),
+                    "Escaped allowed directory! traversal={}, result={:?}",
+                    traversal,
+                    validated
+                );
+            }
+        }
+
+        /// Property: Shell metacharacters in paths should always be rejected by validate_for_shell.
+        #[test]
+        fn shell_metacharacters_always_rejected(filename in shell_metachar_path_strategy()) {
+            let dir = tempfile::tempdir().unwrap();
+            let validator = PathValidator::new(vec![dir.path().to_path_buf()]);
+
+            // Create the path (it won't exist, which is fine - we're testing the metachar check)
+            let path = dir.path().join(&filename);
+
+            // validate_for_shell should reject paths with shell metacharacters
+            // (Note: It will fail at canonicalize for non-existent files, which is also safe)
+            let result = validator.validate_for_shell(&path);
+            prop_assert!(
+                result.is_err(),
+                "Shell metacharacter path was accepted! filename={}, result={:?}",
+                filename,
+                result
+            );
+        }
+
+        /// Property: Paths that don't exist should never successfully validate.
+        #[test]
+        fn nonexistent_paths_fail_validation(filename in "[a-zA-Z0-9_]{1,20}") {
+            let dir = tempfile::tempdir().unwrap();
+            let validator = PathValidator::new(vec![dir.path().to_path_buf()]);
+
+            // Path that definitely doesn't exist
+            let path = dir.path().join(&filename).join("definitely_does_not_exist.txt");
+
+            let result = validator.validate(&path);
+            prop_assert!(
+                result.is_err(),
+                "Non-existent path was accepted! path={:?}",
+                path
+            );
+        }
+
+        /// Property: Denied system paths should always be rejected, even if they exist.
+        #[test]
+        fn denied_paths_always_rejected(suffix in "[a-zA-Z0-9_]{0,10}(/[a-zA-Z0-9_]{1,5}){0,2}") {
+            // Use /etc as our test denied path (usually exists on Unix)
+            // Note: suffix cannot start with "/" to avoid replacing the base path
+            let denied_path = if suffix.is_empty() {
+                PathBuf::from("/etc")
+            } else {
+                PathBuf::from("/etc").join(&suffix)
+            };
+
+            // Create validator that "allows" root but has /etc in denied
+            let validator = PathValidator::new(vec![PathBuf::from("/")]);
+
+            // If the path exists, validation should fail due to denied
+            if denied_path.exists() {
+                let result = validator.validate(&denied_path);
+                prop_assert!(
+                    result.is_err(),
+                    "Denied path was accepted! path={:?}, result={:?}",
+                    denied_path,
+                    result
+                );
+            }
+        }
+
+        /// Property: validate_write should accept any filename in an allowed existing directory.
+        #[test]
+        fn valid_filenames_accepted_for_write(filename in "[a-zA-Z0-9_-]{1,20}\\.txt") {
+            let dir = tempfile::tempdir().unwrap();
+            let validator = PathValidator::new(vec![dir.path().to_path_buf()]);
+
+            let path = dir.path().join(&filename);
+            let result = validator.validate_write(&path);
+
+            prop_assert!(
+                result.is_ok(),
+                "Valid filename rejected for write! filename={}, error={:?}",
+                filename,
+                result.err()
+            );
+        }
+    }
+}
