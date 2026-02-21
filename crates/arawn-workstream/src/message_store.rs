@@ -111,6 +111,93 @@ impl MessageStore {
     pub fn jsonl_path(&self, workstream_id: &str) -> PathBuf {
         self.workstream_dir(workstream_id).join("messages.jsonl")
     }
+
+    /// Move all messages from one workstream to another.
+    ///
+    /// This reads all messages from the source, updates their workstream_id,
+    /// appends them to the target, and deletes the source file.
+    pub fn move_messages(&self, from_workstream: &str, to_workstream: &str) -> Result<()> {
+        let messages = self.read_all(from_workstream)?;
+        if messages.is_empty() {
+            return Ok(());
+        }
+
+        // Create target directory
+        let to_dir = self.workstream_dir(to_workstream);
+        fs::create_dir_all(&to_dir)?;
+
+        // Append to target with updated workstream_id
+        let to_path = to_dir.join("messages.jsonl");
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&to_path)?;
+
+        for msg in messages {
+            let updated_msg = WorkstreamMessage {
+                workstream_id: to_workstream.to_string(),
+                ..msg
+            };
+            let mut line = serde_json::to_string(&updated_msg)?;
+            line.push('\n');
+            file.write_all(line.as_bytes())?;
+        }
+        file.sync_all()?;
+
+        // Delete source file
+        let from_path = self.jsonl_path(from_workstream);
+        if from_path.exists() {
+            fs::remove_file(from_path)?;
+        }
+
+        Ok(())
+    }
+
+    /// Delete all messages for a workstream.
+    pub fn delete_all(&self, workstream_id: &str) -> Result<()> {
+        let path = self.jsonl_path(workstream_id);
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        Ok(())
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MessageStorage Trait Implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+impl crate::storage::MessageStorage for MessageStore {
+    fn append(
+        &self,
+        workstream_id: &str,
+        session_id: Option<&str>,
+        role: MessageRole,
+        content: &str,
+        metadata: Option<&str>,
+    ) -> Result<WorkstreamMessage> {
+        MessageStore::append(self, workstream_id, session_id, role, content, metadata)
+    }
+
+    fn read_all(&self, workstream_id: &str) -> Result<Vec<WorkstreamMessage>> {
+        MessageStore::read_all(self, workstream_id)
+    }
+
+    fn read_range(
+        &self,
+        workstream_id: &str,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<WorkstreamMessage>> {
+        MessageStore::read_range(self, workstream_id, since)
+    }
+
+    fn move_messages(&self, from_workstream: &str, to_workstream: &str) -> Result<()> {
+        MessageStore::move_messages(self, from_workstream, to_workstream)
+    }
+
+    fn delete_all(&self, workstream_id: &str) -> Result<()> {
+        MessageStore::delete_all(self, workstream_id)
+    }
 }
 
 #[cfg(test)]

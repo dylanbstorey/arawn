@@ -528,6 +528,71 @@ impl MemoryStore {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MemoryBackend Trait Implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+impl crate::backend::MemoryBackend for MemoryStore {
+    fn insert(&self, memory: &crate::types::Memory) -> Result<()> {
+        self.insert_memory(memory)
+    }
+
+    fn get(&self, id: crate::types::MemoryId) -> Result<Option<crate::types::Memory>> {
+        self.get_memory(id)
+    }
+
+    fn update(&self, memory: &crate::types::Memory) -> Result<()> {
+        self.update_memory(memory)
+    }
+
+    fn delete(&self, id: crate::types::MemoryId) -> Result<bool> {
+        self.delete_memory(id)
+    }
+
+    fn list(
+        &self,
+        content_type: Option<crate::types::ContentType>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<crate::types::Memory>> {
+        self.list_memories(content_type, limit, offset)
+    }
+
+    fn count(&self, content_type: Option<crate::types::ContentType>) -> Result<usize> {
+        self.count_memories(content_type)
+    }
+
+    fn touch(&self, id: crate::types::MemoryId) -> Result<()> {
+        self.touch_memory(id)
+    }
+}
+
+impl crate::backend::MemoryBackendExt for MemoryStore {
+    fn find_contradictions(
+        &self,
+        subject: &str,
+        predicate: &str,
+    ) -> Result<Vec<crate::types::Memory>> {
+        MemoryStore::find_contradictions(self, subject, predicate)
+    }
+
+    fn supersede(
+        &self,
+        old_id: crate::types::MemoryId,
+        new_id: crate::types::MemoryId,
+    ) -> Result<()> {
+        MemoryStore::supersede(self, old_id, new_id)
+    }
+
+    fn reinforce(&self, id: crate::types::MemoryId) -> Result<()> {
+        MemoryStore::reinforce(self, id)
+    }
+
+    fn update_last_accessed(&self, id: crate::types::MemoryId) -> Result<()> {
+        MemoryStore::update_last_accessed(self, id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

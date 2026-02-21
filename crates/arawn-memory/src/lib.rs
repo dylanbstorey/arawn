@@ -55,12 +55,16 @@
 //! - `Fact`: Extracted facts or knowledge
 //! - `WebContent`: Fetched web page content
 
+pub mod backend;
 pub mod error;
 pub mod graph;
 pub mod store;
 pub mod types;
 pub mod validation;
 pub mod vector;
+
+// Re-export backend traits
+pub use backend::{MemoryBackend, MemoryBackendExt, MockMemoryBackend};
 
 // Re-export error types
 pub use error::{MemoryError, Result};

@@ -491,6 +491,72 @@ fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<Session> {
     })
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WorkstreamStorage Trait Implementation
+// ─────────────────────────────────────────────────────────────────────────────
+
+impl crate::storage::WorkstreamStorage for WorkstreamStore {
+    fn create_workstream(
+        &self,
+        title: &str,
+        default_model: Option<&str>,
+        is_scratch: bool,
+    ) -> Result<Workstream> {
+        WorkstreamStore::create_workstream(self, title, default_model, is_scratch)
+    }
+
+    fn get_workstream(&self, id: &str) -> Result<Workstream> {
+        WorkstreamStore::get_workstream(self, id)
+    }
+
+    fn list_workstreams(&self, state_filter: Option<&str>) -> Result<Vec<Workstream>> {
+        WorkstreamStore::list_workstreams(self, state_filter)
+    }
+
+    fn update_workstream(
+        &self,
+        id: &str,
+        title: Option<&str>,
+        summary: Option<&str>,
+        state: Option<&str>,
+        default_model: Option<&str>,
+    ) -> Result<()> {
+        WorkstreamStore::update_workstream(self, id, title, summary, state, default_model)
+    }
+
+    fn set_tags(&self, workstream_id: &str, tags: &[String]) -> Result<()> {
+        WorkstreamStore::set_tags(self, workstream_id, tags)
+    }
+
+    fn get_tags(&self, workstream_id: &str) -> Result<Vec<String>> {
+        WorkstreamStore::get_tags(self, workstream_id)
+    }
+
+    fn create_session(&self, workstream_id: &str) -> Result<Session> {
+        WorkstreamStore::create_session(self, workstream_id)
+    }
+
+    fn create_session_with_id(&self, session_id: &str, workstream_id: &str) -> Result<Session> {
+        WorkstreamStore::create_session_with_id(self, session_id, workstream_id)
+    }
+
+    fn get_active_session(&self, workstream_id: &str) -> Result<Option<Session>> {
+        WorkstreamStore::get_active_session(self, workstream_id)
+    }
+
+    fn list_sessions(&self, workstream_id: &str) -> Result<Vec<Session>> {
+        WorkstreamStore::list_sessions(self, workstream_id)
+    }
+
+    fn end_session(&self, session_id: &str) -> Result<()> {
+        // The trait doesn't take turn_count, so we use 0 as default
+        WorkstreamStore::end_session(self, session_id, 0)
+    }
+
+    fn reassign_session(&self, session_id: &str, new_workstream_id: &str) -> Result<Session> {
+        WorkstreamStore::reassign_session(self, session_id, new_workstream_id)
+    }
+}
 
 #[cfg(test)]
 mod tests {

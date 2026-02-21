@@ -14,6 +14,7 @@ pub mod path_validator;
 pub mod scratch;
 pub mod session;
 pub mod session_loader;
+pub mod storage;
 pub mod store;
 pub mod types;
 pub mod watcher;
@@ -29,6 +30,7 @@ pub use session_loader::{
     ReconstructedSession, ReconstructedToolCall, ReconstructedToolResult, ReconstructedTurn,
     SessionLoader, ToolResultMetadata, ToolUseMetadata,
 };
+pub use storage::{MessageStorage, MockMessageStorage, MockWorkstreamStorage, WorkstreamStorage};
 pub use store::WorkstreamStore;
 pub use types::{MessageRole, WorkstreamMessage};
 pub use directory::{AttachResult, CloneResult, DirectoryError, DirectoryManager, DirectoryResult, ExportResult, ManualCleanupResult, PromoteResult, SCRATCH_WORKSTREAM, SessionUsage, UsageStats};
