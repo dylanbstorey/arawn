@@ -67,8 +67,7 @@ pub async fn health_detailed(State(state): State<AppState>) -> Json<DetailedHeal
 
     // Check if workstream storage is available (if configured)
     let storage_ready = state
-        .workstreams
-        .as_ref()
+        .workstreams()
         .map(|ws| ws.list_workstreams().is_ok())
         .unwrap_or(true); // Not configured = no dependency
 

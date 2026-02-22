@@ -287,13 +287,13 @@ impl CommandHandler for CompactCommand {
 
         // Get session from cache
         let session = state
-            .session_cache
+            .session_cache()
             .get(&session_id)
             .await
             .ok_or_else(|| CommandError::not_found(format!("Session {} not found", session_id)))?;
 
         // Get LLM backend for compaction
-        let backend = state.agent.backend();
+        let backend = state.agent().backend();
 
         // Create compactor
         let compactor = SessionCompactor::new(backend, self.config.clone());
@@ -429,13 +429,13 @@ pub async fn compact_command_stream_handler(
 
     // Get session from cache
     let session = state
-        .session_cache
+        .session_cache()
         .get(&session_id)
         .await
         .ok_or_else(|| ServerError::NotFound(format!("Session {} not found", session_id)))?;
 
     // Get LLM backend for compaction
-    let backend = state.agent.backend();
+    let backend = state.agent().backend();
 
     // Create compactor
     let config = CompactorConfig::default();
@@ -598,7 +598,7 @@ mod tests {
 
         // Add only 2 turns - not enough to compact (default preserve 3)
         state
-            .session_cache
+            .session_cache()
             .with_session_mut(&session_id, |session| {
                 let turn = session.start_turn("Hello");
                 turn.complete("Hi!");
@@ -630,7 +630,7 @@ mod tests {
 
         // Add 6 turns - enough to compact 3
         state
-            .session_cache
+            .session_cache()
             .with_session_mut(&session_id, |session| {
                 for i in 0..6 {
                     let turn = session.start_turn(format!("Message {}", i));

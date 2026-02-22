@@ -163,7 +163,7 @@ pub async fn create_session_handler(
     // Update metadata if provided
     if !request.metadata.is_empty() || request.title.is_some() {
         state
-            .session_cache
+            .session_cache()
             .with_session_mut(&session_id, |session| {
                 // Set title as metadata if provided
                 if let Some(title) = &request.title {
@@ -181,14 +181,14 @@ pub async fn create_session_handler(
 
     // Return the created session
     let session = state
-        .session_cache
+        .session_cache()
         .get(&session_id)
         .await
         .ok_or_else(|| ServerError::Internal("Failed to retrieve created session".to_string()))?;
 
     // Get workstream ID and allowed paths
     let workstream_id = state
-        .session_cache
+        .session_cache()
         .get_workstream_id(&session_id)
         .await
         .unwrap_or_else(|| "scratch".to_string());
@@ -226,7 +226,7 @@ pub async fn list_sessions_handler(
     let mut seen_ids = std::collections::HashSet::new();
 
     // Get sessions from the cache (active sessions)
-    let cached_sessions = state.session_cache.all_sessions().await;
+    let cached_sessions = state.session_cache().all_sessions().await;
     for (_, session) in cached_sessions {
         let title = session
             .metadata
@@ -244,7 +244,7 @@ pub async fn list_sessions_handler(
     }
 
     // Also include sessions from workstream storage (for historical sessions)
-    if let Some(ref workstreams) = state.workstreams {
+    if let Some(ref workstreams) = state.workstreams() {
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
@@ -310,9 +310,9 @@ pub async fn get_session_handler(
     };
 
     // Try session cache first
-    if let Some(session) = state.session_cache.get(&id).await {
+    if let Some(session) = state.session_cache().get(&id).await {
         let workstream_id = state
-            .session_cache
+            .session_cache()
             .get_workstream_id(&id)
             .await
             .unwrap_or_else(|| "scratch".to_string());
@@ -326,14 +326,14 @@ pub async fn get_session_handler(
     }
 
     // Try to load from workstream if workstreams are configured
-    if let Some(ref workstreams) = state.workstreams {
+    if let Some(ref workstreams) = state.workstreams() {
         // First, find which workstream this session belongs to
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
                     if ws_sessions.iter().any(|s| s.id == session_id) {
                         // Found the workstream, try to load the session
-                        if let Ok((session, _)) = state.session_cache.get_or_load(id, &ws.id).await {
+                        if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await {
                             let allowed_paths = get_allowed_paths(&ws.id, &session_id);
                             return Ok(Json(session_to_detail_with_migration(
                                 &session,
@@ -425,7 +425,7 @@ pub async fn update_session_handler(
             new_workstream_id = %new_workstream_id,
             "Attempting to reassign session to new workstream"
         );
-        if let Some(ref workstreams) = state.workstreams {
+        if let Some(ref workstreams) = state.workstreams() {
             // Get the current workstream ID before reassignment to detect scratch→named migration
             let current_workstream_id = workstreams
                 .store()
@@ -507,7 +507,7 @@ pub async fn update_session_handler(
     if let Some(ref workstream_id) = target_workstream_id {
         // Reload session from the new workstream
         let (mut session, _) = state
-            .session_cache
+            .session_cache()
             .get_or_load(id, workstream_id)
             .await
             .map_err(|e| {
@@ -535,7 +535,7 @@ pub async fn update_session_handler(
             session.updated_at = chrono::Utc::now();
 
             // Update the cache with the modified session
-            let _ = state.session_cache.update(id, session.clone()).await;
+            let _ = state.session_cache().update(id, session.clone()).await;
         }
 
         // Build response with migration info if available
@@ -557,7 +557,7 @@ pub async fn update_session_handler(
 
     // No reassignment - update session via cache directly
     let updated = state
-        .session_cache
+        .session_cache()
         .with_session_mut(&id, |session| {
             // Update title if provided
             if let Some(ref title) = request.title {
@@ -609,9 +609,9 @@ pub async fn get_session_messages_handler(
     let id = parse_session_id(&session_id)?;
 
     // Try session cache first
-    let session = if let Some(session) = state.session_cache.get(&id).await {
+    let session = if let Some(session) = state.session_cache().get(&id).await {
         session
-    } else if let Some(ref workstreams) = state.workstreams {
+    } else if let Some(ref workstreams) = state.workstreams() {
         // Try to load from workstream
         let mut found_session = None;
         if let Ok(ws_list) = workstreams.list_workstreams() {
@@ -619,7 +619,7 @@ pub async fn get_session_messages_handler(
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
                     if ws_sessions.iter().any(|s| s.id == session_id) {
                         // Found the workstream, try to load the session
-                        if let Ok((session, _)) = state.session_cache.get_or_load(id, &ws.id).await
+                        if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await
                         {
                             found_session = Some(session);
                             break;
@@ -899,7 +899,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
         // Verify deleted
-        assert!(!state.session_cache.contains(&session_id).await);
+        assert!(!state.session_cache().contains(&session_id).await);
     }
 
     #[tokio::test]
@@ -1066,7 +1066,7 @@ mod tests {
 
         // Add a turn with messages
         state
-            .session_cache
+            .session_cache()
             .with_session_mut(&session_id, |session| {
                 let turn = session.start_turn("Hello");
                 turn.complete("Hi there!");

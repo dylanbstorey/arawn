@@ -164,7 +164,7 @@ pub async fn add_server_handler(
     Extension(_identity): Extension<Identity>,
     Json(request): Json<AddServerRequest>,
 ) -> Result<Json<AddServerResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -274,7 +274,7 @@ pub async fn remove_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<Json<RemoveServerResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -312,7 +312,7 @@ pub async fn list_servers_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
 ) -> Result<Json<ListServersResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -375,7 +375,7 @@ pub async fn list_server_tools_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<Json<ListToolsResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -442,7 +442,7 @@ pub async fn connect_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<StatusCode, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -487,7 +487,7 @@ pub async fn disconnect_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<StatusCode, ServerError> {
-    let mcp_manager = state.mcp_manager.as_ref().ok_or_else(|| {
+    let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
 
@@ -690,7 +690,7 @@ mod tests {
 
         // Add a server first
         {
-            let mut manager = state.mcp_manager.as_ref().unwrap().write().await;
+            let mut manager = state.mcp_manager().as_ref().unwrap().write().await;
             manager.add_server(McpServerConfig::new("existing", "cmd"));
         }
 
@@ -740,7 +740,7 @@ mod tests {
 
         // Add a server first
         {
-            let mut manager = state.mcp_manager.as_ref().unwrap().write().await;
+            let mut manager = state.mcp_manager().as_ref().unwrap().write().await;
             manager.add_server(McpServerConfig::new("to-remove", "cmd"));
         }
 
@@ -761,7 +761,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // Verify removed
-        let manager = state.mcp_manager.as_ref().unwrap().read().await;
+        let manager = state.mcp_manager().as_ref().unwrap().read().await;
         assert!(!manager.has_server("to-remove"));
     }
 
@@ -790,7 +790,7 @@ mod tests {
 
         // Add a server but don't connect
         {
-            let mut manager = state.mcp_manager.as_ref().unwrap().write().await;
+            let mut manager = state.mcp_manager().as_ref().unwrap().write().await;
             manager.add_server(McpServerConfig::new("not-connected", "cmd"));
         }
 
@@ -856,7 +856,7 @@ mod tests {
 
         // Add a server (not connected but it should still succeed)
         {
-            let mut manager = state.mcp_manager.as_ref().unwrap().write().await;
+            let mut manager = state.mcp_manager().as_ref().unwrap().write().await;
             manager.add_server(McpServerConfig::new("to-disconnect", "cmd"));
         }
 

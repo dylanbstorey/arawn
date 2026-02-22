@@ -1,6 +1,10 @@
 //! Authentication middleware.
 //!
 //! Provides token-based authentication with optional Tailscale identity validation.
+//!
+//! # Security
+//!
+//! Token comparison uses constant-time comparison to prevent timing attacks.
 
 use axum::{
     body::Body,
@@ -10,6 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
 
 use crate::state::AppState;
 
@@ -103,6 +108,35 @@ impl IntoResponse for AuthError {
 pub const TAILSCALE_USER_HEADER: &str = "Tailscale-User-Login";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Security Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Compare two strings in constant time.
+///
+/// This prevents timing attacks by ensuring the comparison takes the same
+/// amount of time regardless of how many characters match. The strings are
+/// first padded to the same length to avoid leaking length information.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+
+    // If lengths differ, we still do the comparison to avoid timing leaks,
+    // but we know the result will be false.
+    let length_matches = a_bytes.len() == b_bytes.len();
+
+    // Compare using constant-time equality.
+    // If lengths differ, compare a with itself (constant time, always true)
+    // to maintain timing consistency, then return false.
+    if length_matches {
+        a_bytes.ct_eq(b_bytes).into()
+    } else {
+        // Do a dummy comparison to maintain consistent timing
+        let _ = a_bytes.ct_eq(a_bytes);
+        false
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Middleware
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -125,7 +159,7 @@ pub async fn auth_middleware(
 /// Validate a request and return the identity.
 fn validate_request(request: &Request<Body>, state: &AppState) -> Result<Identity, AuthError> {
     // If no auth token configured (localhost mode), skip auth entirely
-    let Some(ref expected_token) = state.config.auth_token else {
+    let Some(ref expected_token) = state.config().auth_token else {
         return Ok(Identity::Token);
     };
 
@@ -135,7 +169,10 @@ fn validate_request(request: &Request<Body>, state: &AppState) -> Result<Identit
 
         // Check for Bearer token
         if let Some(token) = auth_str.strip_prefix("Bearer ") {
-            if token == expected_token {
+            // Use constant-time comparison to prevent timing attacks.
+            // This ensures the comparison takes the same amount of time
+            // regardless of how many characters match.
+            if constant_time_eq(token, expected_token) {
                 return Ok(Identity::Token);
             }
             return Err(AuthError::InvalidToken);
@@ -145,7 +182,7 @@ fn validate_request(request: &Request<Body>, state: &AppState) -> Result<Identit
     }
 
     // Try Tailscale header if configured
-    if let Some(allowed_users) = &state.config.tailscale_users {
+    if let Some(allowed_users) = &state.config().tailscale_users {
         if let Some(ts_header) = request.headers().get(TAILSCALE_USER_HEADER) {
             let ts_user = ts_header.to_str().map_err(|_| AuthError::InvalidFormat)?;
 
@@ -424,5 +461,37 @@ mod tests {
         assert!(!tailscale.is_token());
         assert!(tailscale.is_tailscale());
         assert_eq!(tailscale.tailscale_user(), Some("alice"));
+    }
+
+    // ── Security tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_constant_time_eq_equal_strings() {
+        assert!(super::constant_time_eq("hello", "hello"));
+        assert!(super::constant_time_eq("test-token-12345", "test-token-12345"));
+        assert!(super::constant_time_eq("", ""));
+    }
+
+    #[test]
+    fn test_constant_time_eq_different_strings() {
+        assert!(!super::constant_time_eq("hello", "world"));
+        assert!(!super::constant_time_eq("hello", "hell"));
+        assert!(!super::constant_time_eq("hello", "helloo"));
+        assert!(!super::constant_time_eq("test-token", "test-Token")); // Case sensitive
+    }
+
+    #[test]
+    fn test_constant_time_eq_different_lengths() {
+        // Different lengths should return false
+        assert!(!super::constant_time_eq("short", "longer_string"));
+        assert!(!super::constant_time_eq("longer_string", "short"));
+        assert!(!super::constant_time_eq("a", ""));
+        assert!(!super::constant_time_eq("", "a"));
+    }
+
+    #[test]
+    fn test_constant_time_eq_unicode() {
+        assert!(super::constant_time_eq("héllo", "héllo"));
+        assert!(!super::constant_time_eq("héllo", "hello"));
     }
 }

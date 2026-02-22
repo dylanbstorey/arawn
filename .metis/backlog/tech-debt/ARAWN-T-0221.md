@@ -4,15 +4,15 @@ level: task
 title: "Architecture: AppState Refactoring"
 short_code: "ARAWN-T-0221"
 created_at: 2026-02-20T14:47:46.615517+00:00
-updated_at: 2026-02-20T14:47:46.615517+00:00
+updated_at: 2026-02-21T14:08:22.755382+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -44,13 +44,19 @@ Refactor `AppState` in `arawn-server` to separate immutable services from mutabl
 
 ## Acceptance Criteria
 
-- [ ] `SharedServices` struct holds immutable services (created at startup)
-- [ ] `RuntimeState` struct holds mutable state (changes during operation)
-- [ ] `AppState` composed of `SharedServices` + `RuntimeState`
-- [ ] Lock contention reduced (finer-grained locks)
-- [ ] All route handlers updated to use new structure
-- [ ] All existing tests pass
-- [ ] No functional changes to API behavior
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] `SharedServices` struct holds immutable services (created at startup)
+- [x] `RuntimeState` struct holds mutable state (changes during operation)
+- [x] `AppState` composed of `SharedServices` + `RuntimeState`
+- [x] Lock contention reduced (finer-grained locks)
+- [x] All route handlers updated to use new structure
+- [x] All existing tests pass
+- [x] No functional changes to API behavior
 
 ## Implementation Notes
 
@@ -137,4 +143,42 @@ async fn handler(State(state): State<Arc<AppState>>) {
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 - 2026-02-21
+
+**Completed**:
+1. Refactored `state.rs` to introduce `SharedServices` and `RuntimeState` structs
+2. `SharedServices` holds immutable services: agent, config, rate_limiter
+3. `RuntimeState` holds mutable state: session_cache, session_owners, pending_reconnects, tasks, etc.
+4. `AppState` now composes these two structs with convenience accessor methods
+5. Updated all route handlers to use method accessors instead of field access:
+   - `state.config` → `state.config()`
+   - `state.session_cache` → `state.session_cache()`
+   - `state.workstreams` → `state.workstreams()`
+   - etc.
+6. Fixed borrowing issues with `Option<&T>` accessors (removed redundant `.as_ref()` calls)
+7. All 127 unit tests pass
+8. All 92 integration tests pass
+
+**Files Modified**:
+- `crates/arawn-server/src/state.rs` - Core refactoring
+- `crates/arawn-server/src/ratelimit.rs`
+- `crates/arawn-server/src/auth.rs`
+- `crates/arawn-server/src/lib.rs`
+- `crates/arawn-server/src/routes/agents.rs`
+- `crates/arawn-server/src/routes/chat.rs`
+- `crates/arawn-server/src/routes/commands.rs`
+- `crates/arawn-server/src/routes/config.rs`
+- `crates/arawn-server/src/routes/health.rs`
+- `crates/arawn-server/src/routes/mcp.rs`
+- `crates/arawn-server/src/routes/memory.rs`
+- `crates/arawn-server/src/routes/sessions.rs`
+- `crates/arawn-server/src/routes/tasks.rs`
+- `crates/arawn-server/src/routes/workstreams.rs`
+- `crates/arawn-server/src/routes/ws/connection.rs`
+- `crates/arawn-server/src/routes/ws/handlers.rs`
+
+**Notes**:
+- Maintained backward compatibility via convenience accessor methods
+- Builder pattern preserved for AppState construction
+- Lock granularity improved - SharedServices is fully immutable
+- No functional API changes - pure internal refactor

@@ -70,12 +70,12 @@ pub async fn get_config_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
 ) -> Result<Json<ConfigResponse>, ServerError> {
-    let config = &state.config;
+    let config = state.config();
 
     let features = ConfigFeatures {
-        workstreams_enabled: state.workstreams.is_some(),
-        memory_enabled: state.indexer.is_some(),
-        mcp_enabled: state.mcp_manager.is_some(),
+        workstreams_enabled: state.workstreams().is_some(),
+        memory_enabled: state.indexer().is_some(),
+        mcp_enabled: state.mcp_manager().is_some(),
         rate_limiting: config.rate_limiting,
         request_logging: config.request_logging,
     };

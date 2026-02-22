@@ -422,7 +422,7 @@ pub async fn memory_search_handler(
     let mut degraded = false;
 
     // Search the real MemoryStore if indexer is available
-    if let Some(ref indexer) = state.indexer {
+    if let Some(indexer) = state.indexer() {
         let store = indexer.store();
         match store.search_memories(&query.q, query.limit) {
             Ok(memories) => {
@@ -515,7 +515,7 @@ pub async fn store_memory_handler(
     Json(request): Json<StoreMemoryRequest>,
 ) -> Result<(StatusCode, Json<StoreMemoryResponse>), ServerError> {
     // Check if we have a memory store available
-    let indexer = state.indexer.as_ref().ok_or_else(|| {
+    let indexer = state.indexer().ok_or_else(|| {
         ServerError::ServiceUnavailable("Memory storage not configured".to_string())
     })?;
 
@@ -571,7 +571,7 @@ pub async fn delete_memory_handler(
     Path(memory_id): Path<String>,
 ) -> Result<StatusCode, ServerError> {
     // Check if we have a memory store available
-    let indexer = state.indexer.as_ref().ok_or_else(|| {
+    let indexer = state.indexer().ok_or_else(|| {
         ServerError::ServiceUnavailable("Memory storage not configured".to_string())
     })?;
 

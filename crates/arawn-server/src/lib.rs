@@ -44,7 +44,7 @@ pub use state::AppState;
 
 use std::net::SocketAddr;
 
-use axum::{Router, middleware};
+use axum::{Router, middleware, extract::DefaultBodyLimit};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -95,6 +95,8 @@ impl Server {
             ))
             // TraceLayer for detailed HTTP tracing
             .layer(TraceLayer::new_for_http())
+            // Body size limit for DoS prevention
+            .layer(DefaultBodyLimit::max(self.state.config().max_body_size))
             .with_state(self.state.clone())
     }
 
@@ -217,7 +219,7 @@ impl Server {
 
     /// Run the server.
     pub async fn run(self) -> Result<()> {
-        let addr = self.state.config.bind_address;
+        let addr = self.state.config().bind_address;
         let router = self.router();
 
         info!("Starting server on {}", addr);
@@ -226,9 +228,13 @@ impl Server {
             .await
             .map_err(|e| ServerError::Internal(format!("Failed to bind: {}", e)))?;
 
-        axum::serve(listener, router)
-            .await
-            .map_err(|e| ServerError::Internal(format!("Server error: {}", e)))?;
+        // Serve with ConnectInfo to provide client IP to handlers (for rate limiting)
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .map_err(|e| ServerError::Internal(format!("Server error: {}", e)))?;
 
         Ok(())
     }
@@ -243,16 +249,20 @@ impl Server {
             .await
             .map_err(|e| ServerError::Internal(format!("Failed to bind: {}", e)))?;
 
-        axum::serve(listener, router)
-            .await
-            .map_err(|e| ServerError::Internal(format!("Server error: {}", e)))?;
+        // Serve with ConnectInfo to provide client IP to handlers (for rate limiting)
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .map_err(|e| ServerError::Internal(format!("Server error: {}", e)))?;
 
         Ok(())
     }
 
     /// Get the configured bind address.
     pub fn bind_address(&self) -> SocketAddr {
-        self.state.config.bind_address
+        self.state.config().bind_address
     }
 }
 

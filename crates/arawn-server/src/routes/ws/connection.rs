@@ -1,5 +1,6 @@
 //! WebSocket connection lifecycle and state management.
 
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -82,16 +83,20 @@ impl Drop for ConnectionState {
 }
 
 /// Handle a WebSocket connection.
-pub async fn handle_socket(socket: WebSocket, state: AppState) {
+pub async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
     let (mut sender, mut receiver) = socket.split();
     let mut conn_state = ConnectionState::new();
 
+    tracing::debug!(
+        connection_id = %conn_state.id,
+        remote_addr = %addr,
+        "WebSocket connection established"
+    );
+
     // Auto-authenticate if no auth token is configured (localhost mode)
-    if state.config.auth_token.is_none() {
+    if state.config().auth_token.is_none() {
         conn_state.authenticated = true;
     }
-
-    tracing::debug!(connection_id = %conn_state.id, "WebSocket connection established");
 
     loop {
         // Wait for next message with idle timeout
@@ -186,8 +191,8 @@ pub async fn handle_socket(socket: WebSocket, state: AppState) {
 
     // Index any sessions this connection was subscribed to
     for session_id in &conn_state.subscriptions {
-        if let Some(indexer) = &state.indexer {
-            let session_opt = state.session_cache.get(session_id).await;
+        if let Some(indexer) = state.indexer() {
+            let session_opt = state.session_cache().get(session_id).await;
             if let Some(session) = session_opt {
                 if !session.is_empty() {
                     let indexer = Arc::clone(indexer);

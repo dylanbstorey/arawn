@@ -137,14 +137,14 @@ pub async fn chat_handler(
 
     // Get session from cache
     let mut session = state
-        .session_cache
+        .session_cache()
         .get(&session_id)
         .await
         .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
 
     // Execute turn
     let response = state
-        .agent
+        .agent()
         .turn(&mut session, &request.message)
         .await
         .map_err(ServerError::Agent)?;
@@ -157,8 +157,8 @@ pub async fn chat_handler(
 
     // Persist the turn to workstream storage
     if let Some(turn) = completed_turn {
-        if let Some(workstream_id) = state.session_cache.get_workstream_id(&session_id).await {
-            if let Err(e) = state.session_cache.save_turn(session_id, &turn, &workstream_id).await {
+        if let Some(workstream_id) = state.session_cache().get_workstream_id(&session_id).await {
+            if let Err(e) = state.session_cache().save_turn(session_id, &turn, &workstream_id).await {
                 tracing::warn!("Failed to persist turn to workstream: {}", e);
             }
         }
@@ -249,7 +249,7 @@ pub async fn chat_stream_handler(
 
     // Get session from cache
     let mut session = state
-        .session_cache
+        .session_cache()
         .get(&session_id)
         .await
         .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
@@ -257,7 +257,7 @@ pub async fn chat_stream_handler(
     // Get the agent stream
     let cancellation = CancellationToken::new();
     let stream = state
-        .agent
+        .agent()
         .turn_stream(&mut session, &request.message, cancellation);
 
     // Note: Session state is updated as streaming progresses internally.
@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(chat_response.response, "First response");
 
         // Verify session has turn
-        let session = state.session_cache.get(&session_id).await.unwrap();
+        let session = state.session_cache().get(&session_id).await.unwrap();
         assert_eq!(session.turn_count(), 1);
     }
 

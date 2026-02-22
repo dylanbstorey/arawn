@@ -63,7 +63,7 @@ fn handle_auth(
     conn_state: &mut ConnectionState,
     app_state: &AppState,
 ) -> MessageResponse {
-    let authed = match &app_state.config.auth_token {
+    let authed = match &app_state.config().auth_token {
         None => true,
         Some(expected) => token == *expected,
     };
@@ -333,7 +333,7 @@ async fn handle_chat(
         let is_owner = app_state.is_session_owner(sid, conn_state.id).await;
         if !is_owner {
             // Check if session has any owner at all
-            let owners = app_state.session_owners.read().await;
+            let owners = app_state.session_owners().read().await;
             if owners.contains_key(&sid) {
                 return MessageResponse::Single(ServerMessage::error(
                     "session_not_owned",
@@ -359,7 +359,7 @@ async fn handle_chat(
     let session_id_str = session_id.to_string();
 
     // Store user message in workstream (if workstreams enabled)
-    if let Some(ref ws_manager) = app_state.workstreams {
+    if let Some(ref ws_manager) = app_state.workstreams() {
         use arawn_workstream::MessageRole;
         if let Err(e) = ws_manager.send_message(
             workstream_id.as_deref(),
@@ -374,9 +374,9 @@ async fn handle_chat(
 
     // Get the agent stream
     let stream_result = {
-        if let Some(mut session) = app_state.session_cache.get(&session_id).await {
+        if let Some(mut session) = app_state.session_cache().get(&session_id).await {
             let cancellation = conn_state.cancellation.clone();
-            let stream = app_state.agent.turn_stream(&mut session, &message, cancellation);
+            let stream = app_state.agent().turn_stream(&mut session, &message, cancellation);
             app_state.update_session(session_id, session).await;
             Some(stream)
         } else {
@@ -396,7 +396,7 @@ async fn handle_chat(
 
     // Clone references for use in async stream
     let workstream_id_for_stream = workstream_id.clone();
-    let session_cache = app_state.session_cache.clone();
+    let session_cache = app_state.session_cache().clone();
     let user_message = message.clone();
 
     // Create response stream

@@ -16,6 +16,7 @@ arawn-mcp = { workspace = true }
 arawn-sandbox = { workspace = true }
 arawn-session = { workspace = true }
 arawn-workstream = { workspace = true }
+arawn-domain = { workspace = true }
 
 tokio = { workspace = true }
 tokio-util = "0.7"
@@ -35,6 +36,7 @@ async-trait = "0.1"
 governor = "0.10"
 tower_governor = "0.8"
 lru = "0.12"
+subtle = "2.5"
 
 # OpenAPI documentation
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }

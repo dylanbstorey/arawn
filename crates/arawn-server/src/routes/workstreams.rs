@@ -272,8 +272,7 @@ pub struct SessionListResponse {
 
 fn get_manager(state: &AppState) -> Result<&Arc<WorkstreamManager>, ServerError> {
     state
-        .workstreams
-        .as_ref()
+        .workstreams()
         .ok_or_else(|| ServerError::ServiceUnavailable("Workstreams not configured".to_string()))
 }
 
@@ -332,7 +331,7 @@ pub async fn create_workstream_handler(
         ?;
 
     // Create directory structure for the new workstream
-    if let Some(ref dm) = state.directory_manager {
+    if let Some(ref dm) = state.directory_manager() {
         dm.create_workstream(&ws.id).map_err(|e| {
             tracing::warn!(workstream = %ws.id, error = %e, "Failed to create workstream directories");
             ServerError::Internal(format!("Failed to create workstream directories: {}", e))

@@ -1,9 +1,18 @@
 //! Application state shared across handlers.
+//!
+//! State is separated into two layers:
+//! - `SharedServices`: Immutable services created at startup
+//! - `RuntimeState`: Mutable state that changes during operation
 
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::sync::Arc;
+use std::time::Instant;
 
 use arawn_agent::{Agent, Session, SessionId, SessionIndexer};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
+use arawn_domain::DomainServices;
 use arawn_mcp::McpManager;
 use arawn_sandbox::SandboxManager;
 use arawn_types::{HasSessionConfig, SharedHookDispatcher};
@@ -17,6 +26,10 @@ use crate::config::ServerConfig;
 use crate::ratelimit::{SharedRateLimiter, create_rate_limiter};
 use crate::routes::ws::ConnectionId;
 use crate::session_cache::SessionCache;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session Ownership Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Session ownership tracking - maps session IDs to owning connection IDs.
 /// First subscriber to a session becomes the owner; others are readers.
@@ -51,6 +64,10 @@ pub type PendingReconnects = Arc<RwLock<HashMap<SessionId, PendingReconnect>>>;
 
 /// Thread-safe MCP manager.
 pub type SharedMcpManager = Arc<RwLock<McpManager>>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task Tracking Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Task status.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -153,10 +170,96 @@ impl TrackedTask {
 /// In-memory task store.
 pub type TaskStore = Arc<RwLock<HashMap<String, TrackedTask>>>;
 
-/// Application state shared across all handlers.
+// ─────────────────────────────────────────────────────────────────────────────
+// WebSocket Rate Limiting Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Tracks WebSocket connection attempts per IP address.
+#[derive(Debug, Clone)]
+pub struct WsConnectionTracker {
+    /// Connection timestamps per IP (sliding window).
+    connections: Arc<RwLock<HashMap<IpAddr, Vec<Instant>>>>,
+}
+
+impl WsConnectionTracker {
+    /// Create a new connection tracker.
+    pub fn new() -> Self {
+        Self {
+            connections: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    /// Check if a new connection from this IP should be allowed.
+    ///
+    /// Returns `Ok(())` if allowed, `Err(Response)` if rate limited.
+    /// Also cleans up old entries.
+    pub async fn check_rate(&self, ip: IpAddr, max_per_minute: u32) -> Result<(), Response> {
+        let now = Instant::now();
+        let window = std::time::Duration::from_secs(60);
+        let cutoff = now - window;
+
+        let mut connections = self.connections.write().await;
+
+        // Get or create entry for this IP
+        let timestamps = connections.entry(ip).or_insert_with(Vec::new);
+
+        // Remove old timestamps outside the window
+        timestamps.retain(|&t| t > cutoff);
+
+        // Check rate
+        if timestamps.len() >= max_per_minute as usize {
+            tracing::warn!(
+                ip = %ip,
+                count = timestamps.len(),
+                limit = max_per_minute,
+                "WebSocket connection rate limit exceeded"
+            );
+            return Err((
+                StatusCode::TOO_MANY_REQUESTS,
+                "WebSocket connection rate limit exceeded",
+            )
+                .into_response());
+        }
+
+        // Record this connection
+        timestamps.push(now);
+
+        Ok(())
+    }
+
+    /// Cleanup old entries from all IPs.
+    pub async fn cleanup(&self) {
+        let now = Instant::now();
+        let window = std::time::Duration::from_secs(60);
+        let cutoff = now - window;
+
+        let mut connections = self.connections.write().await;
+
+        // Remove old timestamps and empty entries
+        connections.retain(|_, timestamps| {
+            timestamps.retain(|&t| t > cutoff);
+            !timestamps.is_empty()
+        });
+    }
+}
+
+impl Default for WsConnectionTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared Services (Immutable)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Immutable services created at startup.
+///
+/// These services are configured once when the server starts and never change
+/// during operation. They can be safely shared across all handlers without locks.
 #[derive(Clone)]
-pub struct AppState {
-    /// The agent instance.
+pub struct SharedServices {
+    /// The agent instance for LLM interactions.
     pub agent: Arc<Agent>,
 
     /// Server configuration.
@@ -164,9 +267,6 @@ pub struct AppState {
 
     /// Per-IP rate limiter (created from config.api_rpm).
     pub rate_limiter: SharedRateLimiter,
-
-    /// Session cache - loads from workstream on cache miss, persists back on save.
-    pub session_cache: SessionCache,
 
     /// Workstream manager (optional — None if workstreams not configured).
     pub workstreams: Option<Arc<WorkstreamManager>>,
@@ -180,9 +280,6 @@ pub struct AppState {
     /// MCP manager for Model Context Protocol servers (optional — None if MCP disabled).
     pub mcp_manager: Option<SharedMcpManager>,
 
-    /// Task store for tracking long-running operations.
-    pub tasks: TaskStore,
-
     /// Directory manager for workstream/session path management.
     pub directory_manager: Option<Arc<DirectoryManager>>,
 
@@ -192,83 +289,93 @@ pub struct AppState {
     /// File watcher for filesystem monitoring (optional — None if monitoring disabled).
     pub file_watcher: Option<Arc<WatcherHandle>>,
 
-    /// Session ownership tracking for WebSocket connections.
-    /// Maps session IDs to the connection ID that owns them (first subscriber).
-    /// Non-owners can subscribe as readers but cannot send Chat messages.
-    pub session_owners: SessionOwners,
-
-    /// Pending reconnects for session ownership recovery after disconnect.
-    /// When a connection disconnects, ownership is held for a grace period
-    /// allowing the client to reconnect with a token to reclaim ownership.
-    pub pending_reconnects: PendingReconnects,
+    /// Domain services facade for unified service access.
+    pub domain: Option<Arc<DomainServices>>,
 }
 
-impl AppState {
-    /// Create a new application state.
+impl SharedServices {
+    /// Create new shared services with the given agent and config.
     pub fn new(agent: Agent, config: ServerConfig) -> Self {
-        // Create rate limiter with configured RPM
         let rate_limiter = create_rate_limiter(config.api_rpm);
 
         Self {
             agent: Arc::new(agent),
             config: Arc::new(config),
             rate_limiter,
-            session_cache: SessionCache::new(None),
             workstreams: None,
             indexer: None,
             hook_dispatcher: None,
             mcp_manager: None,
-            tasks: Arc::new(RwLock::new(HashMap::new())),
             directory_manager: None,
             sandbox_manager: None,
             file_watcher: None,
-            session_owners: Arc::new(RwLock::new(HashMap::new())),
-            pending_reconnects: Arc::new(RwLock::new(HashMap::new())),
+            domain: None,
         }
     }
 
-    /// Create application state with workstream support.
+    /// Configure workstream support.
     pub fn with_workstreams(mut self, manager: WorkstreamManager) -> Self {
-        let ws_arc = Arc::new(manager);
-        self.session_cache = SessionCache::new(Some(ws_arc.clone()));
-        self.workstreams = Some(ws_arc);
+        self.workstreams = Some(Arc::new(manager));
         self
     }
 
-    /// Create application state with session indexer.
+    /// Configure session indexer.
     pub fn with_indexer(mut self, indexer: SessionIndexer) -> Self {
         self.indexer = Some(Arc::new(indexer));
         self
     }
 
-    /// Create application state with hook dispatcher for lifecycle events.
+    /// Configure hook dispatcher for lifecycle events.
     pub fn with_hook_dispatcher(mut self, dispatcher: SharedHookDispatcher) -> Self {
         self.hook_dispatcher = Some(dispatcher);
         self
     }
 
-    /// Create application state with MCP manager.
+    /// Configure MCP manager.
     pub fn with_mcp_manager(mut self, manager: McpManager) -> Self {
         self.mcp_manager = Some(Arc::new(RwLock::new(manager)));
         self
     }
 
-    /// Create application state with directory manager for path management.
+    /// Configure directory manager for path management.
     pub fn with_directory_manager(mut self, manager: DirectoryManager) -> Self {
         self.directory_manager = Some(Arc::new(manager));
         self
     }
 
-    /// Create application state with sandbox manager for shell execution.
+    /// Configure sandbox manager for shell execution.
     pub fn with_sandbox_manager(mut self, manager: SandboxManager) -> Self {
         self.sandbox_manager = Some(Arc::new(manager));
         self
     }
 
-    /// Create application state with file watcher for filesystem monitoring.
+    /// Configure file watcher for filesystem monitoring.
     pub fn with_file_watcher(mut self, watcher: WatcherHandle) -> Self {
         self.file_watcher = Some(Arc::new(watcher));
         self
+    }
+
+    /// Build domain services from the configured components.
+    ///
+    /// This creates a DomainServices instance from the current configuration.
+    /// Should be called after all components are configured.
+    pub fn build_domain_services(mut self) -> Self {
+        let domain = DomainServices::new(
+            self.agent.clone(),
+            self.workstreams.clone(),
+            self.directory_manager.clone(),
+            self.indexer.clone(),
+            self.mcp_manager.clone(),
+        );
+        self.domain = Some(Arc::new(domain));
+        self
+    }
+
+    /// Get the domain services facade.
+    ///
+    /// Returns `None` if `build_domain_services` wasn't called.
+    pub fn domain(&self) -> Option<&Arc<DomainServices>> {
+        self.domain.as_ref()
     }
 
     /// Get allowed paths for a session based on its workstream.
@@ -292,19 +399,295 @@ impl AppState {
             arawn_workstream::PathValidator::for_session(dm, workstream_id, session_id)
         })
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Runtime State (Mutable)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Mutable state that changes during operation.
+///
+/// This state is modified by handlers during normal server operation.
+/// Each field uses appropriate synchronization primitives.
+#[derive(Clone)]
+pub struct RuntimeState {
+    /// Session cache - loads from workstream on cache miss, persists back on save.
+    pub session_cache: SessionCache,
+
+    /// Task store for tracking long-running operations.
+    pub tasks: TaskStore,
+
+    /// Session ownership tracking for WebSocket connections.
+    /// Maps session IDs to the connection ID that owns them (first subscriber).
+    /// Non-owners can subscribe as readers but cannot send Chat messages.
+    pub session_owners: SessionOwners,
+
+    /// Pending reconnects for session ownership recovery after disconnect.
+    /// When a connection disconnects, ownership is held for a grace period
+    /// allowing the client to reconnect with a token to reclaim ownership.
+    pub pending_reconnects: PendingReconnects,
+
+    /// WebSocket connection rate limiter per IP address.
+    pub ws_connection_tracker: WsConnectionTracker,
+}
+
+impl RuntimeState {
+    /// Create new runtime state.
+    pub fn new() -> Self {
+        Self {
+            session_cache: SessionCache::new(None),
+            tasks: Arc::new(RwLock::new(HashMap::new())),
+            session_owners: Arc::new(RwLock::new(HashMap::new())),
+            pending_reconnects: Arc::new(RwLock::new(HashMap::new())),
+            ws_connection_tracker: WsConnectionTracker::new(),
+        }
+    }
+
+    /// Create runtime state with workstream-backed session cache.
+    pub fn with_workstream_cache(workstreams: Arc<WorkstreamManager>) -> Self {
+        Self {
+            session_cache: SessionCache::new(Some(workstreams)),
+            tasks: Arc::new(RwLock::new(HashMap::new())),
+            session_owners: Arc::new(RwLock::new(HashMap::new())),
+            pending_reconnects: Arc::new(RwLock::new(HashMap::new())),
+            ws_connection_tracker: WsConnectionTracker::new(),
+        }
+    }
 
     /// Configure session cache using a config provider.
-    ///
-    /// This applies session cache settings (max sessions, TTL, etc.) from any
-    /// type implementing `HasSessionConfig`, enabling decoupled configuration.
+    pub fn with_session_config<C: HasSessionConfig>(mut self, workstreams: Option<Arc<WorkstreamManager>>, config: &C) -> Self {
+        self.session_cache = SessionCache::from_session_config(workstreams, config);
+        self
+    }
+}
+
+impl Default for RuntimeState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Application State (Combined)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Application state shared across all handlers.
+///
+/// Composed of immutable `SharedServices` and mutable `RuntimeState`.
+/// This separation provides:
+/// - Clearer ownership semantics
+/// - Better lock granularity (runtime state has finer-grained locks)
+/// - Easier testing (services can be mocked independently)
+#[derive(Clone)]
+pub struct AppState {
+    /// Immutable services created at startup.
+    pub services: SharedServices,
+
+    /// Mutable runtime state.
+    pub runtime: RuntimeState,
+}
+
+impl AppState {
+    /// Create a new application state.
+    pub fn new(agent: Agent, config: ServerConfig) -> Self {
+        Self {
+            services: SharedServices::new(agent, config),
+            runtime: RuntimeState::new(),
+        }
+    }
+
+    /// Create application state with workstream support.
+    pub fn with_workstreams(mut self, manager: WorkstreamManager) -> Self {
+        let ws_arc = Arc::new(manager);
+        self.runtime.session_cache = SessionCache::new(Some(ws_arc.clone()));
+        self.services.workstreams = Some(ws_arc);
+        self
+    }
+
+    /// Create application state with session indexer.
+    pub fn with_indexer(mut self, indexer: SessionIndexer) -> Self {
+        self.services = self.services.with_indexer(indexer);
+        self
+    }
+
+    /// Create application state with hook dispatcher for lifecycle events.
+    pub fn with_hook_dispatcher(mut self, dispatcher: SharedHookDispatcher) -> Self {
+        self.services = self.services.with_hook_dispatcher(dispatcher);
+        self
+    }
+
+    /// Create application state with MCP manager.
+    pub fn with_mcp_manager(mut self, manager: McpManager) -> Self {
+        self.services = self.services.with_mcp_manager(manager);
+        self
+    }
+
+    /// Create application state with directory manager for path management.
+    pub fn with_directory_manager(mut self, manager: DirectoryManager) -> Self {
+        self.services = self.services.with_directory_manager(manager);
+        self
+    }
+
+    /// Create application state with sandbox manager for shell execution.
+    pub fn with_sandbox_manager(mut self, manager: SandboxManager) -> Self {
+        self.services = self.services.with_sandbox_manager(manager);
+        self
+    }
+
+    /// Create application state with file watcher for filesystem monitoring.
+    pub fn with_file_watcher(mut self, watcher: WatcherHandle) -> Self {
+        self.services = self.services.with_file_watcher(watcher);
+        self
+    }
+
+    /// Configure session cache using a config provider.
     pub fn with_session_config<C: HasSessionConfig>(mut self, config: &C) -> Self {
-        // Recreate session cache with config, preserving workstream manager
-        self.session_cache = SessionCache::from_session_config(
-            self.workstreams.clone(),
+        self.runtime.session_cache = SessionCache::from_session_config(
+            self.services.workstreams.clone(),
             config,
         );
         self
     }
+
+    /// Build domain services from the configured components.
+    ///
+    /// This should be called after all services are configured to create
+    /// the unified DomainServices facade.
+    pub fn build_domain_services(mut self) -> Self {
+        self.services = self.services.build_domain_services();
+        self
+    }
+
+    // ── Convenience accessors ────────────────────────────────────────────────
+
+    /// Get the agent.
+    #[inline]
+    pub fn agent(&self) -> &Arc<Agent> {
+        &self.services.agent
+    }
+
+    /// Get the server config.
+    #[inline]
+    pub fn config(&self) -> &Arc<ServerConfig> {
+        &self.services.config
+    }
+
+    /// Get the rate limiter.
+    #[inline]
+    pub fn rate_limiter(&self) -> &SharedRateLimiter {
+        &self.services.rate_limiter
+    }
+
+    /// Get the workstream manager.
+    #[inline]
+    pub fn workstreams(&self) -> Option<&Arc<WorkstreamManager>> {
+        self.services.workstreams.as_ref()
+    }
+
+    /// Get the session indexer.
+    #[inline]
+    pub fn indexer(&self) -> Option<&Arc<SessionIndexer>> {
+        self.services.indexer.as_ref()
+    }
+
+    /// Get the hook dispatcher.
+    #[inline]
+    pub fn hook_dispatcher(&self) -> Option<&SharedHookDispatcher> {
+        self.services.hook_dispatcher.as_ref()
+    }
+
+    /// Get the MCP manager.
+    #[inline]
+    pub fn mcp_manager(&self) -> Option<&SharedMcpManager> {
+        self.services.mcp_manager.as_ref()
+    }
+
+    /// Get the directory manager.
+    #[inline]
+    pub fn directory_manager(&self) -> Option<&Arc<DirectoryManager>> {
+        self.services.directory_manager.as_ref()
+    }
+
+    /// Get the sandbox manager.
+    #[inline]
+    pub fn sandbox_manager(&self) -> Option<&Arc<SandboxManager>> {
+        self.services.sandbox_manager.as_ref()
+    }
+
+    /// Get the file watcher.
+    #[inline]
+    pub fn file_watcher(&self) -> Option<&Arc<WatcherHandle>> {
+        self.services.file_watcher.as_ref()
+    }
+
+    /// Get the domain services facade.
+    #[inline]
+    pub fn domain(&self) -> Option<&Arc<DomainServices>> {
+        self.services.domain()
+    }
+
+    /// Get the session cache.
+    #[inline]
+    pub fn session_cache(&self) -> &SessionCache {
+        &self.runtime.session_cache
+    }
+
+    /// Get the task store.
+    #[inline]
+    pub fn tasks(&self) -> &TaskStore {
+        &self.runtime.tasks
+    }
+
+    /// Get the session owners.
+    #[inline]
+    pub fn session_owners(&self) -> &SessionOwners {
+        &self.runtime.session_owners
+    }
+
+    /// Get the pending reconnects.
+    #[inline]
+    pub fn pending_reconnects(&self) -> &PendingReconnects {
+        &self.runtime.pending_reconnects
+    }
+
+    /// Get the WebSocket connection tracker.
+    #[inline]
+    pub fn ws_connection_tracker(&self) -> &WsConnectionTracker {
+        &self.runtime.ws_connection_tracker
+    }
+
+    /// Check WebSocket connection rate for an IP address.
+    ///
+    /// Returns `Ok(())` if the connection is allowed, `Err(Response)` if rate limited.
+    pub async fn check_ws_connection_rate(&self, ip: IpAddr) -> Result<(), Response> {
+        self.runtime
+            .ws_connection_tracker
+            .check_rate(ip, self.services.config.ws_connections_per_minute)
+            .await
+    }
+
+    // ── Backward compatibility (field-style access) ──────────────────────────
+    // These preserve the old API while using the new structure internally.
+
+    /// Get allowed paths for a session based on its workstream.
+    ///
+    /// Returns `None` if no directory manager is configured.
+    pub fn allowed_paths(&self, workstream_id: &str, session_id: &str) -> Option<Vec<std::path::PathBuf>> {
+        self.services.allowed_paths(workstream_id, session_id)
+    }
+
+    /// Get a PathValidator for a session.
+    ///
+    /// Returns `None` if no directory manager is configured.
+    pub fn path_validator(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Option<arawn_workstream::PathValidator> {
+        self.services.path_validator(workstream_id, session_id)
+    }
+
+    // ── Session Management ───────────────────────────────────────────────────
 
     /// Get or create a session by ID.
     ///
@@ -325,7 +708,7 @@ impl AppState {
         workstream_id: &str,
     ) -> SessionId {
         let result = self
-            .session_cache
+            .runtime.session_cache
             .get_or_create(session_id, workstream_id)
             .await;
 
@@ -333,7 +716,7 @@ impl AppState {
             Ok((id, _, is_new)) => (id, is_new),
             Err(e) => {
                 warn!("Session cache error: {}, creating new session", e);
-                let (id, _) = self.session_cache.create_session(workstream_id).await;
+                let (id, _) = self.runtime.session_cache.create_session(workstream_id).await;
                 (id, true)
             }
         };
@@ -341,7 +724,7 @@ impl AppState {
         // Create scratch session directory for new sessions
         if is_new {
             if workstream_id == arawn_workstream::SCRATCH_ID {
-                if let Some(ref dm) = self.directory_manager {
+                if let Some(ref dm) = self.services.directory_manager {
                     if let Err(e) = dm.create_scratch_session(&id.to_string()) {
                         warn!(session_id = %id, error = %e, "Failed to create scratch session directory");
                     }
@@ -349,7 +732,7 @@ impl AppState {
             }
 
             // Fire SessionStart hook for new sessions
-            if let Some(ref dispatcher) = self.hook_dispatcher {
+            if let Some(ref dispatcher) = self.services.hook_dispatcher {
                 let outcome = dispatcher.dispatch_session_start(&id.to_string()).await;
                 debug!(session_id = %id, ?outcome, "SessionStart hook dispatched");
             }
@@ -363,7 +746,7 @@ impl AppState {
     /// Returns `true` if the session existed and was removed.
     /// Indexing runs asynchronously and does not block the caller.
     pub async fn close_session(&self, session_id: SessionId) -> bool {
-        let session = match self.session_cache.remove(&session_id).await {
+        let session = match self.runtime.session_cache.remove(&session_id).await {
             Some(s) => s,
             None => return false,
         };
@@ -371,7 +754,7 @@ impl AppState {
         let turn_count = session.turn_count();
 
         // Fire SessionEnd hook
-        if let Some(ref dispatcher) = self.hook_dispatcher {
+        if let Some(ref dispatcher) = self.services.hook_dispatcher {
             let outcome = dispatcher
                 .dispatch_session_end(&session_id.to_string(), turn_count)
                 .await;
@@ -379,7 +762,7 @@ impl AppState {
         }
 
         // Spawn background indexing if indexer is configured and session has turns
-        if let Some(indexer) = &self.indexer {
+        if let Some(indexer) = &self.services.indexer {
             if !session.is_empty() {
                 let indexer = Arc::clone(indexer);
                 let messages = session_to_messages(&session);
@@ -410,7 +793,7 @@ impl AppState {
 
     /// Get session from cache (loading from workstream if needed).
     pub async fn get_session(&self, session_id: SessionId, workstream_id: &str) -> Option<Session> {
-        match self.session_cache.get_or_load(session_id, workstream_id).await {
+        match self.runtime.session_cache.get_or_load(session_id, workstream_id).await {
             Ok((session, _)) => Some(session),
             Err(_) => None,
         }
@@ -418,13 +801,15 @@ impl AppState {
 
     /// Update session in cache.
     pub async fn update_session(&self, session_id: SessionId, session: Session) {
-        let _ = self.session_cache.update(session_id, session).await;
+        let _ = self.runtime.session_cache.update(session_id, session).await;
     }
 
     /// Invalidate a cached session (e.g., after workstream reassignment).
     pub async fn invalidate_session(&self, session_id: SessionId) {
-        self.session_cache.invalidate(&session_id).await;
+        self.runtime.session_cache.invalidate(&session_id).await;
     }
+
+    // ── Session Ownership ────────────────────────────────────────────────────
 
     /// Try to claim ownership of a session for a connection.
     ///
@@ -439,7 +824,7 @@ impl AppState {
     ) -> bool {
         // Check for pending reconnect first (ownership reserved for reconnection)
         {
-            let pending = self.pending_reconnects.read().await;
+            let pending = self.runtime.pending_reconnects.read().await;
             if let Some(entry) = pending.get(&session_id) {
                 if !entry.is_expired() {
                     debug!(session_id = %session_id, "Ownership claim rejected: pending reconnect exists");
@@ -449,7 +834,7 @@ impl AppState {
         }
 
         let mut owners: tokio::sync::RwLockWriteGuard<'_, HashMap<SessionId, ConnectionId>> =
-            self.session_owners.write().await;
+            self.runtime.session_owners.write().await;
         match owners.get(&session_id) {
             Some(&existing_owner) if existing_owner == connection_id => {
                 // Already the owner
@@ -474,7 +859,7 @@ impl AppState {
         session_id: SessionId,
         connection_id: ConnectionId,
     ) -> bool {
-        let owners = self.session_owners.read().await;
+        let owners = self.runtime.session_owners.read().await;
         owners.get(&session_id) == Some(&connection_id)
     }
 
@@ -487,7 +872,7 @@ impl AppState {
         session_id: SessionId,
         connection_id: ConnectionId,
     ) -> bool {
-        let mut owners = self.session_owners.write().await;
+        let mut owners = self.runtime.session_owners.write().await;
         if owners.get(&session_id) == Some(&connection_id) {
             owners.remove(&session_id);
             debug!(session_id = %session_id, connection_id = %connection_id, "Session ownership released");
@@ -509,8 +894,8 @@ impl AppState {
         connection_id: ConnectionId,
         reconnect_tokens: &HashMap<SessionId, String>,
     ) {
-        let mut owners = self.session_owners.write().await;
-        let mut pending = self.pending_reconnects.write().await;
+        let mut owners = self.runtime.session_owners.write().await;
+        let mut pending = self.runtime.pending_reconnects.write().await;
 
         let sessions_to_release: Vec<_> = owners
             .iter()
@@ -518,7 +903,7 @@ impl AppState {
             .map(|(session_id, _)| *session_id)
             .collect();
 
-        let grace_period = self.config.reconnect_grace_period;
+        let grace_period = self.services.config.reconnect_grace_period;
         let mut pending_count = 0;
 
         for session_id in &sessions_to_release {
@@ -552,7 +937,7 @@ impl AppState {
         token: &str,
         connection_id: ConnectionId,
     ) -> Option<String> {
-        let mut pending = self.pending_reconnects.write().await;
+        let mut pending = self.runtime.pending_reconnects.write().await;
 
         // Check if there's a valid pending reconnect
         if let Some(entry) = pending.get(&session_id) {
@@ -573,7 +958,7 @@ impl AppState {
             pending.remove(&session_id);
             drop(pending); // Release lock before acquiring owners lock
 
-            let mut owners = self.session_owners.write().await;
+            let mut owners = self.runtime.session_owners.write().await;
 
             // Double-check no one else claimed it while we were checking
             if owners.contains_key(&session_id) {
@@ -596,7 +981,7 @@ impl AppState {
     ///
     /// Called lazily during subscribe operations. Returns the number cleaned up.
     pub async fn cleanup_expired_pending_reconnects(&self) -> usize {
-        let mut pending = self.pending_reconnects.write().await;
+        let mut pending = self.runtime.pending_reconnects.write().await;
 
         let expired: Vec<_> = pending
             .iter()
@@ -617,7 +1002,7 @@ impl AppState {
 
     /// Check if a session has a pending reconnect (ownership held for reconnection).
     pub async fn has_pending_reconnect(&self, session_id: SessionId) -> bool {
-        let pending = self.pending_reconnects.read().await;
+        let pending = self.runtime.pending_reconnects.read().await;
         if let Some(entry) = pending.get(&session_id) {
             !entry.is_expired()
         } else {
@@ -625,6 +1010,10 @@ impl AppState {
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper Functions
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Convert a session's turns into owned `(role, content)` pairs.
 pub(crate) fn session_to_messages(session: &Session) -> Vec<(String, String)> {
@@ -721,13 +1110,13 @@ mod tests {
         let session_id = state.get_or_create_session(None).await;
 
         // Session exists in cache
-        assert!(state.session_cache.contains(&session_id).await);
+        assert!(state.runtime.session_cache.contains(&session_id).await);
 
         // Close it
         assert!(state.close_session(session_id).await);
 
         // Session removed
-        assert!(!state.session_cache.contains(&session_id).await);
+        assert!(!state.runtime.session_cache.contains(&session_id).await);
     }
 
     #[tokio::test]
@@ -744,7 +1133,7 @@ mod tests {
 
         // Add a turn so the session isn't empty
         state
-            .session_cache
+            .runtime.session_cache
             .with_session_mut(&session_id, |session| {
                 let turn = session.start_turn("Hello");
                 turn.complete("Hi!");
@@ -753,13 +1142,13 @@ mod tests {
 
         // Should succeed even without indexer
         assert!(state.close_session(session_id).await);
-        assert!(!state.session_cache.contains(&session_id).await);
+        assert!(!state.runtime.session_cache.contains(&session_id).await);
     }
 
     #[test]
     fn test_default_state_has_no_indexer() {
         let state = create_test_state();
-        assert!(state.indexer.is_none());
+        assert!(state.services.indexer.is_none());
     }
 
     #[tokio::test]
@@ -949,5 +1338,105 @@ mod tests {
         // Now another connection can claim
         let conn_b = ConnectionId::new();
         assert!(state.try_claim_session_ownership(session_id, conn_b).await);
+    }
+
+    #[test]
+    fn test_shared_services_builder() {
+        let backend = MockBackend::with_text("Test");
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_tools(ToolRegistry::new())
+            .build()
+            .unwrap();
+        let config = ServerConfig::new(Some("test-token".to_string()));
+
+        let services = SharedServices::new(agent, config);
+        assert!(services.workstreams.is_none());
+        assert!(services.indexer.is_none());
+        assert!(services.mcp_manager.is_none());
+        assert!(services.domain.is_none());
+    }
+
+    #[test]
+    fn test_runtime_state_defaults() {
+        let runtime = RuntimeState::new();
+        // Tasks should start empty
+        let tasks = runtime.tasks.try_read().unwrap();
+        assert!(tasks.is_empty());
+    }
+
+    #[test]
+    fn test_convenience_accessors() {
+        let state = create_test_state();
+
+        // These should compile and return the expected types
+        let _agent: &Arc<Agent> = state.agent();
+        let _config: &Arc<ServerConfig> = state.config();
+        let _rate_limiter: &SharedRateLimiter = state.rate_limiter();
+        let _session_cache: &SessionCache = state.session_cache();
+        let _tasks: &TaskStore = state.tasks();
+        let _session_owners: &SessionOwners = state.session_owners();
+        let _pending_reconnects: &PendingReconnects = state.pending_reconnects();
+    }
+
+    // ── WebSocket Rate Limiting Tests ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_ws_connection_tracker_allows_under_limit() {
+        let tracker = WsConnectionTracker::new();
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Should allow up to max_per_minute connections
+        for _ in 0..5 {
+            let result = tracker.check_rate(ip, 10).await;
+            assert!(result.is_ok());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ws_connection_tracker_rate_limits() {
+        let tracker = WsConnectionTracker::new();
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Use up the limit
+        for _ in 0..3 {
+            let _ = tracker.check_rate(ip, 3).await;
+        }
+
+        // Next connection should be rate limited
+        let result = tracker.check_rate(ip, 3).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_ws_connection_tracker_per_ip() {
+        let tracker = WsConnectionTracker::new();
+        let ip1: IpAddr = "192.168.1.1".parse().unwrap();
+        let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+
+        // Use up the limit for ip1
+        for _ in 0..3 {
+            let _ = tracker.check_rate(ip1, 3).await;
+        }
+
+        // ip1 should be limited
+        assert!(tracker.check_rate(ip1, 3).await.is_err());
+
+        // But ip2 should still be allowed
+        assert!(tracker.check_rate(ip2, 3).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_ws_connection_tracker_cleanup() {
+        let tracker = WsConnectionTracker::new();
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Add some connections
+        for _ in 0..5 {
+            let _ = tracker.check_rate(ip, 10).await;
+        }
+
+        // Cleanup should not panic or error
+        tracker.cleanup().await;
     }
 }

@@ -93,7 +93,7 @@ pub async fn list_agents_handler(
     Extension(_identity): Extension<Identity>,
 ) -> Result<Json<ListAgentsResponse>, ServerError> {
     // Currently we have a single "main" agent
-    let tool_count = state.agent.tools().len();
+    let tool_count = state.agent().tools().len();
 
     let agents = vec![AgentSummary {
         id: "main".to_string(),
@@ -136,7 +136,7 @@ pub async fn get_agent_handler(
         )));
     }
 
-    let registry = state.agent.tools();
+    let registry = state.agent().tools();
     let tools: Vec<AgentToolInfo> = registry
         .names()
         .into_iter()

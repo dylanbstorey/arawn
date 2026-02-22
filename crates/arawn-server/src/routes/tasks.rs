@@ -159,7 +159,7 @@ pub async fn list_tasks_handler(
     Extension(_identity): Extension<Identity>,
     Query(query): Query<ListTasksQuery>,
 ) -> Result<Json<ListTasksResponse>, ServerError> {
-    let tasks = state.tasks.read().await;
+    let tasks = state.tasks().read().await;
 
     let status_filter = query.status.as_ref().and_then(|s| parse_status(s));
 
@@ -218,7 +218,7 @@ pub async fn get_task_handler(
     Extension(_identity): Extension<Identity>,
     Path(task_id): Path<String>,
 ) -> Result<Json<TaskDetail>, ServerError> {
-    let tasks = state.tasks.read().await;
+    let tasks = state.tasks().read().await;
 
     let task = tasks
         .get(&task_id)
@@ -248,7 +248,7 @@ pub async fn cancel_task_handler(
     Extension(_identity): Extension<Identity>,
     Path(task_id): Path<String>,
 ) -> Result<StatusCode, ServerError> {
-    let mut tasks = state.tasks.write().await;
+    let mut tasks = state.tasks().write().await;
 
     let task = tasks
         .get_mut(&task_id)
@@ -341,7 +341,7 @@ mod tests {
 
         // Add some tasks
         {
-            let mut tasks = state.tasks.write().await;
+            let mut tasks = state.tasks().write().await;
             tasks.insert(
                 "task-1".to_string(),
                 TrackedTask::new("task-1", "indexing"),
@@ -379,7 +379,7 @@ mod tests {
 
         // Add a task
         {
-            let mut tasks = state.tasks.write().await;
+            let mut tasks = state.tasks().write().await;
             tasks.insert(
                 "task-1".to_string(),
                 TrackedTask::new("task-1", "indexing"),
@@ -434,7 +434,7 @@ mod tests {
 
         // Add a running task
         {
-            let mut tasks = state.tasks.write().await;
+            let mut tasks = state.tasks().write().await;
             let mut task = TrackedTask::new("task-1", "processing");
             task.start();
             tasks.insert("task-1".to_string(), task);
@@ -457,7 +457,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
         // Verify cancelled
-        let tasks = state.tasks.read().await;
+        let tasks = state.tasks().read().await;
         assert_eq!(tasks.get("task-1").unwrap().status, TaskStatus::Cancelled);
     }
 
@@ -467,7 +467,7 @@ mod tests {
 
         // Add a completed task
         {
-            let mut tasks = state.tasks.write().await;
+            let mut tasks = state.tasks().write().await;
             let mut task = TrackedTask::new("task-1", "processing");
             task.complete(None);
             tasks.insert("task-1".to_string(), task);
@@ -496,7 +496,7 @@ mod tests {
 
         // Add tasks with different statuses
         {
-            let mut tasks = state.tasks.write().await;
+            let mut tasks = state.tasks().write().await;
             tasks.insert(
                 "task-1".to_string(),
                 TrackedTask::new("task-1", "pending-task"),

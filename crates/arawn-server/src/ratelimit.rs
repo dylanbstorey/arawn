@@ -128,7 +128,7 @@ pub async fn rate_limit_middleware(
     next: Next,
 ) -> Response {
     // Skip if rate limiting is disabled
-    if !state.config.rate_limiting {
+    if !state.config().rate_limiting {
         return next.run(request).await;
     }
 
@@ -136,7 +136,7 @@ pub async fn rate_limit_middleware(
     let client_ip = extract_client_ip(&request);
 
     // Check rate limit for this IP using the configured limiter
-    match state.rate_limiter.check_key(&client_ip) {
+    match state.rate_limiter().check_key(&client_ip) {
         Ok(_) => next.run(request).await,
         Err(_not_until) => {
             // Use a fixed retry-after of 1 second for simplicity
@@ -146,7 +146,7 @@ pub async fn rate_limit_middleware(
             tracing::warn!(
                 path = %request.uri().path(),
                 client_ip = %client_ip,
-                api_rpm = %state.config.api_rpm,
+                api_rpm = %state.config().api_rpm,
                 retry_after_seconds = retry_after,
                 "Rate limit exceeded"
             );
@@ -181,7 +181,7 @@ pub async fn request_logging_middleware(
     next: Next,
 ) -> Response {
     // Skip if request logging is disabled
-    if !state.config.request_logging {
+    if !state.config().request_logging {
         return next.run(request).await;
     }
 
