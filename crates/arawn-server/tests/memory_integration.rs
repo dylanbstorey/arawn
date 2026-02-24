@@ -22,11 +22,9 @@ async fn test_create_note() -> Result<()> {
         .send()
         .await?;
 
-    assert!(resp.status().is_success(), "Create note should succeed");
+    assert_eq!(resp.status().as_u16(), 201, "Create note should return 201");
 
-    let body: serde_json::Value = resp.json().await?;
-    // Response is wrapped in { "note": { ... } }
-    let note = body.get("note").expect("Response should have 'note' field");
+    let note: serde_json::Value = resp.json().await?;
     assert!(note.get("id").is_some(), "Note should have id");
     assert_eq!(
         note.get("content").and_then(|v| v.as_str()),
@@ -118,10 +116,9 @@ async fn test_note_has_created_at() -> Result<()> {
         .send()
         .await?;
 
-    assert!(resp.status().is_success());
+    assert_eq!(resp.status().as_u16(), 201);
 
-    let body: serde_json::Value = resp.json().await?;
-    let note = body.get("note").expect("Should have note");
+    let note: serde_json::Value = resp.json().await?;
     assert!(
         note.get("created_at").is_some(),
         "Note should have created_at"
@@ -143,10 +140,9 @@ async fn test_note_with_tags() -> Result<()> {
         .send()
         .await?;
 
-    assert!(resp.status().is_success());
+    assert_eq!(resp.status().as_u16(), 201);
 
-    let body: serde_json::Value = resp.json().await?;
-    let note = body.get("note").expect("Should have note");
+    let note: serde_json::Value = resp.json().await?;
     let tags = note
         .get("tags")
         .and_then(|v| v.as_array())

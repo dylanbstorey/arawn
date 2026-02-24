@@ -4,7 +4,7 @@ level: task
 title: "Security Hardening: WebSocket Origin, Token Comparison, Size Limits"
 short_code: "ARAWN-T-0213"
 created_at: 2026-02-20T13:41:42.561874+00:00
-updated_at: 2026-02-21T21:56:30.117380+00:00
+updated_at: 2026-02-24T16:20:09.275400+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -42,6 +42,8 @@ Address critical security vulnerabilities identified in architecture review: Web
   - No rate limiting on WebSocket connections (REST has limits)
 - **Benefits of Fixing**: Production-ready security posture for public exposure
 - **Risk Assessment**: HIGH - these are exploitable vulnerabilities if server is exposed
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

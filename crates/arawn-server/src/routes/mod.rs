@@ -8,6 +8,7 @@ pub mod health;
 pub mod mcp;
 pub mod memory;
 pub mod openapi;
+pub mod pagination;
 pub mod sessions;
 pub mod tasks;
 pub mod workstreams;
@@ -27,7 +28,7 @@ pub use mcp::{
     remove_server_handler,
 };
 pub use memory::{
-    CreateNoteRequest, CreateNoteResponse, GetNoteResponse, ListNotesResponse,
+    CreateNoteRequest, ListNotesResponse,
     MemorySearchResponse, MemorySearchResult, Note, StoreMemoryRequest, StoreMemoryResponse,
     UpdateNoteRequest, create_note_handler, delete_memory_handler, delete_note_handler,
     get_note_handler, list_notes_handler, memory_search_handler, store_memory_handler,

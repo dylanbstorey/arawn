@@ -164,16 +164,16 @@ impl Server {
             )
             .route("/workstreams/{id}/promote", post(routes::promote_handler))
             .route(
-                "/workstreams/{ws}/files/promote",
+                "/workstreams/{id}/files/promote",
                 post(routes::promote_file_handler),
             )
             .route(
-                "/workstreams/{ws}/files/export",
+                "/workstreams/{id}/files/export",
                 post(routes::export_file_handler),
             )
-            .route("/workstreams/{ws}/clone", post(routes::clone_repo_handler))
-            .route("/workstreams/{ws}/usage", get(routes::get_usage_handler))
-            .route("/workstreams/{ws}/cleanup", post(routes::cleanup_handler))
+            .route("/workstreams/{id}/clone", post(routes::clone_repo_handler))
+            .route("/workstreams/{id}/usage", get(routes::get_usage_handler))
+            .route("/workstreams/{id}/cleanup", post(routes::cleanup_handler))
             // Config endpoint
             .route("/config", get(routes::get_config_handler))
             // Agent endpoints

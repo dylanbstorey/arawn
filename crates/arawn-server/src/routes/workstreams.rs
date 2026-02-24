@@ -14,6 +14,7 @@ use arawn_workstream::WorkstreamManager;
 
 use crate::error::ServerError;
 use crate::state::AppState;
+use super::pagination::PaginationParams;
 
 // ── Request/Response types ──────────────────────────────────────────
 
@@ -29,7 +30,7 @@ pub struct CreateWorkstreamRequest {
     pub tags: Vec<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct WorkstreamResponse {
     /// Unique workstream ID.
     pub id: String,
@@ -56,6 +57,12 @@ pub struct WorkstreamResponse {
 pub struct WorkstreamListResponse {
     /// List of workstreams.
     pub workstreams: Vec<WorkstreamResponse>,
+    /// Total number of workstreams across all pages.
+    pub total: usize,
+    /// Maximum items per page (as requested).
+    pub limit: usize,
+    /// Offset from the start of the collection.
+    pub offset: usize,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -69,7 +76,7 @@ pub struct SendMessageRequest {
     pub metadata: Option<String>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct MessageResponse {
     /// Unique message ID.
     pub id: String,
@@ -92,6 +99,12 @@ pub struct MessageResponse {
 pub struct MessageListResponse {
     /// List of messages.
     pub messages: Vec<MessageResponse>,
+    /// Total number of messages across all pages.
+    pub total: usize,
+    /// Maximum items per page (as requested).
+    pub limit: usize,
+    /// Offset from the start of the collection.
+    pub offset: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -248,7 +261,7 @@ pub struct UpdateWorkstreamRequest {
     pub tags: Option<Vec<String>>,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionResponse {
     /// Session ID.
     pub id: String,
@@ -266,6 +279,12 @@ pub struct SessionResponse {
 pub struct SessionListResponse {
     /// List of sessions.
     pub sessions: Vec<SessionResponse>,
+    /// Total number of sessions across all pages.
+    pub total: usize,
+    /// Maximum items per page (as requested).
+    pub limit: usize,
+    /// Offset from the start of the collection.
+    pub offset: usize,
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -347,6 +366,7 @@ pub async fn create_workstream_handler(
     get,
     path = "/api/v1/workstreams",
     params(
+        PaginationParams,
         ("include_archived" = Option<bool>, Query, description = "Include archived workstreams"),
     ),
     responses(
@@ -360,6 +380,7 @@ pub async fn create_workstream_handler(
 pub async fn list_workstreams_handler(
     State(state): State<AppState>,
     Query(query): Query<ListWorkstreamsQuery>,
+    Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<WorkstreamListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
@@ -368,12 +389,19 @@ pub async fn list_workstreams_handler(
     } else {
         mgr.list_workstreams()?
     };
-    let workstreams: Vec<_> = list
+    let all_workstreams: Vec<_> = list
         .iter()
         .map(|ws| to_workstream_response(ws, None))
         .collect();
 
-    Ok(Json(WorkstreamListResponse { workstreams }))
+    let (paginated, total) = pagination.paginate(&all_workstreams);
+
+    Ok(Json(WorkstreamListResponse {
+        workstreams: paginated,
+        total,
+        limit: pagination.effective_limit(),
+        offset: pagination.offset,
+    }))
 }
 
 /// GET /api/v1/workstreams/:id - Get a workstream by ID.
@@ -480,6 +508,7 @@ pub async fn update_workstream_handler(
     path = "/api/v1/workstreams/{id}/sessions",
     params(
         ("id" = String, Path, description = "Workstream ID"),
+        PaginationParams,
     ),
     responses(
         (status = 200, description = "List of sessions", body = SessionListResponse),
@@ -493,11 +522,12 @@ pub async fn update_workstream_handler(
 pub async fn list_workstream_sessions_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<SessionListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
-    let sessions = mgr.list_sessions(&id)?;
-    let sessions: Vec<_> = sessions
+    let ws_sessions = mgr.list_sessions(&id)?;
+    let all_sessions: Vec<_> = ws_sessions
         .iter()
         .map(|s| SessionResponse {
             id: s.id.clone(),
@@ -508,7 +538,14 @@ pub async fn list_workstream_sessions_handler(
         })
         .collect();
 
-    Ok(Json(SessionListResponse { sessions }))
+    let (paginated, total) = pagination.paginate(&all_sessions);
+
+    Ok(Json(SessionListResponse {
+        sessions: paginated,
+        total,
+        limit: pagination.effective_limit(),
+        offset: pagination.offset,
+    }))
 }
 
 /// POST /api/v1/workstreams/:id/messages - Send a message to a workstream.
@@ -560,6 +597,7 @@ pub async fn send_message_handler(
     params(
         ("id" = String, Path, description = "Workstream ID"),
         ("since" = Option<String>, Query, description = "Only return messages after this timestamp (RFC 3339)"),
+        PaginationParams,
     ),
     responses(
         (status = 200, description = "List of messages", body = MessageListResponse),
@@ -575,6 +613,7 @@ pub async fn list_messages_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
     Query(query): Query<MessageQuery>,
+    Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<MessageListResponse>, ServerError> {
     let mgr = get_manager(&state)?;
 
@@ -588,9 +627,16 @@ pub async fn list_messages_handler(
     };
 
     let msgs = result?;
-    let messages: Vec<_> = msgs.iter().map(to_message_response).collect();
+    let all_messages: Vec<_> = msgs.iter().map(to_message_response).collect();
 
-    Ok(Json(MessageListResponse { messages }))
+    let (paginated, total) = pagination.paginate(&all_messages);
+
+    Ok(Json(MessageListResponse {
+        messages: paginated,
+        total,
+        limit: pagination.effective_limit(),
+        offset: pagination.offset,
+    }))
 }
 
 /// POST /api/v1/workstreams/:id/promote - Promote scratch workstream.
@@ -631,16 +677,16 @@ pub async fn promote_handler(
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
 }
 
-/// POST /api/v1/workstreams/:ws/files/promote - Promote a file to production.
+/// POST /api/v1/workstreams/:id/files/promote - Promote a file to production.
 #[utoipa::path(
     post,
-    path = "/api/v1/workstreams/{ws}/files/promote",
+    path = "/api/v1/workstreams/{id}/files/promote",
     params(
-        ("ws" = String, Path, description = "Workstream ID"),
+        ("id" = String, Path, description = "Workstream ID"),
     ),
     request_body = PromoteFileRequest,
     responses(
-        (status = 200, description = "File promoted", body = PromoteFileResponse),
+        (status = 201, description = "File promoted", body = PromoteFileResponse),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Workstream or file not found"),
@@ -696,7 +742,7 @@ pub async fn promote_file_handler(
     // TODO: Send WebSocket alert if renamed
 
     Ok((
-        StatusCode::OK,
+        StatusCode::CREATED,
         Json(PromoteFileResponse {
             path: relative_path,
             bytes: result.bytes,
@@ -705,16 +751,16 @@ pub async fn promote_file_handler(
     ))
 }
 
-/// POST /api/v1/workstreams/:ws/files/export - Export a file to external path.
+/// POST /api/v1/workstreams/:id/files/export - Export a file to external path.
 #[utoipa::path(
     post,
-    path = "/api/v1/workstreams/{ws}/files/export",
+    path = "/api/v1/workstreams/{id}/files/export",
     params(
-        ("ws" = String, Path, description = "Workstream ID"),
+        ("id" = String, Path, description = "Workstream ID"),
     ),
     request_body = ExportFileRequest,
     responses(
-        (status = 200, description = "File exported", body = ExportFileResponse),
+        (status = 201, description = "File exported", body = ExportFileResponse),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Workstream or file not found"),
@@ -759,7 +805,7 @@ pub async fn export_file_handler(
         })?;
 
     Ok((
-        StatusCode::OK,
+        StatusCode::CREATED,
         Json(ExportFileResponse {
             exported_to: result.path.to_string_lossy().to_string(),
             bytes: result.bytes,
@@ -767,12 +813,12 @@ pub async fn export_file_handler(
     ))
 }
 
-/// POST /api/v1/workstreams/:ws/clone - Clone a git repository.
+/// POST /api/v1/workstreams/:id/clone - Clone a git repository.
 #[utoipa::path(
     post,
-    path = "/api/v1/workstreams/{ws}/clone",
+    path = "/api/v1/workstreams/{id}/clone",
     params(
-        ("ws" = String, Path, description = "Workstream ID"),
+        ("id" = String, Path, description = "Workstream ID"),
     ),
     request_body = CloneRepoRequest,
     responses(
@@ -843,12 +889,12 @@ pub async fn clone_repo_handler(
     ))
 }
 
-/// GET /api/v1/workstreams/:ws/usage - Get disk usage statistics.
+/// GET /api/v1/workstreams/:id/usage - Get disk usage statistics.
 #[utoipa::path(
     get,
-    path = "/api/v1/workstreams/{ws}/usage",
+    path = "/api/v1/workstreams/{id}/usage",
     params(
-        ("ws" = String, Path, description = "Workstream ID"),
+        ("id" = String, Path, description = "Workstream ID"),
     ),
     responses(
         (status = 200, description = "Usage statistics", body = UsageResponse),
@@ -902,15 +948,15 @@ pub async fn get_usage_handler(
     }))
 }
 
-/// POST /api/v1/workstreams/:ws/cleanup - Clean up work directory.
+/// POST /api/v1/workstreams/:id/cleanup - Clean up work directory.
 ///
 /// Does NOT delete from production/ (safety feature).
 /// If more than 100 files would be deleted, requires `confirm: true` in the request.
 #[utoipa::path(
     post,
-    path = "/api/v1/workstreams/{ws}/cleanup",
+    path = "/api/v1/workstreams/{id}/cleanup",
     params(
-        ("ws" = String, Path, description = "Workstream ID"),
+        ("id" = String, Path, description = "Workstream ID"),
     ),
     request_body = CleanupRequest,
     responses(

@@ -4,7 +4,7 @@ level: task
 title: "Architecture: Storage Abstraction Traits"
 short_code: "ARAWN-T-0219"
 created_at: 2026-02-20T14:47:44.864726+00:00
-updated_at: 2026-02-20T22:28:14.720070+00:00
+updated_at: 2026-02-24T16:20:09.921218+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -41,6 +41,8 @@ Add storage abstraction traits to enable swappable backends for memory, workstre
   - `SessionCache` is concrete LRU only (can't swap to Redis)
 - **Benefits of Fixing**: Swappable backends (Redis sessions, different DB engines), better testability with mock implementations
 - **Risk Assessment**: LOW - additive change, existing implementations become first impl of traits
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

@@ -19,6 +19,7 @@ use tokio::sync::RwLock;
 use crate::auth::Identity;
 use crate::error::ServerError;
 use crate::state::AppState;
+use super::pagination::PaginationParams;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -51,20 +52,11 @@ pub struct CreateNoteRequest {
     pub tags: Vec<String>,
 }
 
-/// Response with created note.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct CreateNoteResponse {
-    /// The created note.
-    pub note: Note,
-}
-
 /// Query params for listing notes.
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct ListNotesQuery {
     /// Filter by tag.
     pub tag: Option<String>,
-    /// Maximum number of notes to return.
-    pub limit: Option<usize>,
 }
 
 /// Request to update a note.
@@ -78,20 +70,17 @@ pub struct UpdateNoteRequest {
     pub tags: Option<Vec<String>>,
 }
 
-/// Response for getting a single note.
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
-pub struct GetNoteResponse {
-    /// The note.
-    pub note: Note,
-}
-
 /// Response for listing notes.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ListNotesResponse {
     /// List of notes.
     pub notes: Vec<Note>,
-    /// Total count (may be more than returned if limit applied).
+    /// Total number of notes across all pages.
     pub total: usize,
+    /// Maximum items per page (as requested).
+    pub limit: usize,
+    /// Offset from the start of the collection.
+    pub offset: usize,
 }
 
 /// Query params for memory search.
@@ -221,7 +210,7 @@ fn get_note_store() -> NoteStore {
     path = "/api/v1/notes",
     request_body = CreateNoteRequest,
     responses(
-        (status = 200, description = "Note created", body = CreateNoteResponse),
+        (status = 201, description = "Note created", body = Note),
         (status = 401, description = "Unauthorized"),
     ),
     security(("bearer_auth" = [])),
@@ -231,7 +220,7 @@ pub async fn create_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
     Json(request): Json<CreateNoteRequest>,
-) -> Result<Json<CreateNoteResponse>, ServerError> {
+) -> Result<(StatusCode, Json<Note>), ServerError> {
     let note_store = get_note_store();
 
     let note = Note {
@@ -244,7 +233,7 @@ pub async fn create_note_handler(
     let mut store = note_store.write().await;
     store.insert(note.id.clone(), note.clone());
 
-    Ok(Json(CreateNoteResponse { note }))
+    Ok((StatusCode::CREATED, Json(note)))
 }
 
 /// GET /api/v1/notes - List notes.
@@ -253,7 +242,7 @@ pub async fn create_note_handler(
     path = "/api/v1/notes",
     params(
         ("tag" = Option<String>, Query, description = "Filter by tag"),
-        ("limit" = Option<usize>, Query, description = "Maximum notes to return"),
+        PaginationParams,
     ),
     responses(
         (status = 200, description = "List of notes", body = ListNotesResponse),
@@ -266,6 +255,7 @@ pub async fn list_notes_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
     Query(query): Query<ListNotesQuery>,
+    Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<ListNotesResponse>, ServerError> {
     let note_store = get_note_store();
     let store = note_store.read().await;
@@ -280,14 +270,14 @@ pub async fn list_notes_handler(
     // Sort by created_at descending
     notes.sort_by(|a, b| b.created_at.cmp(&a.created_at));
 
-    let total = notes.len();
+    let (paginated, total) = pagination.paginate(&notes);
 
-    // Apply limit
-    if let Some(limit) = query.limit {
-        notes.truncate(limit);
-    }
-
-    Ok(Json(ListNotesResponse { notes, total }))
+    Ok(Json(ListNotesResponse {
+        notes: paginated,
+        total,
+        limit: pagination.effective_limit(),
+        offset: pagination.offset,
+    }))
 }
 
 /// GET /api/v1/notes/:id - Get a single note.
@@ -298,7 +288,7 @@ pub async fn list_notes_handler(
         ("id" = String, Path, description = "Note ID"),
     ),
     responses(
-        (status = 200, description = "Note found", body = GetNoteResponse),
+        (status = 200, description = "Note found", body = Note),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Note not found"),
     ),
@@ -309,7 +299,7 @@ pub async fn get_note_handler(
     State(_state): State<AppState>,
     Extension(_identity): Extension<Identity>,
     Path(note_id): Path<String>,
-) -> Result<Json<GetNoteResponse>, ServerError> {
+) -> Result<Json<Note>, ServerError> {
     let note_store = get_note_store();
     let store = note_store.read().await;
 
@@ -318,7 +308,7 @@ pub async fn get_note_handler(
         .cloned()
         .ok_or_else(|| ServerError::NotFound(format!("Note {} not found", note_id)))?;
 
-    Ok(Json(GetNoteResponse { note }))
+    Ok(Json(note))
 }
 
 /// PUT /api/v1/notes/:id - Update a note.
@@ -330,7 +320,7 @@ pub async fn get_note_handler(
     ),
     request_body = UpdateNoteRequest,
     responses(
-        (status = 200, description = "Note updated", body = GetNoteResponse),
+        (status = 200, description = "Note updated", body = Note),
         (status = 401, description = "Unauthorized"),
         (status = 404, description = "Note not found"),
     ),
@@ -342,7 +332,7 @@ pub async fn update_note_handler(
     Extension(_identity): Extension<Identity>,
     Path(note_id): Path<String>,
     Json(request): Json<UpdateNoteRequest>,
-) -> Result<Json<GetNoteResponse>, ServerError> {
+) -> Result<Json<Note>, ServerError> {
     let note_store = get_note_store();
     let mut store = note_store.write().await;
 
@@ -361,7 +351,7 @@ pub async fn update_note_handler(
     }
 
     let updated_note = note.clone();
-    Ok(Json(GetNoteResponse { note: updated_note }))
+    Ok(Json(updated_note))
 }
 
 /// DELETE /api/v1/notes/:id - Delete a note.
@@ -652,14 +642,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        let result: CreateNoteResponse = serde_json::from_slice(&body).unwrap();
-        assert_eq!(result.note.content, "Test note");
-        assert_eq!(result.note.tags, vec!["test", "example"]);
+        let result: Note = serde_json::from_slice(&body).unwrap();
+        assert_eq!(result.content, "Test note");
+        assert_eq!(result.tags, vec!["test", "example"]);
     }
 
     #[tokio::test]

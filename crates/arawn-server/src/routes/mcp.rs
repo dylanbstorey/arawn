@@ -151,7 +151,7 @@ pub struct RemoveServerResponse {
     path = "/api/v1/mcp/servers",
     request_body = AddServerRequest,
     responses(
-        (status = 200, description = "Server added", body = AddServerResponse),
+        (status = 201, description = "Server added", body = AddServerResponse),
         (status = 400, description = "Invalid request"),
         (status = 401, description = "Unauthorized"),
         (status = 500, description = "MCP not enabled"),
@@ -163,7 +163,7 @@ pub async fn add_server_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
     Json(request): Json<AddServerRequest>,
-) -> Result<Json<AddServerResponse>, ServerError> {
+) -> Result<(StatusCode, Json<AddServerResponse>), ServerError> {
     let mcp_manager = state.mcp_manager().ok_or_else(|| {
         ServerError::Internal("MCP not enabled on this server".to_string())
     })?;
@@ -245,12 +245,15 @@ pub async fn add_server_handler(
         (false, None, None)
     };
 
-    Ok(Json(AddServerResponse {
-        name: request.name,
-        connected,
-        tool_count,
-        error,
-    }))
+    Ok((
+        StatusCode::CREATED,
+        Json(AddServerResponse {
+            name: request.name,
+            connected,
+            tool_count,
+            error,
+        }),
+    ))
 }
 
 /// DELETE /api/v1/mcp/servers/:name - Remove an MCP server.
@@ -673,7 +676,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
@@ -902,7 +905,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED);
 
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await

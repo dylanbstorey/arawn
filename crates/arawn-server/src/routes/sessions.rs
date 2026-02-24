@@ -2,7 +2,7 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,7 @@ use arawn_agent::{Session, SessionId};
 use crate::auth::Identity;
 use crate::error::ServerError;
 use crate::state::AppState;
+use super::pagination::PaginationParams;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -132,8 +133,12 @@ pub struct TurnInfo {
 pub struct ListSessionsResponse {
     /// List of sessions.
     pub sessions: Vec<SessionSummary>,
-    /// Total count.
+    /// Total number of sessions across all pages.
     pub total: usize,
+    /// Maximum items per page (as requested).
+    pub limit: usize,
+    /// Offset from the start of the collection.
+    pub offset: usize,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,6 +216,7 @@ pub async fn create_session_handler(
 #[utoipa::path(
     get,
     path = "/api/v1/sessions",
+    params(PaginationParams),
     responses(
         (status = 200, description = "List of sessions", body = ListSessionsResponse),
         (status = 401, description = "Unauthorized"),
@@ -221,6 +227,7 @@ pub async fn create_session_handler(
 pub async fn list_sessions_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
+    Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<ListSessionsResponse>, ServerError> {
     let mut summaries: Vec<SessionSummary> = Vec::new();
     let mut seen_ids = std::collections::HashSet::new();
@@ -274,11 +281,13 @@ pub async fn list_sessions_handler(
     // Sort by updated_at descending (most recent first)
     summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
 
-    let total = summaries.len();
+    let (paginated, total) = pagination.paginate(&summaries);
 
     Ok(Json(ListSessionsResponse {
-        sessions: summaries,
+        sessions: paginated,
         total,
+        limit: pagination.effective_limit(),
+        offset: pagination.offset,
     }))
 }
 
@@ -779,6 +788,8 @@ mod tests {
         let result: ListSessionsResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(result.total, 0);
         assert!(result.sessions.is_empty());
+        assert_eq!(result.offset, 0);
+        assert!(result.limit > 0);
     }
 
     #[tokio::test]

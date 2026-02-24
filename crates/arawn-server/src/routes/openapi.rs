@@ -119,9 +119,7 @@ use super::{agents, chat, commands, config, health, mcp, memory, sessions, tasks
             // Memory
             memory::Note,
             memory::CreateNoteRequest,
-            memory::CreateNoteResponse,
             memory::UpdateNoteRequest,
-            memory::GetNoteResponse,
             memory::ListNotesResponse,
             memory::MemorySearchResult,
             memory::MemorySearchResponse,
