@@ -3,6 +3,26 @@
 //! State is separated into two layers:
 //! - `SharedServices`: Immutable services created at startup
 //! - `RuntimeState`: Mutable state that changes during operation
+//!
+//! # Lock Ordering
+//!
+//! To prevent deadlocks, locks in `RuntimeState` must always be acquired in this
+//! order. Never hold a higher-numbered lock while acquiring a lower-numbered one.
+//!
+//! 1. `pending_reconnects` — ownership recovery after disconnect
+//! 2. `session_owners` — session-to-connection ownership map
+//! 3. `session_cache.inner` — LRU cache of active sessions
+//! 4. `mcp_manager` — MCP server registry (in `SharedServices`)
+//! 5. `tasks` — background task tracking
+//!
+//! The `ws_connection_tracker` lock is independent and may be acquired at any
+//! point since it never nests with the above locks.
+//!
+//! **Guidelines:**
+//! - Release locks before spawning tasks that acquire locks.
+//! - Prefer `read()` over `write()` when mutation is not needed.
+//! - Keep critical sections short — clone data out, then drop the guard.
+//! - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -409,25 +429,38 @@ impl SharedServices {
 ///
 /// This state is modified by handlers during normal server operation.
 /// Each field uses appropriate synchronization primitives.
+///
+/// # Lock Ordering
+///
+/// When acquiring multiple locks, always follow:
+/// `pending_reconnects` < `session_owners` < `session_cache` < `tasks`
+///
+/// See the module-level documentation for the full ordering including
+/// `SharedServices` locks.
 #[derive(Clone)]
 pub struct RuntimeState {
     /// Session cache - loads from workstream on cache miss, persists back on save.
+    /// Lock order: 3 (after `session_owners`, before `tasks`).
     pub session_cache: SessionCache,
 
     /// Task store for tracking long-running operations.
+    /// Lock order: 5 (last — acquire after all other locks).
     pub tasks: TaskStore,
 
     /// Session ownership tracking for WebSocket connections.
     /// Maps session IDs to the connection ID that owns them (first subscriber).
     /// Non-owners can subscribe as readers but cannot send Chat messages.
+    /// Lock order: 2 (after `pending_reconnects`, before `session_cache`).
     pub session_owners: SessionOwners,
 
     /// Pending reconnects for session ownership recovery after disconnect.
     /// When a connection disconnects, ownership is held for a grace period
     /// allowing the client to reconnect with a token to reclaim ownership.
+    /// Lock order: 1 (first — acquire before all other locks).
     pub pending_reconnects: PendingReconnects,
 
     /// WebSocket connection rate limiter per IP address.
+    /// Independent lock — does not nest with any other locks.
     pub ws_connection_tracker: WsConnectionTracker,
 }
 

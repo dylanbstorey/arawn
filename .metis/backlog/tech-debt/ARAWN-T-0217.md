@@ -4,15 +4,15 @@ level: task
 title: "Documentation: Lock Ordering, API Versioning, OpenAPI Improvements"
 short_code: "ARAWN-T-0217"
 created_at: 2026-02-20T14:06:03.086992+00:00
-updated_at: 2026-02-20T14:06:03.086992+00:00
+updated_at: 2026-02-24T22:05:55.732034+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -46,12 +46,16 @@ Add critical documentation: lock ordering invariants to prevent deadlocks, API v
 
 ## Acceptance Criteria
 
-- [ ] Lock ordering documented in code comments at `arawn-server/src/state.rs`
-- [ ] Lock ordering documented in `docs/architecture/concurrency.md`
-- [ ] API versioning strategy documented in `docs/api/versioning.md`
-- [ ] OpenAPI descriptions improved for all conditional fields
-- [ ] Deprecation policy documented
-- [ ] API version decoupled from package version in `/config` response
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] Lock ordering documented in code comments at `arawn-server/src/state.rs`
+- [x] Lock ordering documented in `docs/src/architecture/concurrency.md`
+- [x] API versioning strategy documented in `docs/src/reference/versioning.md`
+- [x] OpenAPI descriptions improved for all conditional fields
+- [x] Deprecation policy documented
+- [x] API version decoupled from package version in `/config` response
 
 ## Implementation Notes
 
@@ -194,4 +198,61 @@ pub role: Option<String>,
 
 ## Status Updates
 
-*To be added during implementation*
+### Session — 2026-02-24
+
+**All 6 acceptance criteria completed.**
+
+#### 1. Lock ordering in code comments (`state.rs`) ✅
+- Added module-level doc comment with full lock ordering table (1–5)
+- Added `RuntimeState` struct-level doc with ordering summary
+- Added lock order numbers to each field's doc comment
+- Included `ws_connection_tracker` as independent (no ordering constraint)
+
+#### 2. Lock ordering in `docs/src/architecture/concurrency.md` ✅
+- Created comprehensive concurrency guide with:
+  - Lock inventory table
+  - Ordering rule with correct/wrong examples
+  - Patterns: release before spawn, clone and release, prefer read locks, drop guards explicitly
+  - Guidelines for adding new locks
+  - Immutable services section (no lock needed)
+- Added to `docs/src/SUMMARY.md`
+
+#### 3. API versioning strategy in `docs/src/reference/versioning.md` ✅
+- Documented version format (`/api/v{major}/`)
+- Breaking vs non-breaking change definitions
+- Deprecation policy (6-month notice, `Deprecation`/`Sunset`/`Link` headers)
+- Current API version: 1.0
+- Added to `docs/src/SUMMARY.md`
+
+#### 4. OpenAPI descriptions improved ✅
+- **MCP `AddServerRequest`**: Added transport-type docs (stdio vs http), field-level guidance on which transport uses each field, `#[schema(example)]` annotations
+- **MCP handlers**: Improved all 6 handler response descriptions with specific error conditions
+- **`SendMessageRequest.role`**: Documented valid values (user, assistant, system, agent_push)
+- **`StoreMemoryRequest`**: Documented content_type valid values, confidence semantics
+- **`MemorySearchResponse`**: Clarified `degraded` field behavior and `count` semantics
+- **Memory search handler**: Documented search behavior (vector + notes fallback, session_id filter scope)
+
+#### 5. Deprecation policy documented ✅
+- Included in `docs/src/reference/versioning.md` with HTTP header examples
+
+#### 6. API version decoupled from package version ✅
+- Added `api_version: String` field to `ConfigResponse` in `arawn-server`
+- Set to `"1.0"` (independent of `CARGO_PKG_VERSION`)
+- Updated client-side `ConfigResponse` with `api_version: Option<String>` for backward compatibility
+- Updated `CHANGELOG.md`
+
+#### Files Modified
+- `crates/arawn-server/src/state.rs` — lock ordering docs
+- `crates/arawn-server/src/routes/config.rs` — api_version field
+- `crates/arawn-server/src/routes/mcp.rs` — OpenAPI descriptions
+- `crates/arawn-server/src/routes/workstreams.rs` — role field docs
+- `crates/arawn-server/src/routes/memory.rs` — content_type, search docs
+- `crates/arawn-client/src/types.rs` — api_version field
+- `docs/src/architecture/concurrency.md` — new file
+- `docs/src/reference/versioning.md` — new file
+- `docs/src/SUMMARY.md` — added new pages
+- `CHANGELOG.md` — documented additions
+
+#### Tests
+- All unit tests pass (0 failures)
+- No code behavior changes, only documentation and one additive field

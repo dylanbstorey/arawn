@@ -39,8 +39,13 @@ pub struct ConfigLimits {
 /// Server configuration response.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct ConfigResponse {
-    /// Server version.
+    /// Server package version (from `Cargo.toml`).
     pub version: String,
+    /// API contract version, independent of package version.
+    ///
+    /// Follows semantic versioning for the REST API surface.
+    /// See `docs/src/reference/versioning.md` for the versioning policy.
+    pub api_version: String,
     /// Feature flags.
     pub features: ConfigFeatures,
     /// Resource limits.
@@ -92,6 +97,7 @@ pub async fn get_config_handler(
 
     Ok(Json(ConfigResponse {
         version: env!("CARGO_PKG_VERSION").to_string(),
+        api_version: "1.0".to_string(),
         features,
         limits,
         bind_address: config.bind_address.to_string(),

@@ -67,11 +67,18 @@ pub struct WorkstreamListResponse {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SendMessageRequest {
-    /// Message role (user, assistant, system, agent_push). Defaults to "user".
+    /// Message role. Defaults to `"user"` if omitted.
+    ///
+    /// Valid values:
+    /// - `"user"` — a human message
+    /// - `"assistant"` — an agent response
+    /// - `"system"` — a system-level instruction
+    /// - `"agent_push"` — an agent-initiated notification (not in response to a user message)
+    #[schema(example = "user")]
     pub role: Option<String>,
-    /// Message content.
+    /// Message content (plain text or markdown).
     pub content: String,
-    /// Optional metadata JSON.
+    /// Optional metadata as a JSON string. Stored verbatim and returned on read.
     #[serde(default)]
     pub metadata: Option<String>,
 }

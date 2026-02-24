@@ -27,3 +27,7 @@
 
 ### Added
 - Shared pagination module (`PaginationParams`, `PaginatedResponse<T>`) for consistent pagination across all list endpoints.
+- `api_version` field in `GET /api/v1/config` response — API contract version independent of package version.
+- Lock ordering documentation in `arawn-server/src/state.rs` and `docs/src/architecture/concurrency.md`.
+- API versioning and deprecation policy in `docs/src/reference/versioning.md`.
+- Improved OpenAPI descriptions for MCP transport-dependent fields, message roles, memory content types, and error responses.

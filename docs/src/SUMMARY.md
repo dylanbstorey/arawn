@@ -16,6 +16,7 @@
 - [Components](architecture/components.md)
 - [Crate Structure](architecture/crate-structure.md)
 - [Data Flow](architecture/data-flow.md)
+- [Concurrency](architecture/concurrency.md)
 
 # Core Systems
 
@@ -53,3 +54,4 @@
 - [Agent Behavior](reference/behavior.md)
 - [Identity Guidelines](reference/identity.md)
 - [Memory Guidelines](reference/memory-guidelines.md)
+- [API Versioning](reference/versioning.md)

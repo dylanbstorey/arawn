@@ -25,46 +25,71 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request to add a new MCP server.
+///
+/// ## Transport Types
+///
+/// ### `stdio` (default)
+/// Launches a local process and communicates over stdin/stdout.
+/// - **Required:** `command`
+/// - **Optional:** `args`, `env`
+/// - **Ignored:** `url`, `headers`, `timeout_secs`, `retries`
+///
+/// ### `http`
+/// Connects to a remote MCP server over HTTP.
+/// - **Required:** `url`
+/// - **Optional:** `headers`, `timeout_secs`, `retries`
+/// - **Ignored:** `command`, `args`, `env`
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct AddServerRequest {
-    /// Unique name for this server.
+    /// Unique name for this server. Used as an identifier in all subsequent
+    /// operations (list, connect, disconnect, remove).
     pub name: String,
 
-    /// Transport type: "stdio" or "http".
+    /// Transport type: `"stdio"` (default) or `"http"`.
+    ///
+    /// Determines which other fields are required. See the struct-level
+    /// documentation for details.
     #[serde(default)]
+    #[schema(example = "stdio")]
     pub transport: String,
 
-    /// Command to execute (for stdio transport).
+    /// Command to execute. **Required for `stdio` transport**, ignored for `http`.
     #[serde(default)]
+    #[schema(example = "/usr/local/bin/mcp-server")]
     pub command: String,
 
-    /// URL for the server (for http transport).
+    /// URL for the server. **Required for `http` transport**, ignored for `stdio`.
     #[serde(default)]
+    #[schema(example = "http://localhost:8080/mcp")]
     pub url: Option<String>,
 
-    /// Arguments to pass to the command (for stdio transport).
+    /// Arguments to pass to the command. Only used with `stdio` transport.
     #[serde(default)]
     pub args: Vec<String>,
 
-    /// Environment variables as key-value pairs (for stdio transport).
+    /// Environment variables as `[key, value]` pairs. Only used with `stdio` transport.
     #[serde(default)]
     #[schema(value_type = Vec<Vec<String>>)]
     pub env: Vec<(String, String)>,
 
-    /// HTTP headers as key-value pairs (for http transport).
+    /// HTTP headers as `[key, value]` pairs. Only used with `http` transport.
     #[serde(default)]
     #[schema(value_type = Vec<Vec<String>>)]
     pub headers: Vec<(String, String)>,
 
-    /// Request timeout in seconds (for http transport).
+    /// Request timeout in seconds. Only used with `http` transport. Defaults to 30s.
     #[serde(default)]
     pub timeout_secs: Option<u64>,
 
-    /// Number of retries (for http transport).
+    /// Number of retries on failure. Only used with `http` transport. Defaults to 3.
     #[serde(default)]
     pub retries: Option<u32>,
 
-    /// Whether to connect immediately after adding.
+    /// Whether to connect immediately after adding. Defaults to `true`.
+    ///
+    /// When `true`, the server attempts to connect and discover tools before
+    /// returning. When `false`, the server is registered but not connected —
+    /// use the `/connect` endpoint to connect later.
     #[serde(default = "default_connect")]
     pub connect: bool,
 }
@@ -151,10 +176,10 @@ pub struct RemoveServerResponse {
     path = "/api/v1/mcp/servers",
     request_body = AddServerRequest,
     responses(
-        (status = 201, description = "Server added", body = AddServerResponse),
-        (status = 400, description = "Invalid request"),
-        (status = 401, description = "Unauthorized"),
-        (status = 500, description = "MCP not enabled"),
+        (status = 201, description = "Server added successfully. If `connect` was true, includes tool count.", body = AddServerResponse),
+        (status = 400, description = "Invalid request: missing server name, missing command (stdio), missing URL (http), or server name already exists"),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 500, description = "MCP feature not enabled in server configuration"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"
@@ -257,17 +282,19 @@ pub async fn add_server_handler(
 }
 
 /// DELETE /api/v1/mcp/servers/:name - Remove an MCP server.
+///
+/// Disconnects the server (if connected) and removes it from the registry.
 #[utoipa::path(
     delete,
     path = "/api/v1/mcp/servers/{name}",
     params(
-        ("name" = String, Path, description = "Server name"),
+        ("name" = String, Path, description = "Server name (as provided during registration)"),
     ),
     responses(
-        (status = 200, description = "Server removed", body = RemoveServerResponse),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Server not found"),
-        (status = 500, description = "MCP not enabled"),
+        (status = 200, description = "Server disconnected and removed", body = RemoveServerResponse),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 404, description = "No server registered with this name"),
+        (status = 500, description = "MCP feature not enabled in server configuration"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"
@@ -300,13 +327,15 @@ pub async fn remove_server_handler(
 }
 
 /// GET /api/v1/mcp/servers - List all MCP servers.
+///
+/// Returns all registered servers with their connection status and tool names.
 #[utoipa::path(
     get,
     path = "/api/v1/mcp/servers",
     responses(
-        (status = 200, description = "List of servers", body = ListServersResponse),
-        (status = 401, description = "Unauthorized"),
-        (status = 500, description = "MCP not enabled"),
+        (status = 200, description = "List of registered servers with connection status and tool counts", body = ListServersResponse),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 500, description = "MCP feature not enabled in server configuration"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"
@@ -357,18 +386,21 @@ pub async fn list_servers_handler(
 }
 
 /// GET /api/v1/mcp/servers/:name/tools - List tools for a specific server.
+///
+/// Returns the tools available on a connected server, including their
+/// names, descriptions, and JSON Schema input definitions.
 #[utoipa::path(
     get,
     path = "/api/v1/mcp/servers/{name}/tools",
     params(
-        ("name" = String, Path, description = "Server name"),
+        ("name" = String, Path, description = "Server name (as provided during registration)"),
     ),
     responses(
-        (status = 200, description = "List of tools", body = ListToolsResponse),
-        (status = 400, description = "Server not connected"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Server not found"),
-        (status = 500, description = "MCP not enabled"),
+        (status = 200, description = "List of tools with names, descriptions, and input schemas", body = ListToolsResponse),
+        (status = 400, description = "Server exists but is not connected — call `/connect` first"),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 404, description = "No server registered with this name"),
+        (status = 500, description = "MCP feature not enabled in server configuration"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"
@@ -425,17 +457,20 @@ pub async fn list_server_tools_handler(
 }
 
 /// POST /api/v1/mcp/servers/:name/connect - Connect to a specific server.
+///
+/// Establishes the transport connection and discovers available tools.
+/// Returns 200 immediately if the server is already connected.
 #[utoipa::path(
     post,
     path = "/api/v1/mcp/servers/{name}/connect",
     params(
-        ("name" = String, Path, description = "Server name"),
+        ("name" = String, Path, description = "Server name (as provided during registration)"),
     ),
     responses(
-        (status = 200, description = "Server connected"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Server not found"),
-        (status = 500, description = "MCP not enabled or connection failed"),
+        (status = 200, description = "Server connected (or was already connected)"),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 404, description = "No server registered with this name"),
+        (status = 500, description = "MCP feature not enabled, or transport connection failed"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"
@@ -470,17 +505,20 @@ pub async fn connect_server_handler(
 }
 
 /// POST /api/v1/mcp/servers/:name/disconnect - Disconnect from a specific server.
+///
+/// Shuts down the transport connection. The server remains registered and
+/// can be reconnected later via `/connect`.
 #[utoipa::path(
     post,
     path = "/api/v1/mcp/servers/{name}/disconnect",
     params(
-        ("name" = String, Path, description = "Server name"),
+        ("name" = String, Path, description = "Server name (as provided during registration)"),
     ),
     responses(
-        (status = 200, description = "Server disconnected"),
-        (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Server not found"),
-        (status = 500, description = "MCP not enabled"),
+        (status = 200, description = "Server disconnected (or was already disconnected)"),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
+        (status = 404, description = "No server registered with this name"),
+        (status = 500, description = "MCP feature not enabled in server configuration"),
     ),
     security(("bearer_auth" = [])),
     tag = "mcp"

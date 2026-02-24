@@ -124,33 +124,45 @@ pub struct MemorySearchResult {
 /// Response for memory search.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct MemorySearchResponse {
-    /// Search results.
+    /// Search results ordered by relevance (highest score first).
     pub results: Vec<MemorySearchResult>,
-    /// Query that was executed.
+    /// The query that was executed.
     pub query: String,
-    /// Total results returned.
+    /// Number of results returned (equal to `results.len()`).
     pub count: usize,
-    /// Whether the search fell back to text-only mode (e.g., embedding/vector search failed).
+    /// When `true`, the search fell back to text-only matching because the
+    /// vector/embedding search failed. Results may be less relevant.
+    /// Only present when `true`.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub degraded: bool,
 }
 
 /// Request to store a memory directly.
+///
+/// Requires the memory/indexing feature to be enabled on the server
+/// (returns 503 otherwise). Memories are persisted in the vector store
+/// and become searchable via `GET /api/v1/memory/search`.
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct StoreMemoryRequest {
-    /// The memory content.
+    /// The memory content (plain text).
     pub content: String,
-    /// Content type (fact, summary, insight, etc.).
+    /// Content type. Defaults to `"fact"`.
+    ///
+    /// Valid values: `"fact"`, `"summary"`, `"insight"`, `"preference"`,
+    /// `"procedure"`, `"entity"`.
     #[serde(default = "default_content_type")]
+    #[schema(example = "fact")]
     pub content_type: String,
     /// Optional session ID to associate with this memory.
+    /// When set, the memory can be filtered by session in search results.
     #[serde(default)]
     pub session_id: Option<String>,
-    /// Optional metadata.
+    /// Optional metadata as key-value pairs. Stored alongside the memory.
     #[serde(default)]
     #[schema(value_type = Object)]
     pub metadata: HashMap<String, serde_json::Value>,
-    /// Confidence score (0.0 - 1.0).
+    /// Confidence score (0.0 to 1.0). Defaults to 0.8.
+    /// Higher scores rank higher in search results.
     #[serde(default = "default_confidence")]
     pub confidence: f32,
 }
@@ -388,17 +400,22 @@ pub async fn delete_note_handler(
 ///
 /// Searches the MemoryStore (text match on indexed facts, summaries, etc.)
 /// and falls back to in-memory notes if no indexer is configured.
+/// Results are sorted by relevance score (highest first).
+///
+/// When the indexer is available, searches the vector store first, then
+/// supplements with in-memory note matches up to the limit. If the vector
+/// search fails, sets `degraded: true` and returns note-only results.
 #[utoipa::path(
     get,
     path = "/api/v1/memory/search",
     params(
-        ("q" = String, Query, description = "Search query text"),
-        ("limit" = Option<usize>, Query, description = "Maximum results (default: 10)"),
-        ("session_id" = Option<String>, Query, description = "Filter by session ID"),
+        ("q" = String, Query, description = "Search query text (case-insensitive for note matching)"),
+        ("limit" = Option<usize>, Query, description = "Maximum results to return (default: 10)"),
+        ("session_id" = Option<String>, Query, description = "Filter results to a specific session. Only applies to MemoryStore results, not notes."),
     ),
     responses(
-        (status = 200, description = "Search results", body = MemorySearchResponse),
-        (status = 401, description = "Unauthorized"),
+        (status = 200, description = "Search results ordered by relevance. Check `degraded` to detect fallback mode.", body = MemorySearchResponse),
+        (status = 401, description = "Unauthorized — missing or invalid bearer token"),
     ),
     security(("bearer_auth" = [])),
     tag = "memory"

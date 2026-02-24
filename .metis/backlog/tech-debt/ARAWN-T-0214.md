@@ -4,7 +4,7 @@ level: task
 title: "API Consistency: Pagination, Response Wrapping, Status Codes"
 short_code: "ARAWN-T-0214"
 created_at: 2026-02-20T13:41:43.517518+00:00
-updated_at: 2026-02-24T16:21:55.872748+00:00
+updated_at: 2026-02-24T22:04:19.218883+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -43,6 +43,8 @@ Standardize API design across all endpoints: implement pagination, fix response 
   - Inconsistent path variable naming (`{id}` vs `{ws}` for same resource)
 - **Benefits of Fixing**: Predictable, consistent API for clients; better scalability
 - **Risk Assessment**: MEDIUM - breaking change for existing clients (need versioning strategy)
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

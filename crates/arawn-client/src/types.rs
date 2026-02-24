@@ -399,8 +399,11 @@ pub enum StreamEvent {
 /// Server configuration response.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigResponse {
-    /// Server version.
+    /// Server package version.
     pub version: String,
+    /// API contract version, independent of package version.
+    #[serde(default)]
+    pub api_version: Option<String>,
     /// Feature flags.
     pub features: ConfigFeatures,
     /// Resource limits.
