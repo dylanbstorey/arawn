@@ -4,7 +4,7 @@ level: task
 title: "Documentation: Lock Ordering, API Versioning, OpenAPI Improvements"
 short_code: "ARAWN-T-0217"
 created_at: 2026-02-20T14:06:03.086992+00:00
-updated_at: 2026-02-24T22:05:55.732034+00:00
+updated_at: 2026-02-25T00:52:12.687576+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -43,6 +43,8 @@ Add critical documentation: lock ordering invariants to prevent deadlocks, API v
   - No deprecation headers or policy
 - **Benefits of Fixing**: Maintainability, clear contracts for clients, safer concurrency
 - **Risk Assessment**: LOW - documentation improvements, no code changes required initially
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

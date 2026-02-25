@@ -4,15 +4,15 @@ level: task
 title: "Easy sandbox dependency installation for distribution"
 short_code: "ARAWN-T-0193"
 created_at: 2026-02-18T17:25:48.549342+00:00
-updated_at: 2026-02-18T17:25:48.549342+00:00
+updated_at: 2026-02-25T01:24:10.858042+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#feature"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -42,6 +42,10 @@ Arawn requires sandbox for shell execution (Option C - no shell without sandbox)
 - **User Value**: Zero-friction installation - `cargo install arawn` or downloading a binary just works
 - **Business Value**: Reduces support burden, increases adoption
 - **Effort Estimate**: M (research + implementation across multiple packaging formats)
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -104,28 +108,85 @@ Provide `curl | sh` style installer that:
 **Pros**: Single command installation
 **Cons**: Security concerns with curl|sh, requires sudo
 
-## Recommended Approach
+## Chosen Approach: `curl | sh` Install Script (Option E)
 
-Likely a combination:
-1. **Primary**: Native packages (.deb, .rpm, AUR) for major distros
-2. **Fallback**: Install script for other Linux distros
-3. **Container**: Official image for server deployments
-4. **Nix**: Flake for Nix users
+### Deliverables
 
-## Implementation Notes
+#### 1. `scripts/install.sh` — Main install script
 
-### Dependencies
-- Requires ARAWN-I-0028 (sandbox integration) to be complete first
-- Requires decision on release/distribution strategy
+Bash script invokable as `curl -fsSL <url> | sh`:
 
-### Considerations
-- bubblewrap is LGPL - check licensing implications for bundling
-- socat is GPL - same licensing review needed
-- Consider using `sandbox-runtime` crate which handles some of this
+**Flags:**
+- `--help` — usage info
+- `--skip-deps` — skip sandbox dependency installation
+- `--install-dir DIR` — target directory (default: `~/.local/bin`)
+- `--dry-run` — show what would happen
+- `--version VER` — specific version (default: latest)
+- `--from-source` — force cargo build, skip binary download
 
-## Related
-- ARAWN-I-0028: Workstream and Session Path Management (sandbox integration)
+**Flow:**
+1. Detect OS (`linux`/`darwin`) and arch (`x86_64`/`aarch64`)
+2. Detect package manager (`apt-get`/`dnf`/`pacman`/`apk`/`zypper`)
+3. Install missing sandbox deps on Linux (bubblewrap, socat) — skip already-installed
+4. Try downloading pre-built binary from GitHub Releases (`arawn-{os}-{arch}.tar.gz`)
+5. Fall back to `cargo install --git <repo> arawn --root <dir>` if no binary available
+6. Verify installation (`arawn --version`, `bwrap --version`, `socat -V`)
+7. Print post-install instructions (PATH setup if needed)
+
+**Design choices:**
+- `~/.local/bin` default (no sudo for binary install)
+- Colored output with TTY detection
+- `set -euo pipefail`, trap-based temp dir cleanup
+- Bash 3.2 compatible (macOS ships old bash — no associative arrays)
+- Idempotent: safe to re-run
+
+#### 2. Update `crates/arawn-sandbox/src/platform.rs` — Better error messages
+
+Update `check_linux()` install hint (lines 154–163) to:
+- Add openSUSE/zypper instructions
+- Reference the install script as an alternative
+
+#### 3. `.angreal/task_install.py` — Developer convenience
+
+Angreal task `install deps` for developers who have the repo cloned. Follows the pattern in `task_build.py`. Detects package manager, installs missing bubblewrap/socat. No Flox wrapping (system packages are outside Flox).
+
+### Files
+
+| File | Action |
+|------|--------|
+| `scripts/install.sh` | Create |
+| `crates/arawn-sandbox/src/platform.rs` | Edit lines 154–163 |
+| `.angreal/task_install.py` | Create |
+
+### Verification
+
+1. `shellcheck scripts/install.sh` — no warnings
+2. `./scripts/install.sh --dry-run` on macOS — shows skip deps, attempts binary download
+3. `./scripts/install.sh --help` — prints usage
+4. `cargo test -p arawn-sandbox` — existing tests pass with updated hint text
+5. `angreal install deps --dry-run` — shows what would be installed
 
 ## Status Updates
 
-*To be added during implementation*
+### 2026-02-24 — Implementation complete
+
+**2 deliverables implemented (angreal task dropped per user decision):**
+
+1. **`scripts/install.sh`** — Created. Bash 3.2 compatible install script with:
+   - `--help`, `--skip-deps`, `--install-dir`, `--dry-run`, `--version` flags
+   - Platform detection (linux/darwin, x86_64/aarch64)
+   - Package manager detection (apt-get/dnf/pacman/apk/zypper)
+   - Downloads from GitHub Releases only (latest or tagged version)
+   - TTY-aware colored output, trap-based cleanup
+   - Repo namespace: `colliery-io/arawn`
+
+2. **`crates/arawn-sandbox/src/platform.rs`** — Updated `check_linux()` install hint:
+   - Added openSUSE/zypper instructions
+   - Added install script URL reference
+   - Updated repo namespace to `colliery-io/arawn`
+
+**Verification results:**
+- `./scripts/install.sh --help` — prints usage correctly
+- `./scripts/install.sh --dry-run --version v0.1.0` — shows correct download URL
+- `./scripts/install.sh --dry-run` (latest) — errors clearly when no releases exist yet
+- `angreal test unit` — all tests pass (incl. 14 arawn-sandbox tests)

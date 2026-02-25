@@ -158,7 +158,11 @@ impl SandboxStatus {
                    Ubuntu/Debian: sudo apt-get install {deps}\n\
                    Fedora:        sudo dnf install {deps}\n\
                    Arch:          sudo pacman -S {deps}\n\
-                   Alpine:        sudo apk add {deps}",
+                   Alpine:        sudo apk add {deps}\n\
+                   openSUSE:      sudo zypper install {deps}\n\
+                 \n\
+                 Or run the install script:\n\
+                   curl -fsSL https://raw.githubusercontent.com/colliery-io/arawn/main/scripts/install.sh | sh",
                 deps = missing.join(" ")
             );
 
