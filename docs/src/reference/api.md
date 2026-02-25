@@ -10,13 +10,24 @@ http://localhost:8080
 
 ## Authentication
 
-When authentication is enabled:
+When authentication is enabled, include a bearer token:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/v1/chat
 ```
 
-## Endpoints
+All `/api/v1/*` endpoints require authentication. Health and OpenAPI endpoints do not.
+
+## Pagination
+
+All list endpoints support pagination via query parameters:
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | integer | 50 | Maximum items to return |
+| `offset` | integer | 0 | Number of items to skip |
+
+## Health
 
 ### Health Check
 
@@ -32,9 +43,24 @@ GET /health
 }
 ```
 
-### Chat
+### Detailed Health
 
-#### Synchronous Chat
+```
+GET /health/detailed
+```
+
+Returns extended status including component health.
+
+## OpenAPI Documentation
+
+```
+GET /swagger-ui    # Interactive Swagger UI
+GET /swagger.json  # OpenAPI spec (JSON)
+```
+
+## Chat
+
+### Synchronous Chat
 
 ```
 POST /api/v1/chat
@@ -62,7 +88,7 @@ POST /api/v1/chat
 }
 ```
 
-#### Streaming Chat
+### Streaming Chat
 
 ```
 POST /api/v1/chat/stream
@@ -89,46 +115,33 @@ event: done
 data: {"usage": {"input_tokens": 42, "output_tokens": 18}}
 ```
 
-### Sessions
+## Sessions
 
-#### List Sessions
+### Create Session
 
 ```
-GET /api/v1/sessions
+POST /api/v1/sessions
 ```
 
-**Response:**
-```json
-{
-  "sessions": [
-    {
-      "id": "abc123",
-      "created_at": "2024-01-15T10:00:00Z",
-      "message_count": 5
-    }
-  ]
-}
+### List Sessions
+
+```
+GET /api/v1/sessions?limit=50&offset=0
 ```
 
-#### Get Session
+### Get Session
 
 ```
 GET /api/v1/sessions/{id}
 ```
 
-**Response:**
-```json
-{
-  "id": "abc123",
-  "created_at": "2024-01-15T10:00:00Z",
-  "messages": [
-    {"role": "user", "content": "Hello"},
-    {"role": "assistant", "content": "Hi there!"}
-  ]
-}
+### Update Session
+
+```
+PATCH /api/v1/sessions/{id}
 ```
 
-#### Close Session
+### Delete Session
 
 ```
 DELETE /api/v1/sessions/{id}
@@ -138,9 +151,21 @@ DELETE /api/v1/sessions/{id}
 
 Triggers background indexing.
 
-### Memory
+### Get Session Messages
 
-#### Search Memory
+```
+GET /api/v1/sessions/{id}/messages
+```
+
+## Memory
+
+### Store Memory
+
+```
+POST /api/v1/memory
+```
+
+### Search Memory
 
 ```
 GET /api/v1/memory/search?q=rust+project&limit=5
@@ -161,45 +186,15 @@ GET /api/v1/memory/search?q=rust+project&limit=5
 }
 ```
 
-#### Get Memory Stats
+### Delete Memory Entry
 
 ```
-GET /api/v1/memory/stats
+DELETE /api/v1/memory/{id}
 ```
 
-**Response:**
-```json
-{
-  "total_memories": 142,
-  "total_entities": 47,
-  "total_relationships": 89,
-  "last_indexed": "2024-01-15T10:00:00Z"
-}
-```
+## Notes
 
-### Notes
-
-#### List Notes
-
-```
-GET /api/v1/notes?session_id=abc123
-```
-
-**Response:**
-```json
-{
-  "notes": [
-    {
-      "id": "note1",
-      "title": "TODO",
-      "content": "- Fix auth bug",
-      "session_id": "abc123"
-    }
-  ]
-}
-```
-
-#### Create Note
+### Create Note
 
 ```
 POST /api/v1/notes
@@ -214,29 +209,35 @@ POST /api/v1/notes
 }
 ```
 
-### Workstreams
+**Response:** `201 Created` with `Note` object.
 
-#### List Workstreams
+### List Notes
 
 ```
-GET /api/v1/workstreams
+GET /api/v1/notes?limit=50&offset=0
 ```
 
-**Response:**
-```json
-{
-  "workstreams": [
-    {
-      "id": "ws_abc123",
-      "name": "Research Project",
-      "message_count": 47,
-      "updated_at": "2024-01-15T10:00:00Z"
-    }
-  ]
-}
+### Get Note
+
+```
+GET /api/v1/notes/{id}
 ```
 
-#### Create Workstream
+### Update Note
+
+```
+PUT /api/v1/notes/{id}
+```
+
+### Delete Note
+
+```
+DELETE /api/v1/notes/{id}
+```
+
+## Workstreams
+
+### Create Workstream
 
 ```
 POST /api/v1/workstreams
@@ -249,10 +250,182 @@ POST /api/v1/workstreams
 }
 ```
 
-#### Get Workstream
+### List Workstreams
+
+```
+GET /api/v1/workstreams?limit=50&offset=0
+```
+
+### Get Workstream
 
 ```
 GET /api/v1/workstreams/{id}
+```
+
+### Update Workstream
+
+```
+PATCH /api/v1/workstreams/{id}
+```
+
+### Delete Workstream
+
+```
+DELETE /api/v1/workstreams/{id}
+```
+
+### Send Message
+
+```
+POST /api/v1/workstreams/{id}/messages
+```
+
+### List Messages
+
+```
+GET /api/v1/workstreams/{id}/messages
+```
+
+### List Workstream Sessions
+
+```
+GET /api/v1/workstreams/{id}/sessions
+```
+
+### Promote Content
+
+```
+POST /api/v1/workstreams/{id}/promote
+```
+
+### Promote File
+
+```
+POST /api/v1/workstreams/{id}/files/promote
+```
+
+### Export File
+
+```
+POST /api/v1/workstreams/{id}/files/export
+```
+
+### Clone Repository
+
+```
+POST /api/v1/workstreams/{id}/clone
+```
+
+### Get Usage
+
+```
+GET /api/v1/workstreams/{id}/usage
+```
+
+### Cleanup
+
+```
+POST /api/v1/workstreams/{id}/cleanup
+```
+
+## Agents
+
+### List Agents
+
+```
+GET /api/v1/agents
+```
+
+### Get Agent
+
+```
+GET /api/v1/agents/{id}
+```
+
+## Tasks
+
+### List Tasks
+
+```
+GET /api/v1/tasks
+```
+
+### Get Task
+
+```
+GET /api/v1/tasks/{id}
+```
+
+### Cancel Task
+
+```
+DELETE /api/v1/tasks/{id}
+```
+
+## MCP Servers
+
+### Add Server
+
+```
+POST /api/v1/mcp/servers
+```
+
+### List Servers
+
+```
+GET /api/v1/mcp/servers
+```
+
+### Remove Server
+
+```
+DELETE /api/v1/mcp/servers/{name}
+```
+
+### List Server Tools
+
+```
+GET /api/v1/mcp/servers/{name}/tools
+```
+
+### Connect Server
+
+```
+POST /api/v1/mcp/servers/{name}/connect
+```
+
+### Disconnect Server
+
+```
+POST /api/v1/mcp/servers/{name}/disconnect
+```
+
+## Commands
+
+### List Commands
+
+```
+GET /api/v1/commands
+```
+
+### Compact
+
+```
+POST /api/v1/commands/compact
+```
+
+### Compact (Streaming)
+
+```
+POST /api/v1/commands/compact/stream
+```
+
+## Config
+
+### Get Configuration
+
+```
+GET /api/v1/config
 ```
 
 ## WebSocket
@@ -267,6 +440,8 @@ With workstream:
 ```
 ws://localhost:8080/ws?workstream=ws_abc123
 ```
+
+Authentication happens via the first message, not HTTP headers.
 
 ### Message Format
 
