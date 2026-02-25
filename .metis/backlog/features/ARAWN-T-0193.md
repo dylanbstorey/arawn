@@ -4,7 +4,7 @@ level: task
 title: "Easy sandbox dependency installation for distribution"
 short_code: "ARAWN-T-0193"
 created_at: 2026-02-18T17:25:48.549342+00:00
-updated_at: 2026-02-25T01:24:10.858042+00:00
+updated_at: 2026-02-25T02:16:51.876165+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#feature"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -42,6 +42,8 @@ Arawn requires sandbox for shell execution (Option C - no shell without sandbox)
 - **User Value**: Zero-friction installation - `cargo install arawn` or downloading a binary just works
 - **Business Value**: Reduces support burden, increases adoption
 - **Effort Estimate**: M (research + implementation across multiple packaging formats)
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
