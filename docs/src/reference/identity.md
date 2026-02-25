@@ -37,6 +37,22 @@ You are Arawn, a personal research agent optimized for edge computing. You help 
 - Correct mistakes promptly when noticed
 - Distinguish between facts and inferences
 
+## Customization
+
+The system prompt (and therefore identity) can be overridden per-agent in the
+configuration file:
+
+```toml
+[agent.default]
+system_prompt = "You are a helpful assistant."
+
+[agent.researcher]
+system_prompt = "You are a research specialist focused on academic papers."
+```
+
+See [Configuration Reference](../configuration/reference.md) for all agent
+settings.
+
 ## Version Information
 
 Arawn v0.1

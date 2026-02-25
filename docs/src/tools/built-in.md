@@ -170,6 +170,20 @@ Record internal reasoning.
 
 ## Orchestration Tools
 
+### catalog
+
+Browse available agents, skills, and tools.
+
+**Parameters:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `category` | string | No | Filter: `agents`, `skills`, `tools` |
+
+**Example:**
+```json
+{"category": "agents"}
+```
+
 ### delegate
 
 Delegate to specialized subagents.
@@ -180,7 +194,8 @@ Delegate to specialized subagents.
 | `agent` | string | Yes | Subagent name |
 | `task` | string | Yes | Task description |
 | `context` | string | No | Context from parent |
-| `mode` | string | No | `blocking` or `background` |
+| `background` | boolean | No | Run in background (default: false) |
+| `max_turns` | integer | No | Max turn limit for subagent |
 
 **Example:**
 ```json
@@ -188,7 +203,7 @@ Delegate to specialized subagents.
   "agent": "researcher",
   "task": "Find papers on transformer architectures",
   "context": "User building a RAG system",
-  "mode": "blocking"
+  "background": false
 }
 ```
 

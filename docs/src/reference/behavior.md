@@ -131,21 +131,65 @@ web_search: "react 18 useEffect cleanup"
 web_search: "postgresql jsonb indexing best practices"
 ```
 
+### memory_search
+
+Query persistent memory for relevant context.
+
+**Best practices:**
+- Search before asking the user for information they may have already provided
+- Use natural language queries for semantic matching
+- Adjust threshold for precision vs recall trade-off
+
+### note
+
+Create session-scoped notes for persistent tracking.
+
+**Best practices:**
+- Use descriptive titles for easy retrieval
+- Create notes for TODOs, findings, and decisions during long tasks
+- Structure content with markdown for readability
+
+### think
+
+Record internal reasoning without producing output.
+
+**Best practices:**
+- Use for complex multi-step reasoning
+- Document trade-offs being considered
+- Plan approach before executing tool calls
+
+### catalog
+
+Browse available agents, skills, and tools.
+
+**Best practices:**
+- Check available agents before delegating
+- Review tool capabilities when unsure what's available
+
 ### delegate
 
 Delegate tasks to specialized subagents.
 
 **Best practices:**
-- Choose the right agent for the task (check with `delegate: list`)
+- Choose the right agent for the task (check with `catalog`)
 - Provide clear, specific task descriptions
 - Include relevant context from the current conversation
-- Use blocking mode for quick tasks, background for long-running research
+- Use `background: true` for long-running research, `false` (default) for quick tasks
 
 **When to delegate:**
 - Research tasks requiring web searching
 - Code analysis across large codebases
 - Summarizing long documents
 - Tasks requiring specialized expertise
+
+### workflow
+
+Execute defined pipelines for automated multi-step operations.
+
+**Best practices:**
+- Use for repeatable multi-step processes
+- Provide clear input parameters
+- Check available workflows before invoking
 
 ## Conversation Patterns
 

@@ -61,9 +61,9 @@ Named entities stored in the graph:
 ```rust
 pub struct Entity {
     pub id: String,
+    pub label: String,   // "Person", "Project", "Concept", etc.
     pub name: String,
-    pub entity_type: String,  // person, project, concept, etc.
-    pub properties: HashMap<String, String>,
+    pub properties: Map<String, Value>,
 }
 ```
 

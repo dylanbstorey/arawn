@@ -15,6 +15,8 @@ Detailed component breakdowns for the Agent and Memory subsystems.
 │  │  tools: Arc<ToolRegistry>      memory_store: Option       │   │
 │  │  embedder: Option<SharedEmbedder>                         │   │
 │  │  recall_config: RecallConfig                              │   │
+│  │  interaction_logger: Option<Arc<InteractionLogger>>       │   │
+│  │  hook_dispatcher: Option<SharedHookDispatcher>            │   │
 │  │                                                           │   │
 │  │  turn(session, message) ─────────────────────────────┐    │   │
 │  │  turn_stream(session, message) ──────────────────┐   │    │   │

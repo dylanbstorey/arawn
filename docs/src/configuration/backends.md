@@ -10,17 +10,22 @@ Configuration for LLM providers.
 | OpenAI | `openai` | Tool calling, function_call, embeddings |
 | Groq | `groq` | Fast inference, OpenAI-compatible |
 | Ollama | `ollama` | Local LLMs, no rate limits |
+| Custom | `custom` | OpenAI-compatible endpoint with custom base URL |
+| Claude OAuth | `claude-oauth` | Anthropic via OAuth PKCE (Claude MAX) |
 
 ## Anthropic
 
 Claude models from Anthropic.
 
 ```toml
-[backends.anthropic]
-api_key = "$keyring:anthropic_api_key"
+[llm.claude]
+backend = "anthropic"
 model = "claude-sonnet-4-20250514"
-max_tokens = 4096
+max_context_tokens = 200000
 ```
+
+API key resolved via keyring → `ANTHROPIC_API_KEY` env var → config file. See
+[Secrets](secrets.md).
 
 ### Available Models
 
@@ -42,11 +47,13 @@ max_tokens = 4096
 GPT models from OpenAI.
 
 ```toml
-[backends.openai]
-api_key = "$env:OPENAI_API_KEY"
+[llm.openai]
+backend = "openai"
 model = "gpt-4o"
-max_tokens = 4096
+max_context_tokens = 128000
 ```
+
+API key resolved via keyring → `OPENAI_API_KEY` env var → config file.
 
 ### Available Models
 
@@ -66,21 +73,25 @@ max_tokens = 4096
 ### Embeddings
 
 ```toml
-[embeddings.openai]
-api_key = "$env:OPENAI_API_KEY"
+[embedding]
+provider = "openai"
+
+[embedding.openai]
 model = "text-embedding-3-small"
 ```
 
 ## Groq
 
-Fast inference on open-source models.
+Fast inference on open-source models (OpenAI-compatible API).
 
 ```toml
-[backends.groq]
-api_key = "$env:GROQ_API_KEY"
+[llm.fast]
+backend = "groq"
 model = "llama-3.3-70b-versatile"
-max_tokens = 4096
+max_context_tokens = 32768
 ```
+
+API key resolved via keyring → `GROQ_API_KEY` env var → config file.
 
 ### Available Models
 
@@ -102,7 +113,8 @@ max_tokens = 4096
 Local LLM inference.
 
 ```toml
-[backends.ollama]
+[llm.local]
+backend = "ollama"
 base_url = "http://localhost:11434"
 model = "llama3"
 ```
@@ -136,34 +148,71 @@ Any model available in Ollama:
 - Full privacy (local)
 - Custom models supported
 
-## Multiple Backends
+## Custom
 
-Configure multiple backends for different purposes:
+Any OpenAI-compatible endpoint.
 
 ```toml
-# Primary for chat
-[llm]
-backend = "groq"
-model = "llama-3.3-70b"
+[llm.custom]
+backend = "custom"
+base_url = "https://my-endpoint.example.com/v1"
+model = "my-model"
+max_context_tokens = 32768
+```
 
-# Fast model for indexing
-[memory.indexing]
+API key resolved via keyring → `LLM_API_KEY` env var → config file.
+
+## Claude OAuth
+
+Authenticate via OAuth PKCE flow for Claude MAX subscriptions. No API key
+needed — uses browser-based authentication.
+
+```toml
+[llm]
+backend = "claude-oauth"
+model = "claude-sonnet-4-20250514"
+max_context_tokens = 200000
+```
+
+Run `arawn auth` to complete the OAuth flow.
+
+## Multiple Backends
+
+Configure named LLM profiles for different purposes:
+
+```toml
+# Default backend for all operations
+[llm]
 backend = "anthropic"
-model = "claude-3-haiku-20240307"
+model = "claude-sonnet-4-20250514"
+max_context_tokens = 200000
+
+# Named profiles for specific uses
+[llm.fast]
+backend = "groq"
+model = "llama-3.3-70b-versatile"
+max_context_tokens = 32768
+
+[llm.local]
+backend = "ollama"
+base_url = "http://localhost:11434"
+model = "llama3"
+
+# Assign profiles to agents
+[agent.default]
+llm = "claude"
+
+[agent.summarizer]
+llm = "fast"
+
+# Memory indexing uses its own backend
+[memory.indexing]
+backend = "openai"
+model = "gpt-4o-mini"
 
 # Local embeddings
-[embeddings]
-backend = "local"
-model = "all-MiniLM-L6-v2"
-
-# Backend definitions
-[backends.anthropic]
-api_key = "$keyring:anthropic"
-model = "claude-sonnet-4-20250514"
-
-[backends.groq]
-api_key = "$env:GROQ_API_KEY"
-model = "llama-3.3-70b-versatile"
+[embedding]
+provider = "local"
 ```
 
 ## Switching Backends
@@ -208,8 +257,8 @@ Error: Authentication failed for backend "anthropic"
 ```
 
 Check:
-1. Key is set correctly: `arawn config show --secrets`
-2. Key has correct permissions
+1. Key is set: `echo $ANTHROPIC_API_KEY`
+2. Keyring has entry (see [Secrets](secrets.md))
 3. Key hasn't expired
 
 ### Model Not Available

@@ -23,7 +23,7 @@ Subagents are specialized agents defined in plugins. They:
 │  │              │   │ agent: string    │   │  web, etc.)      │ │
 │  └──────────────┘   │ task: string     │   └──────────────────┘ │
 │                     │ context: string  │                        │
-│                     │ mode: blocking/bg│                        │
+│                     │ background: bool │                        │
 │                     └────────┬─────────┘                        │
 │                              │                                  │
 └──────────────────────────────┼──────────────────────────────────┘
@@ -117,7 +117,7 @@ The parent agent uses `delegate` to spawn subagents:
     "agent": "researcher",
     "task": "Find recent papers on transformer architectures",
     "context": "User is building a RAG system",
-    "mode": "blocking"
+    "background": false
   }
 }
 ```
@@ -129,7 +129,7 @@ The parent agent uses `delegate` to spawn subagents:
 | `agent` | Yes | Subagent name |
 | `task` | Yes | Task description |
 | `context` | No | Context from parent session |
-| `mode` | No | `blocking` (default) or `background` |
+| `background` | No | Run in background (default: `false`) |
 | `max_turns` | No | Override max iterations |
 
 ## Context Injection

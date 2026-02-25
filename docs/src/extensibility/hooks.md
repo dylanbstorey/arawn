@@ -5,238 +5,276 @@ Event-driven extensibility for Arawn.
 ## Overview
 
 Hooks allow plugins to:
-- Intercept tool executions
-- React to session events
+- Intercept and block tool executions (PreToolUse)
+- React to tool results and session events
 - Monitor subagent lifecycle
-- Implement cross-cutting concerns
+- Inject context at session start
 
 ## Hook Events
+
+All 13 lifecycle events supported by the hook system:
 
 | Event | Trigger | Can Block |
 |-------|---------|-----------|
 | `PreToolUse` | Before tool execution | Yes |
-| `PostToolUse` | After tool execution | No |
-| `SessionStart` | Session begins | No |
-| `SessionEnd` | Session closes | No |
-| `SubagentStarted` | Subagent spawned | No |
-| `SubagentCompleted` | Subagent finished | No |
+| `PostToolUse` | After successful tool execution | No |
+| `PostToolUseFailure` | After failed tool execution | No |
+| `PermissionRequest` | When a permission request is made | No |
+| `UserPromptSubmit` | When the user submits a prompt | No |
+| `Notification` | When a notification is sent | No |
+| `SubagentStop` | When a subagent stops | No |
+| `PreCompact` | Before context compaction | No |
+| `SessionStart` | When a session begins | No |
+| `SessionEnd` | When a session ends | No |
+| `Stop` | When the agent produces a final response | No |
+| `SubagentStarted` | When a background subagent starts | No |
+| `SubagentCompleted` | When a background subagent finishes | No |
+
+Only `PreToolUse` hooks can block execution. All other events are informational.
 
 ## Hook Configuration
 
-Hooks are defined in plugin directories:
+Hooks are configured in a `hooks.json` file referenced from the plugin manifest:
 
 ```
 my-plugin/
-├── plugin.json
+├── .claude-plugin/
+│   └── plugin.json          # "hooks": "./hooks/hooks.json"
 └── hooks/
-    ├── pre-shell.sh       # Matches: PreToolUse + shell
-    ├── post-file-write.sh # Matches: PostToolUse + file_write
-    └── session-start.sh   # Matches: SessionStart
+    ├── hooks.json           # Hook configuration
+    └── validate-shell.sh    # Hook script
 ```
 
-### Naming Convention
+### hooks.json Format
 
-Hook files follow the pattern: `{event}-{tool}.{ext}`
+The configuration uses Claude Code's hooks format — a map of event names to
+arrays of matcher groups:
 
-Examples:
-- `pre-shell.sh` — Before shell commands
-- `post-file-write.js` — After file writes
-- `session-start.sh` — When sessions start
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "shell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/validate-shell.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/audit-log.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-init.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-### Supported Extensions
+### Matcher Groups
 
-| Extension | Runtime |
-|-----------|---------|
-| `.sh` | Bash |
-| `.js` | Node.js |
-| `.json` | Static response |
+Each event maps to an array of matcher groups. A matcher group contains:
+
+| Field | Description |
+|-------|-------------|
+| `matcher` | Optional regex to match tool names (for `PreToolUse`/`PostToolUse`) |
+| `hooks` | Array of hook actions to execute |
+
+If `matcher` is omitted, the hook fires for all tools (or unconditionally for
+non-tool events).
+
+### Hook Actions
+
+Each hook action specifies:
+
+| Field | Description |
+|-------|-------------|
+| `type` | `"command"` (shell command), `"prompt"` (LLM eval), or `"agent"` (agentic verifier) |
+| `command` | Shell command to execute (for `command` type) |
+| `prompt` | Prompt text (for `prompt` type) |
+| `agent` | Agent name (for `agent` type) |
+| `timeout` | Timeout in milliseconds (optional) |
+
+> **Note:** Currently only `command` type hooks are executed. `prompt` and
+> `agent` types are recognized but not yet implemented.
+
+### Variable Expansion
+
+Use `${CLAUDE_PLUGIN_ROOT}` in command paths to reference the plugin root
+directory. The environment variable `ARAWN_PLUGIN_DIR` is also set for
+subprocess execution.
 
 ## Hook Implementation
 
-### PreToolUse Hooks
+### PreToolUse (Blocking)
 
-Can block tool execution:
+PreToolUse hooks can block tool execution. Exit code 0 means allow; non-zero
+means block. Stdout from a blocking hook becomes the block reason.
 
 ```bash
 #!/bin/bash
-# hooks/pre-shell.sh
+# hooks/validate-shell.sh
+# Receives JSON context on stdin: {"tool": "shell", "params": {...}}
 
 input=$(cat)
-command=$(echo "$input" | jq -r '.params.command')
+command=$(echo "$input" | jq -r '.params.command // .params.cmd // ""')
 
 # Block dangerous commands
-if [[ "$command" == *"rm -rf /"* ]]; then
-  echo '{"blocked": true, "reason": "Blocked: destructive root command"}'
-else
-  echo '{"blocked": false}'
+if echo "$command" | grep -qE 'rm -rf /|dd if=|mkfs'; then
+  echo "Destructive command blocked by policy"
+  exit 1
 fi
+
+exit 0
 ```
 
-### PostToolUse Hooks
+### PostToolUse (Informational)
 
-React to tool results:
+Fires after successful tool execution. Non-zero exit is logged but does not
+block anything.
 
 ```bash
 #!/bin/bash
-# hooks/post-file-write.sh
+# hooks/audit-log.sh
+# Receives: {"tool": "shell", "params": {...}, "result": {...}}
 
 input=$(cat)
-path=$(echo "$input" | jq -r '.params.path')
-
-# Log file writes
-logger "Arawn wrote file: $path"
-
-# PostToolUse hooks don't return blocking decisions
-echo '{}'
+echo "$input" >> /var/log/arawn-audit.jsonl
 ```
 
-### Session Hooks
+### SessionStart
 
-React to session lifecycle:
+Fires when a new session begins. Stdout is returned as informational output.
 
 ```bash
 #!/bin/bash
-# hooks/session-start.sh
+# hooks/session-init.sh
+# Receives: {"session_id": "abc123"}
+
+session_id=$(echo "$(cat)" | jq -r '.session_id')
+mkdir -p "/tmp/arawn-sessions/$session_id"
+echo "Session workspace initialized"
+```
+
+### SessionEnd
+
+Fires when a session ends.
+
+```bash
+#!/bin/bash
+# hooks/session-cleanup.sh
+# Receives: {"session_id": "abc123", "turn_count": 5}
 
 input=$(cat)
 session_id=$(echo "$input" | jq -r '.session_id')
+rm -rf "/tmp/arawn-sessions/$session_id"
+```
 
-# Initialize session-specific resources
-mkdir -p "/tmp/arawn-sessions/$session_id"
+### Stop
 
-echo '{}'
+Fires when the agent produces a final response.
+
+```bash
+#!/bin/bash
+# hooks/on-stop.sh
+# Receives: {"response": "Here is the answer..."}
+
+cat > /dev/null  # consume stdin
+echo "Response logged"
+```
+
+### SubagentStarted / SubagentCompleted
+
+Fire when background subagents start and finish:
+
+```bash
+#!/bin/bash
+# hooks/subagent-monitor.sh
+# SubagentStarted receives: {"parent_session_id": "...", "subagent_name": "...", "task_preview": "..."}
+# SubagentCompleted receives: {"parent_session_id": "...", "subagent_name": "...", "result_preview": "...", "duration_ms": 1500, "success": true}
+
+cat > /dev/null
 ```
 
 ## Hook Input Format
 
-Hooks receive JSON on stdin:
+Hooks receive JSON on stdin. The shape depends on the event:
 
-### PreToolUse Input
-
-```json
-{
-  "event": "PreToolUse",
-  "tool": "shell",
-  "params": {
-    "command": "ls -la"
-  },
-  "session_id": "abc123",
-  "timestamp": "2024-01-15T10:00:00Z"
-}
-```
-
-### PostToolUse Input
+### PreToolUse
 
 ```json
-{
-  "event": "PostToolUse",
-  "tool": "shell",
-  "params": {
-    "command": "ls -la"
-  },
-  "result": {
-    "success": true,
-    "output": "total 42\n..."
-  },
-  "session_id": "abc123",
-  "duration_ms": 150
-}
+{"tool": "shell", "params": {"command": "ls -la"}}
 ```
 
-## Hook Output Format
-
-### Blocking Response (PreToolUse only)
+### PostToolUse
 
 ```json
-{
-  "blocked": true,
-  "reason": "Command not allowed in this context"
-}
+{"tool": "shell", "params": {"command": "ls -la"}, "result": {"output": "..."}}
 ```
 
-### Allow Response
+### SessionStart
 
 ```json
-{
-  "blocked": false
-}
+{"session_id": "abc123"}
 ```
 
-### Empty Response (PostToolUse, Session events)
+### SessionEnd
 
 ```json
-{}
+{"session_id": "abc123", "turn_count": 5}
 ```
 
-## Hook Dispatcher
+### Stop
 
-The HookDispatcher manages hook execution:
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ HookDispatcher                                                   │
-│                                                                  │
-│  matchers: Vec<Hook>                                             │
-│                                                                  │
-│  Events:                                                         │
-│  • PreToolUse  ─────▶ Check all matching hooks                  │
-│  • PostToolUse ─────▶ Fire and forget                           │
-│  • SessionStart ────▶ Fire and forget                           │
-│  • SessionEnd ──────▶ Fire and forget                           │
-│  • SubagentStarted ─▶ Fire and forget                           │
-│  • SubagentCompleted▶ Fire and forget                           │
-└─────────────────────────────────────────────────────────────────┘
+```json
+{"response": "Here is the final answer..."}
 ```
 
-## Use Cases
+### SubagentStarted
 
-### Security Enforcement
-
-Block dangerous operations:
-
-```bash
-#!/bin/bash
-# pre-shell.sh - Block network tools
-
-command=$(cat | jq -r '.params.command')
-
-if echo "$command" | grep -qE '(curl|wget|nc|netcat)'; then
-  echo '{"blocked": true, "reason": "Network commands not allowed"}'
-else
-  echo '{"blocked": false}'
-fi
+```json
+{"parent_session_id": "sess-1", "subagent_name": "researcher", "task_preview": "Find papers on RAG"}
 ```
 
-### Audit Logging
+### SubagentCompleted
 
-Log all tool executions:
-
-```bash
-#!/bin/bash
-# post-any.sh - Log everything
-
-input=$(cat)
-echo "$input" >> /var/log/arawn-audit.json
-echo '{}'
+```json
+{"parent_session_id": "sess-1", "subagent_name": "researcher", "result_preview": "Found 5 papers", "duration_ms": 1500, "success": true}
 ```
 
-### Resource Management
+## Execution Details
 
-Clean up on session end:
-
-```bash
-#!/bin/bash
-# session-end.sh
-
-session_id=$(cat | jq -r '.session_id')
-rm -rf "/tmp/arawn-sessions/$session_id"
-echo '{}'
-```
+- **Timeout**: Default 10 seconds per hook subprocess. Override with `timeout`
+  field in the hook action.
+- **Working directory**: Set to the plugin directory.
+- **Parallel execution**: Hooks for the same event run sequentially. PreToolUse
+  stops at the first blocker.
+- **Error handling**: Subprocess failures are logged. For informational hooks,
+  errors don't affect the outcome.
 
 ## Best Practices
 
 1. **Keep hooks fast** — Slow hooks delay tool execution
-2. **Handle errors gracefully** — Return valid JSON even on failure
-3. **Log for debugging** — Write to stderr for debug output
-4. **Use blocking sparingly** — Only block when necessary
-5. **Match specifically** — Don't over-match with broad patterns
+2. **Handle errors gracefully** — Return valid output even on failure
+3. **Log to stderr** — Debug output goes to stderr, which is captured by tracing
+4. **Use blocking sparingly** — Only block when necessary (PreToolUse only)
+5. **Match specifically** — Use precise matchers to avoid over-matching

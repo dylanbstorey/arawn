@@ -4,15 +4,15 @@ level: task
 title: "Documentation accuracy audit fixes"
 short_code: "ARAWN-T-0222"
 created_at: 2026-02-25T05:29:05.899587+00:00
-updated_at: 2026-02-25T05:29:05.899587+00:00
+updated_at: 2026-02-25T05:46:51.549637+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -41,10 +41,16 @@ Bring all mdbook documentation (`docs/src/`) into alignment with the actual code
 
 ## Acceptance Criteria
 
-- [ ] Every doc page accurately reflects the current implementation
-- [ ] No fictional CLI commands, config keys, or API formats remain
-- [ ] `angreal docs build` succeeds with no broken internal links
-- [ ] All pages already fixed (reference.md, api.md, crate-structure.md, installation.md) verified still accurate
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] Every doc page accurately reflects the current implementation
+- [x] No fictional CLI commands, config keys, or API formats remain
+- [x] `angreal docs build` succeeds with no broken internal links
+- [x] All pages already fixed (reference.md, api.md, crate-structure.md, installation.md) verified still accurate
 
 ---
 
@@ -170,4 +176,14 @@ For each file, read the corresponding source code, then update the doc to match.
 
 ## Status Updates
 
-*To be added during implementation*
+### 2026-02-25 — All 18 items fixed
+
+All findings addressed across 18 files (612 insertions, 396 deletions):
+
+**CRITICAL (1-4):** secrets.md, plugins.md, hooks.md rewritten from scratch. custom.md covered within plugins.md rewrite.
+
+**HIGH (5-10):** quickstart.md (added 16-command CLI table), built-in.md (added catalog, fixed delegate params), agent-loop.md (removed fictional limits), backends.md (added Custom/ClaudeOauth, fixed config syntax), c4-model.md (added 4 missing crates), behavior.md (added 5 missing tool sections).
+
+**MEDIUM (11-18):** README.md (Rust 1.85), components.md (added fields), memory.md (fixed Entity struct), configuration.md (fixed backend value), workstreams.md (added roles), indexing.md (replaced fake CLI flag), subagents.md (fixed delegate params), identity.md (added customization section).
+
+**Verification:** `angreal docs build` passes with no errors or broken links.

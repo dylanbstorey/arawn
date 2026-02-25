@@ -2,170 +2,120 @@
 
 Secure handling of API keys and credentials.
 
-## Secret Sources
+## Resolution Chain
 
-Arawn supports multiple secret sources with priority resolution:
+Arawn resolves API keys using a priority chain. The first source that returns
+a value wins:
 
-| Priority | Source | Syntax | Example |
-|----------|--------|--------|---------|
-| 1 (highest) | OS Keyring | `$keyring:name` | `$keyring:anthropic_api_key` |
-| 2 | Environment | `$env:VAR` | `$env:OPENAI_API_KEY` |
-| 3 | File | `$file:path` | `$file:~/.secrets/api_key` |
-| 4 (lowest) | Literal | Direct value | `sk-ant-...` |
+| Priority | Source | How |
+|----------|--------|-----|
+| 1 (highest) | System keyring | Looked up automatically by backend name |
+| 2 | Environment variable | Backend-specific env var (e.g., `ANTHROPIC_API_KEY`) |
+| 3 (lowest) | Config file | Plaintext value in TOML (not recommended) |
 
-## OS Keyring
+There is no prefix syntax — Arawn checks each source in order and uses the
+first match. You do not need to annotate values with `$keyring:` or `$env:`.
 
-The most secure option — secrets stored in your OS keychain.
+## System Keyring
 
-### Setting Secrets
+The most secure option. Arawn uses the OS keychain via the `keyring` crate:
+
+- **macOS**: Keychain Access (built-in)
+- **Linux**: Secret Service API (`libsecret`)
+- **Windows**: Windows Credential Manager
+
+### Storing a Key
+
+Keyring entries use service `"arawn"` and a user derived from the backend name.
+
+**macOS:**
 
 ```bash
-# macOS Keychain
 security add-generic-password -s arawn -a anthropic_api_key -w "sk-ant-..."
-
-# Linux (secret-tool)
-secret-tool store --label="arawn" service arawn username anthropic_api_key
-
-# Windows (Credential Manager)
-# Use Windows Credential Manager UI
 ```
 
-### Using in Config
-
-```toml
-[backends.anthropic]
-api_key = "$keyring:anthropic_api_key"
-```
-
-### Arawn CLI
+**Linux (secret-tool):**
 
 ```bash
-# Store a secret
-arawn secret set anthropic_api_key
-
-# List stored secrets
-arawn secret list
-
-# Delete a secret
-arawn secret delete anthropic_api_key
+secret-tool store --label="arawn" service arawn username anthropic_api_key
 ```
+
+Arawn will find these automatically — no config file entry needed.
+
+### Keyring Feature
+
+Keyring support requires the `keyring` Cargo feature (enabled by default in
+release builds). Without it, step 1 is skipped and resolution falls through to
+environment variables.
 
 ## Environment Variables
 
-Good for CI/CD and containerized deployments.
+Standard for CI/CD, containers, and serverless environments.
 
-### Setting
+| Backend | Environment Variable |
+|---------|---------------------|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Groq | `GROQ_API_KEY` |
+| Ollama | `OLLAMA_API_KEY` |
+| Custom | `LLM_API_KEY` |
+| Claude OAuth | `ANTHROPIC_API_KEY` |
 
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 export GROQ_API_KEY="gsk_..."
 ```
 
-### Using in Config
+## Config File (Fallback)
+
+If neither keyring nor environment variable provides a key, Arawn falls back to
+the value in the TOML config file. This is **not recommended** for shared or
+version-controlled configs.
 
 ```toml
-[backends.anthropic]
-api_key = "$env:ANTHROPIC_API_KEY"
-
-[backends.groq]
-api_key = "$env:GROQ_API_KEY"
+[llm]
+backend = "anthropic"
+model = "claude-sonnet-4-20250514"
+api_key = "sk-ant-..."   # Plaintext — avoid if possible
 ```
 
-## File-Based Secrets
-
-For secrets stored in files (e.g., mounted Kubernetes secrets).
-
-### File Format
-
-Secret files should contain only the secret value:
-
-```bash
-echo -n "sk-ant-..." > ~/.secrets/anthropic_key
-chmod 600 ~/.secrets/anthropic_key
-```
-
-### Using in Config
-
-```toml
-[backends.anthropic]
-api_key = "$file:~/.secrets/anthropic_key"
-```
-
-## Resolution Order
-
-When a config value starts with `$`, Arawn resolves it:
-
-1. Parse the reference type (`keyring:`, `env:`, `file:`)
-2. Attempt to retrieve from that source
-3. On failure, error with clear message
-
-### Error Messages
-
-```
-Error: Secret "anthropic_api_key" not found in keyring
-Hint: Run 'arawn secret set anthropic_api_key' to store it
-```
+Arawn logs a warning when a plaintext API key is loaded from the config file.
 
 ## Security Best Practices
 
 ### Do
 
-- Use keyring for personal machines
-- Use environment variables for CI/CD
-- Use file-based secrets for Kubernetes
-- Restrict file permissions (`chmod 600`)
+- Use the system keyring on personal machines
+- Use environment variables in CI/CD and containers
+- Keep config files out of version control (or use `.gitignore`)
+- Restrict file permissions on any config containing keys (`chmod 600`)
 
 ### Don't
 
-- Commit secrets to version control
-- Use literal values in shared configs
+- Commit API keys to version control
+- Use plaintext values in shared configs
 - Store secrets in world-readable files
-- Echo secrets in shell scripts
-
-## Project vs User Secrets
-
-```
-Project config (.arawn/arawn.toml):
-  # Reference secrets, don't store them
-  api_key = "$env:PROJECT_API_KEY"
-
-User config (~/.arawn/arawn.toml):
-  # Safe to use keyring references
-  api_key = "$keyring:personal_api_key"
-```
-
-## Rotating Secrets
-
-1. Generate new secret from provider
-2. Update in keyring/env/file
-3. Restart Arawn server
-4. Verify with `arawn config show --secrets`
 
 ## Troubleshooting
 
 ### Keyring Not Available
 
-```
-Error: Keyring backend not available
-```
+If the keyring crate can't access the OS keychain, Arawn silently falls through
+to environment variables. To verify keyring is working:
 
-**Solution:** Install keyring support for your OS:
-- macOS: Built-in
-- Linux: `apt install libsecret-1-0` or similar
-- Windows: Built-in
+```bash
+# macOS — list Arawn entries
+security find-generic-password -s arawn
 
-### Environment Variable Not Set
-
-```
-Error: Environment variable "ANTHROPIC_API_KEY" not set
+# Linux — check secret-service
+secret-tool search service arawn
 ```
 
-**Solution:** Export the variable in your shell profile.
+### No API Key Found
 
-### File Permission Denied
+If none of the three sources provides a key, Arawn returns an error when the
+LLM backend is invoked. Verify your setup:
 
-```
-Error: Cannot read secret file: Permission denied
-```
-
-**Solution:** Check file ownership and permissions.
+1. Check if the key is in the keyring
+2. Check if the environment variable is set: `echo $ANTHROPIC_API_KEY`
+3. Check `~/.arawn/arawn.toml` for a fallback value

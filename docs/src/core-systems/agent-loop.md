@@ -104,11 +104,12 @@ pub struct ToolContext {
 
 The agent loop has safety limits:
 
-| Limit | Default | Purpose |
-|-------|---------|---------|
-| Max iterations | 25 | Prevent runaway loops |
-| Max tool calls per turn | 10 | Rate limit tool usage |
-| Tool timeout | 30s | Kill hung tools |
+| Limit | Default | Configurable | Purpose |
+|-------|---------|-------------|---------|
+| Max iterations | 25 | `[agent.default].max_iterations` | Prevent runaway loops |
+| Turn timeout | 300s | `[agent.default].timeout` | Kill hung turns |
+| Shell timeout | 30s | `[tools.shell].timeout_secs` | Per-shell-command timeout |
+| Web timeout | 30s | `[tools.web].timeout_secs` | Per-web-request timeout |
 
 ## Streaming
 

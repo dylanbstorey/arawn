@@ -85,8 +85,20 @@ Each workstream has a JSONL file with messages:
 ```jsonl
 {"role":"user","content":"Let's start the research project","timestamp":"2024-01-15T10:00:00Z"}
 {"role":"assistant","content":"I'll help you with the research...","timestamp":"2024-01-15T10:00:05Z"}
-{"role":"user","content":"Focus on Rust async patterns","timestamp":"2024-01-15T10:01:00Z"}
+{"role":"tool_use","content":"...","metadata":"{\"tool_id\":\"t1\",\"name\":\"shell\"}","timestamp":"2024-01-15T10:00:06Z"}
+{"role":"tool_result","content":"...","metadata":"{\"tool_call_id\":\"t1\",\"success\":true}","timestamp":"2024-01-15T10:00:07Z"}
 ```
+
+#### Message Roles
+
+| Role | Description |
+|------|-------------|
+| `user` | User message |
+| `assistant` | Agent response |
+| `system` | System-injected context |
+| `tool_use` | Tool call from the assistant (metadata: tool_id, name, arguments) |
+| `tool_result` | Tool execution result (metadata: tool_call_id, success) |
+| `agent_push` | Context injected by a subagent |
 
 ## Integration with Sessions
 

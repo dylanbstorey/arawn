@@ -109,8 +109,10 @@ model = "gpt-4o-mini"      # Model for extraction/summarization
 
 For sessions where indexing isn't desired:
 
-```bash
-arawn chat --no-index
+```toml
+# In arawn.toml
+[memory.indexing]
+enabled = false
 ```
 
 Or via API:

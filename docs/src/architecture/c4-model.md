@@ -154,6 +154,10 @@ Shows the high-level containers (crates) within Arawn.
 | **Plugin** | `arawn-plugin` | Skills, hooks, agents, CLI tools, prompt fragments |
 | **Types** | `arawn-types` | Shared DTOs and traits across crates |
 | **Pipeline** | `arawn-pipeline` | Workflow execution via Cloacina WASM runtime |
+| **Domain** | `arawn-domain` | Domain facade orchestrating agent, session, memory, MCP |
+| **OAuth** | `arawn-oauth` | OAuth PKCE flow for Claude MAX authentication |
+| **Sandbox** | `arawn-sandbox` | OS-level sandboxing (macOS sandbox-exec, Linux bubblewrap) |
+| **Script SDK** | `arawn-script-sdk` | Pre-compiled SDK for WASM script execution |
 
 ---
 

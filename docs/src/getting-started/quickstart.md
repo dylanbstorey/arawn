@@ -101,12 +101,38 @@ arawn config show
 # Search memory
 arawn memory search "rust project"
 
-# List sessions
-arawn session list
+# Manage notes
+arawn notes list
 
 # Start server with custom port
 arawn start --port 9000
+
+# Check server status
+arawn status
+
+# Stop the server
+arawn stop
 ```
+
+### All CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `arawn chat` | Interactive conversation |
+| `arawn ask` | Single question |
+| `arawn start` | Start HTTP server |
+| `arawn stop` | Stop the server |
+| `arawn status` | Server status |
+| `arawn research` | Deep research mode |
+| `arawn tasks` | Task management |
+| `arawn memory` | Memory operations |
+| `arawn notes` | Note management |
+| `arawn config` | Configuration |
+| `arawn auth` | Authentication setup |
+| `arawn plugin` | Plugin management |
+| `arawn agent` | Agent information |
+| `arawn mcp` | MCP server management |
+| `arawn tui` | Terminal UI |
 
 ## Next Steps
 

@@ -10,7 +10,7 @@ This section covers everything you need to get Arawn running on your system.
 
 ## Prerequisites
 
-- **Rust** — 1.75+ with cargo
+- **Rust** — 1.85+ with cargo
 - **LLM Access** — API key for Anthropic, OpenAI, Groq, or local Ollama
 - **SQLite** — Bundled via rusqlite (no external dependency)
 

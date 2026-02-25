@@ -46,7 +46,7 @@ database = "memory.db"     # SQLite path (relative to data dir)
 
 [memory.indexing]
 enabled = true             # Enable session indexing
-backend = "default"        # LLM backend for extraction
+backend = "openai"         # LLM backend for extraction
 model = "gpt-4o-mini"      # Model for extraction/summarization
 ```
 
