@@ -1149,11 +1149,8 @@ impl DirectoryManager {
 
         let mut size = 0u64;
         for entry in WalkDir::new(path).follow_links(false) {
-            let entry = entry.map_err(|e| {
-                DirectoryError::Io(std::io::Error::other(
-                    e.to_string(),
-                ))
-            })?;
+            let entry =
+                entry.map_err(|e| DirectoryError::Io(std::io::Error::other(e.to_string())))?;
 
             if entry.file_type().is_file() {
                 size += entry.metadata().map(|m| m.len()).unwrap_or(0);

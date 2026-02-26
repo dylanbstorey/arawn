@@ -1758,9 +1758,10 @@ impl App {
         // Check pager result
         match status {
             Ok(exit) if exit.success() => Ok(()),
-            Ok(exit) => Err(std::io::Error::other(
-                format!("Pager exited with status: {}", exit),
-            )),
+            Ok(exit) => Err(std::io::Error::other(format!(
+                "Pager exited with status: {}",
+                exit
+            ))),
             Err(e) => Err(e),
         }
     }
@@ -2010,7 +2011,10 @@ impl App {
                                 // Set pending and show confirmation message
                                 let id = session.id.clone();
                                 self.pending_delete_session = Some(id);
-                                self.status_message = Some("Delete session? Press 'd' again to confirm, Esc to cancel".to_string());
+                                self.status_message = Some(
+                                    "Delete session? Press 'd' again to confirm, Esc to cancel"
+                                        .to_string(),
+                                );
                             }
                         }
                     }

@@ -57,7 +57,6 @@ pub struct PathConfig {
     pub monitoring: MonitoringConfig,
 }
 
-
 impl PathConfig {
     /// Get the effective base path, checking environment variable first.
     ///
