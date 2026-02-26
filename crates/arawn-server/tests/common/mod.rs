@@ -9,9 +9,12 @@ use tempfile::TempDir;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
+use std::sync::Arc;
+
 use arawn_agent::{Agent, ToolRegistry};
 use arawn_llm::{CompletionResponse, ContentBlock, MockBackend, StopReason, Usage};
-use arawn_server::{Server, ServerConfig};
+use arawn_memory::MemoryStore;
+use arawn_server::{AppState, Server, ServerConfig};
 
 /// A test server that runs in the background.
 pub struct TestServer {
@@ -73,8 +76,14 @@ impl TestServer {
             .with_rate_limiting(false)
             .with_request_logging(false);
 
+        // Create app state with in-memory MemoryStore for notes/memory
+        let memory_store =
+            Arc::new(MemoryStore::open_in_memory().expect("Failed to open in-memory store"));
+        let mut state = AppState::new(agent, config);
+        state.services.memory_store = Some(memory_store);
+
         // Start server in background
-        let server = Server::new(agent, config);
+        let server = Server::from_state(state);
         let handle = tokio::spawn(async move {
             let _ = server.run_on(addr).await;
         });

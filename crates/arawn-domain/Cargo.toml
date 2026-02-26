@@ -10,6 +10,7 @@ description = "Domain facade for Arawn - orchestrates agent, session, and MCP in
 # Internal crates
 arawn-types = { workspace = true }
 arawn-agent = { workspace = true }
+arawn-memory = { workspace = true }
 arawn-mcp = { workspace = true }
 arawn-workstream = { workspace = true }
 

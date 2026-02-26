@@ -321,8 +321,8 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     );
 
     // Create shell tool with configured timeout
-    let shell_config = tools::ShellConfig::new()
-        .with_timeout(Duration::from_secs(tools_cfg.shell.timeout_secs));
+    let shell_config =
+        tools::ShellConfig::new().with_timeout(Duration::from_secs(tools_cfg.shell.timeout_secs));
 
     // Create web fetch tool with configured timeout and max output size
     let web_config = tools::WebFetchConfig {
@@ -855,6 +855,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     // ── Session indexer ──────────────────────────────────────────────────
 
     let memory_cfg = config.memory.clone().unwrap_or_default();
+    let mut memory_store: Option<Arc<MemoryStore>> = None;
     let indexer: Option<SessionIndexer> = if memory_cfg.indexing.enabled {
         let memory_db_path = memory_cfg
             .database
@@ -873,6 +874,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
                     eprintln!("warning: failed to init vector store: {}", e);
                 }
                 let store = Arc::new(store);
+                memory_store = Some(store.clone());
 
                 // Resolve the indexing LLM backend
                 let indexing_backend_name = &memory_cfg.indexing.backend;
@@ -980,6 +982,9 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     let mut app_state = AppState::new(agent, server_config);
     if let Some(idx) = indexer {
         app_state = app_state.with_indexer(idx);
+    }
+    if let Some(store) = memory_store {
+        app_state.services.memory_store = Some(store);
     }
     if let Some(dispatcher) = shared_hook_dispatcher {
         app_state = app_state.with_hook_dispatcher(dispatcher);
@@ -1487,9 +1492,18 @@ fn seed_test_data(manager: &WorkstreamManager, verbose: bool) {
 
                 // Add some test messages (sessions are created automatically)
                 let test_conversations = [
-                    ("Hello! I'm starting work on this project.", "Great! I'm ready to help. What would you like to work on first?"),
-                    ("Can you help me understand the architecture?", "Of course! Let me explain the high-level structure..."),
-                    ("What are the next steps?", "Based on our discussion, I recommend we focus on the core components first."),
+                    (
+                        "Hello! I'm starting work on this project.",
+                        "Great! I'm ready to help. What would you like to work on first?",
+                    ),
+                    (
+                        "Can you help me understand the architecture?",
+                        "Of course! Let me explain the high-level structure...",
+                    ),
+                    (
+                        "What are the next steps?",
+                        "Based on our discussion, I recommend we focus on the core components first.",
+                    ),
                 ];
 
                 for (user_msg, assistant_msg) in &test_conversations {

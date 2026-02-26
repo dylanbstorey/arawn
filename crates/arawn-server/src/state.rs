@@ -30,13 +30,14 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use arawn_agent::{Agent, Session, SessionId, SessionIndexer};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
 use arawn_domain::DomainServices;
 use arawn_mcp::McpManager;
+use arawn_memory::MemoryStore;
 use arawn_sandbox::SandboxManager;
 use arawn_types::{HasSessionConfig, SharedHookDispatcher};
 use arawn_workstream::{DirectoryManager, WatcherHandle, WorkstreamManager};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
@@ -309,6 +310,9 @@ pub struct SharedServices {
     /// File watcher for filesystem monitoring (optional — None if monitoring disabled).
     pub file_watcher: Option<Arc<WatcherHandle>>,
 
+    /// Memory store for persistent notes and memories (optional — None when memory disabled).
+    pub memory_store: Option<Arc<MemoryStore>>,
+
     /// Domain services facade for unified service access.
     pub domain: Option<Arc<DomainServices>>,
 }
@@ -329,6 +333,7 @@ impl SharedServices {
             directory_manager: None,
             sandbox_manager: None,
             file_watcher: None,
+            memory_store: None,
             domain: None,
         }
     }
@@ -375,6 +380,12 @@ impl SharedServices {
         self
     }
 
+    /// Configure memory store for persistent notes and memories.
+    pub fn with_memory_store(mut self, store: Arc<MemoryStore>) -> Self {
+        self.memory_store = Some(store);
+        self
+    }
+
     /// Build domain services from the configured components.
     ///
     /// This creates a DomainServices instance from the current configuration.
@@ -386,6 +397,7 @@ impl SharedServices {
             self.directory_manager.clone(),
             self.indexer.clone(),
             self.mcp_manager.clone(),
+            self.memory_store.clone(),
         );
         self.domain = Some(Arc::new(domain));
         self
@@ -401,7 +413,11 @@ impl SharedServices {
     /// Get allowed paths for a session based on its workstream.
     ///
     /// Returns `None` if no directory manager is configured.
-    pub fn allowed_paths(&self, workstream_id: &str, session_id: &str) -> Option<Vec<std::path::PathBuf>> {
+    pub fn allowed_paths(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Option<Vec<std::path::PathBuf>> {
         self.directory_manager
             .as_ref()
             .map(|dm| dm.allowed_paths(workstream_id, session_id))
@@ -415,9 +431,9 @@ impl SharedServices {
         workstream_id: &str,
         session_id: &str,
     ) -> Option<arawn_workstream::PathValidator> {
-        self.directory_manager.as_ref().map(|dm| {
-            arawn_workstream::PathValidator::for_session(dm, workstream_id, session_id)
-        })
+        self.directory_manager
+            .as_ref()
+            .map(|dm| arawn_workstream::PathValidator::for_session(dm, workstream_id, session_id))
     }
 }
 
@@ -488,7 +504,11 @@ impl RuntimeState {
     }
 
     /// Configure session cache using a config provider.
-    pub fn with_session_config<C: HasSessionConfig>(mut self, workstreams: Option<Arc<WorkstreamManager>>, config: &C) -> Self {
+    pub fn with_session_config<C: HasSessionConfig>(
+        mut self,
+        workstreams: Option<Arc<WorkstreamManager>>,
+        config: &C,
+    ) -> Self {
         self.session_cache = SessionCache::from_session_config(workstreams, config);
         self
     }
@@ -575,10 +595,8 @@ impl AppState {
 
     /// Configure session cache using a config provider.
     pub fn with_session_config<C: HasSessionConfig>(mut self, config: &C) -> Self {
-        self.runtime.session_cache = SessionCache::from_session_config(
-            self.services.workstreams.clone(),
-            config,
-        );
+        self.runtime.session_cache =
+            SessionCache::from_session_config(self.services.workstreams.clone(), config);
         self
     }
 
@@ -653,6 +671,12 @@ impl AppState {
         self.services.file_watcher.as_ref()
     }
 
+    /// Get the memory store.
+    #[inline]
+    pub fn memory_store(&self) -> Option<&Arc<MemoryStore>> {
+        self.services.memory_store.as_ref()
+    }
+
     /// Get the domain services facade.
     #[inline]
     pub fn domain(&self) -> Option<&Arc<DomainServices>> {
@@ -705,7 +729,11 @@ impl AppState {
     /// Get allowed paths for a session based on its workstream.
     ///
     /// Returns `None` if no directory manager is configured.
-    pub fn allowed_paths(&self, workstream_id: &str, session_id: &str) -> Option<Vec<std::path::PathBuf>> {
+    pub fn allowed_paths(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Option<Vec<std::path::PathBuf>> {
         self.services.allowed_paths(workstream_id, session_id)
     }
 
@@ -741,7 +769,8 @@ impl AppState {
         workstream_id: &str,
     ) -> SessionId {
         let result = self
-            .runtime.session_cache
+            .runtime
+            .session_cache
             .get_or_create(session_id, workstream_id)
             .await;
 
@@ -749,7 +778,11 @@ impl AppState {
             Ok((id, _, is_new)) => (id, is_new),
             Err(e) => {
                 warn!("Session cache error: {}, creating new session", e);
-                let (id, _) = self.runtime.session_cache.create_session(workstream_id).await;
+                let (id, _) = self
+                    .runtime
+                    .session_cache
+                    .create_session(workstream_id)
+                    .await;
                 (id, true)
             }
         };
@@ -826,7 +859,12 @@ impl AppState {
 
     /// Get session from cache (loading from workstream if needed).
     pub async fn get_session(&self, session_id: SessionId, workstream_id: &str) -> Option<Session> {
-        match self.runtime.session_cache.get_or_load(session_id, workstream_id).await {
+        match self
+            .runtime
+            .session_cache
+            .get_or_load(session_id, workstream_id)
+            .await
+        {
             Ok((session, _)) => Some(session),
             Err(_) => None,
         }
@@ -944,7 +982,10 @@ impl AppState {
 
             // Create pending reconnect if we have a token for this session
             if let Some(token) = reconnect_tokens.get(session_id) {
-                pending.insert(*session_id, PendingReconnect::new(token.clone(), grace_period));
+                pending.insert(
+                    *session_id,
+                    PendingReconnect::new(token.clone(), grace_period),
+                );
                 pending_count += 1;
             }
         }
@@ -1027,7 +1068,10 @@ impl AppState {
         }
 
         if !expired.is_empty() {
-            debug!(count = expired.len(), "Cleaned up expired pending reconnects");
+            debug!(
+                count = expired.len(),
+                "Cleaned up expired pending reconnects"
+            );
         }
 
         expired.len()
@@ -1166,7 +1210,8 @@ mod tests {
 
         // Add a turn so the session isn't empty
         state
-            .runtime.session_cache
+            .runtime
+            .session_cache
             .with_session_mut(&session_id, |session| {
                 let turn = session.start_turn("Hello");
                 turn.complete("Hi!");
@@ -1264,7 +1309,9 @@ mod tests {
         assert!(!state.try_claim_session_ownership(session_2, conn_b).await);
 
         // But conn_a can reclaim with token
-        let new_token = state.try_reclaim_with_token(session_1, "token1", conn_a).await;
+        let new_token = state
+            .try_reclaim_with_token(session_1, "token1", conn_a)
+            .await;
         assert!(new_token.is_some());
         assert!(state.is_session_owner(session_1, conn_a).await);
     }

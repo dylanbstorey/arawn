@@ -232,6 +232,7 @@ dependencies = [
  "arawn-agent",
  "arawn-llm",
  "arawn-mcp",
+ "arawn-memory",
  "arawn-types",
  "arawn-workstream",
  "tempfile",
