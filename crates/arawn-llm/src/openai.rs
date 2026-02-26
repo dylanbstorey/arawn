@@ -14,8 +14,7 @@ use std::time::Duration;
 use crate::backend::{ContentDelta, LlmBackend, ResponseStream, StreamEvent, with_retry};
 use crate::error::{LlmError, Result};
 use crate::types::{
-    CompletionRequest, CompletionResponse, ContentBlock, Role, StopReason,
-    ToolResultContent, Usage,
+    CompletionRequest, CompletionResponse, ContentBlock, Role, StopReason, ToolResultContent, Usage,
 };
 
 /// Default OpenAI API base URL.
@@ -820,6 +819,7 @@ struct OpenAiStreamFunction {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Message;
 
     #[test]
     fn test_openai_config() {

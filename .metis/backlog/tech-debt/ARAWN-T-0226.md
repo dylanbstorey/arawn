@@ -4,7 +4,7 @@ level: task
 title: "Wire MemoryStore through domain facade for REST API persistence"
 short_code: "ARAWN-T-0226"
 created_at: 2026-02-25T14:36:55.545057+00:00
-updated_at: 2026-02-26T01:59:33.556140+00:00
+updated_at: 2026-02-26T16:01:12.162318+00:00
 parent: 
 blocked_by: []
 archived: false
@@ -12,7 +12,7 @@ archived: false
 tags:
   - "#task"
   - "#tech-debt"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -38,6 +38,8 @@ Route the server's memory REST endpoints through a real `MemoryService` in the d
 - **Current Problems**: Server memory/notes routes use an ephemeral in-memory HashMap — all data lost on restart. The REST API cannot search the real memory store (vector + graph). The domain layer pattern (used by chat) is bypassed, creating architectural inconsistency.
 - **Benefits of Fixing**: Persistent memory via REST API, consistent domain-layer architecture, users can query/store memories through the API that survive restarts, parity between what the agent sees during turns and what the API exposes.
 - **Risk Assessment**: Medium — touches server state initialization, domain services, and memory routes. Needs careful testing to avoid breaking existing chat-based memory recall.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

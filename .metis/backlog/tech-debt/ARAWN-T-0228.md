@@ -4,15 +4,15 @@ level: task
 title: "Auto-download GLiNER model files like embeddings"
 short_code: "ARAWN-T-0228"
 created_at: 2026-02-26T01:49:12.647713+00:00
-updated_at: 2026-02-26T01:49:12.647713+00:00
+updated_at: 2026-02-26T17:00:56.055696+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -45,11 +45,17 @@ Also: make the download URLs configurable in `arawn.toml` (both for GLiNER and t
 
 ## Acceptance Criteria
 
-- [ ] When `gliner` feature is enabled and `ner_model_path` is unset, auto-download default GLiNER model from HuggingFace to `~/.local/share/arawn/models/ner/`
-- [ ] Download URLs for both embedding and NER models configurable in `arawn.toml` (with sensible HuggingFace defaults)
-- [ ] Existing `ner_model_path` / `ner_tokenizer_path` config overrides still work (explicit path wins over auto-download)
-- [ ] Progress/status logged during download (consistent with embedding download logging)
-- [ ] `--dry-run` or equivalent to show what would be downloaded without doing it
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] When `gliner` feature is enabled and `ner_model_path` is unset, auto-download default GLiNER model from HuggingFace to `~/.local/share/arawn/models/ner/`
+- [x] Download URLs for both embedding and NER models configurable in `arawn.toml` (with sensible HuggingFace defaults)
+- [x] Existing `ner_model_path` / `ner_tokenizer_path` config overrides still work (explicit path wins over auto-download)
+- [x] Progress/status logged during download (consistent with embedding download logging)
+- [ ] ~`--dry-run` or equivalent to show what would be downloaded without doing it~ (Deferred — no existing dry-run infrastructure for model downloads)
 
 ## Implementation Notes
 
@@ -68,4 +74,28 @@ Also: make the download URLs configurable in `arawn.toml` (both for GLiNER and t
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 (2026-02-26)
+**Completed all core work:**
+
+**Config layer (`arawn-config/src/types.rs`):**
+- Added `model_url: Option<String>` and `tokenizer_url: Option<String>` to `EmbeddingLocalConfig`
+- Added `ner_model_url: Option<String>` and `ner_tokenizer_url: Option<String>` to `IndexingConfig`
+- Updated `ner_model_path` docstring to note auto-download behavior when unset
+
+**Download infrastructure (`arawn-llm/src/embeddings.rs`):**
+- Made `download_file()` public (was private + feature-gated)
+- Made embedding URL constants public: `DEFAULT_EMBEDDING_MODEL_URL`, `DEFAULT_EMBEDDING_TOKENIZER_URL`
+- Added NER URL constants: `DEFAULT_NER_MODEL_URL`, `DEFAULT_NER_TOKENIZER_URL`
+- Updated `ensure_model_files()` to accept optional URL overrides (falls back to defaults)
+- Created public `ensure_ner_model_files()` — downloads to `~/.local/share/arawn/models/ner/`
+- Created public `default_ner_model_dir()` helper
+- Added `local_model_url` and `local_tokenizer_url` to `EmbedderSpec`
+
+**Wiring (`arawn/src/commands/start.rs`):**
+- `build_embedder_spec()` now passes `model_url`/`tokenizer_url` from local config through to `EmbedderSpec`
+- GLiNER block rewritten: when `ner_model_path` is unset, calls `ensure_ner_model_files()` for auto-download; when set, uses explicit path as before
+- URL overrides from config (`ner_model_url`/`ner_tokenizer_url`) passed through to download function
+
+**Also fixed:** `memory.rs` EmbedderSpec construction site updated with new fields.
+
+**All tests pass, `angreal check all` clean.**

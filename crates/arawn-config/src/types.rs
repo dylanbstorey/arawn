@@ -622,7 +622,14 @@ pub struct EmbeddingLocalConfig {
     pub model_path: Option<PathBuf>,
     /// Path to tokenizer.json file.
     pub tokenizer_path: Option<PathBuf>,
+    /// Download URL for the ONNX model file.
+    /// Defaults to HuggingFace all-MiniLM-L6-v2.
+    pub model_url: Option<String>,
+    /// Download URL for the tokenizer JSON file.
+    /// Defaults to HuggingFace all-MiniLM-L6-v2.
+    pub tokenizer_url: Option<String>,
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Memory Configuration
@@ -697,11 +704,19 @@ pub struct IndexingConfig {
     pub model: String,
     /// Path to GLiNER ONNX model file for local NER extraction.
     /// When set, enables hybrid extraction (NER for entities, LLM for facts only).
+    /// If unset and the `gliner` feature is enabled, the default model is
+    /// auto-downloaded from HuggingFace on first use.
     pub ner_model_path: Option<String>,
     /// Path to GLiNER tokenizer JSON file.
     pub ner_tokenizer_path: Option<String>,
     /// Minimum confidence threshold for NER spans (0.0 to 1.0).
     pub ner_threshold: f32,
+    /// Download URL for the GLiNER ONNX model file.
+    /// Defaults to HuggingFace onnx-community/gliner_small-v2.1.
+    pub ner_model_url: Option<String>,
+    /// Download URL for the GLiNER tokenizer JSON file.
+    /// Defaults to HuggingFace onnx-community/gliner_small-v2.1.
+    pub ner_tokenizer_url: Option<String>,
 }
 
 impl Default for IndexingConfig {
@@ -713,6 +728,8 @@ impl Default for IndexingConfig {
             ner_model_path: None,
             ner_tokenizer_path: None,
             ner_threshold: 0.5,
+            ner_model_url: None,
+            ner_tokenizer_url: None,
         }
     }
 }

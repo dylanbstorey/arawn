@@ -303,6 +303,8 @@ fn build_embedder_spec(config: &arawn_config::EmbeddingConfig) -> arawn_llm::Emb
         local_model_path: local_config.and_then(|c| c.model_path.clone()),
         local_tokenizer_path: local_config.and_then(|c| c.tokenizer_path.clone()),
         dimensions: config.dimensions,
+        local_model_url: local_config.and_then(|c| c.model_url.clone()),
+        local_tokenizer_url: local_config.and_then(|c| c.tokenizer_url.clone()),
     }
 }
 

@@ -4,15 +4,15 @@ level: task
 title: "Wire embedding dimensions from config through to OpenAiEmbedder"
 short_code: "ARAWN-T-0227"
 created_at: 2026-02-26T01:44:59.506912+00:00
-updated_at: 2026-02-26T01:44:59.506912+00:00
+updated_at: 2026-02-26T16:35:13.939662+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -43,11 +43,17 @@ The config system (`EmbeddingConfig`, `EmbeddingOpenAiConfig`) already has a `di
 
 ## Acceptance Criteria
 
-- [ ] `OpenAiEmbedder::new()` accepts an optional `dimensions` override, using it instead of the hardcoded model lookup when provided
-- [ ] `build_embedder()` passes `EmbedderSpec.dimensions` through to `OpenAiEmbedder`
-- [ ] `EmbeddingConfig::effective_dimensions()` remains the authoritative source for dimension defaults
-- [ ] Hardcoded model→dimension map kept as fallback (not removed), but config override wins
-- [ ] Existing tests pass, new test covers custom dimensions override
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] `OpenAiEmbedder::new()` accepts an optional `dimensions` override via `OpenAiEmbedderConfig.dimensions`, using it instead of the hardcoded model lookup when provided
+- [x] `build_embedder()` passes `EmbedderSpec.dimensions` through to `OpenAiEmbedderConfig`
+- [x] `EmbeddingConfig::effective_dimensions()` remains the authoritative source for dimension defaults (unchanged)
+- [x] Hardcoded model→dimension map kept as fallback (not removed), but config override wins
+- [x] Existing tests pass (99 in arawn-llm), 3 new tests cover dimensions override
 
 ## Implementation Notes
 
@@ -62,4 +68,21 @@ The config system (`EmbeddingConfig`, `EmbeddingOpenAiConfig`) already has a `di
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 — 2026-02-26
+
+#### Files Modified
+- `crates/arawn-llm/src/embeddings.rs` — Added `dimensions: Option<usize>` to `OpenAiEmbedderConfig`, `with_dimensions()` builder, updated `OpenAiEmbedder::new()` to prefer config dimensions over model lookup, wired `spec.dimensions` through in `build_embedder()`, added 3 tests
+- `crates/arawn-llm/src/openai.rs` — Fixed pre-existing test compilation error (missing `use crate::Message` import)
+
+#### Data Flow
+```
+arawn.toml [embedding.dimensions] or [embedding.openai.dimensions]
+  → EmbeddingConfig::effective_dimensions()
+    → build_embedder_spec() sets spec.dimensions
+      → build_embedder() passes to OpenAiEmbedderConfig::with_dimensions()
+        → OpenAiEmbedder::new() uses config.dimensions.unwrap_or(model_lookup)
+```
+
+#### Test Results
+- All 99 arawn-llm tests pass
+- Full workspace compiles clean

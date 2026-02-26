@@ -900,33 +900,62 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
                         // Optionally attach GLiNER NER engine
                         #[cfg(feature = "gliner")]
-                        if let Some(ref model_path) = memory_cfg.indexing.ner_model_path {
-                            let ner_config = NerConfig {
-                                model_path: model_path.clone(),
-                                tokenizer_path: memory_cfg
+                        {
+                            // Resolve model + tokenizer paths: explicit config, or auto-download
+                            let ner_paths: Option<(String, String)> = if let Some(ref model_path) =
+                                memory_cfg.indexing.ner_model_path
+                            {
+                                // Explicit path provided
+                                let tok = memory_cfg
                                     .indexing
                                     .ner_tokenizer_path
                                     .clone()
                                     .unwrap_or_else(|| {
-                                        // Default: tokenizer.json next to model
                                         std::path::Path::new(model_path)
                                             .parent()
                                             .map(|p| {
                                                 p.join("tokenizer.json").to_string_lossy().into()
                                             })
                                             .unwrap_or_else(|| "tokenizer.json".to_string())
-                                    }),
-                                threshold: memory_cfg.indexing.ner_threshold,
-                            };
-                            match GlinerEngine::new(&ner_config) {
-                                Ok(engine) => {
-                                    idx = idx.with_ner_engine(Arc::new(engine));
-                                    if ctx.verbose {
-                                        println!("NER engine: GLiNER ({})", model_path);
+                                    });
+                                Some((model_path.clone(), tok))
+                            } else {
+                                // Auto-download from HuggingFace
+                                match arawn_llm::ensure_ner_model_files(
+                                    memory_cfg.indexing.ner_model_url.as_deref(),
+                                    memory_cfg.indexing.ner_tokenizer_url.as_deref(),
+                                )
+                                .await
+                                {
+                                    Some((m, t)) => Some((
+                                        m.to_string_lossy().into_owned(),
+                                        t.to_string_lossy().into_owned(),
+                                    )),
+                                    None => {
+                                        eprintln!(
+                                            "warning: GLiNER model download failed, NER disabled"
+                                        );
+                                        None
                                     }
                                 }
-                                Err(e) => {
-                                    eprintln!("warning: failed to load GLiNER model: {}", e);
+                            };
+
+                            if let Some((model_path, tokenizer_path)) = ner_paths {
+                                let ner_config = NerConfig {
+                                    model_path: model_path.clone(),
+                                    tokenizer_path,
+                                    threshold: memory_cfg.indexing.ner_threshold,
+                                };
+                                match GlinerEngine::new(&ner_config) {
+                                    Ok(engine) => {
+                                        idx = idx.with_ner_engine(Arc::new(engine));
+                                        if ctx.verbose {
+                                            println!("NER engine: GLiNER ({})", model_path);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("warning: failed to load GLiNER model: {}", e);
+                                    }
                                 }
                             }
                         }
@@ -1340,11 +1369,18 @@ fn build_embedder_spec(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec {
         })
         .unwrap_or((None, None, None));
 
-    let (local_model_path, local_tokenizer_path) = config
+    let (local_model_path, local_tokenizer_path, local_model_url, local_tokenizer_url) = config
         .local
         .as_ref()
-        .map(|c| (c.model_path.clone(), c.tokenizer_path.clone()))
-        .unwrap_or((None, None));
+        .map(|c| {
+            (
+                c.model_path.clone(),
+                c.tokenizer_path.clone(),
+                c.model_url.clone(),
+                c.tokenizer_url.clone(),
+            )
+        })
+        .unwrap_or((None, None, None, None));
 
     EmbedderSpec {
         provider: provider.to_string(),
@@ -1354,6 +1390,8 @@ fn build_embedder_spec(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec {
         local_model_path,
         local_tokenizer_path,
         dimensions: Some(config.effective_dimensions()),
+        local_model_url,
+        local_tokenizer_url,
     }
 }
 

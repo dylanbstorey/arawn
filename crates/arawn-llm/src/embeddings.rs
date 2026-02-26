@@ -145,6 +145,10 @@ pub struct OpenAiEmbedderConfig {
     pub model: String,
     /// Request timeout.
     pub timeout: Duration,
+    /// Override output dimensions. When set, takes precedence over the
+    /// built-in model→dimension lookup. Useful for custom/proxy endpoints
+    /// or models not in the hardcoded map.
+    pub dimensions: Option<usize>,
 }
 
 impl OpenAiEmbedderConfig {
@@ -155,6 +159,7 @@ impl OpenAiEmbedderConfig {
             base_url: "https://api.openai.com/v1".to_string(),
             model: "text-embedding-3-small".to_string(),
             timeout: Duration::from_secs(60),
+            dimensions: None,
         }
     }
 
@@ -179,6 +184,12 @@ impl OpenAiEmbedderConfig {
         self.model = model.into();
         self
     }
+
+    /// Override output dimensions.
+    pub fn with_dimensions(mut self, dimensions: usize) -> Self {
+        self.dimensions = Some(dimensions);
+        self
+    }
 }
 
 /// OpenAI embeddings API client.
@@ -198,13 +209,15 @@ impl OpenAiEmbedder {
                 crate::error::LlmError::Internal(format!("Failed to create HTTP client: {}", e))
             })?;
 
-        // Determine dimensions based on model
-        let dimensions = match config.model.as_str() {
-            "text-embedding-3-small" => 1536,
-            "text-embedding-3-large" => 3072,
-            "text-embedding-ada-002" => 1536,
-            _ => 1536, // Default
-        };
+        // Use explicit dimensions if provided, otherwise look up by model name
+        let dimensions = config.dimensions.unwrap_or({
+            match config.model.as_str() {
+                "text-embedding-3-small" => 1536,
+                "text-embedding-3-large" => 3072,
+                "text-embedding-ada-002" => 1536,
+                _ => 1536, // Default for unknown models
+            }
+        });
 
         Ok(Self {
             client,
@@ -574,6 +587,10 @@ pub struct EmbedderSpec {
     pub local_tokenizer_path: Option<std::path::PathBuf>,
     /// Requested dimensions (for providers that support it).
     pub dimensions: Option<usize>,
+    /// Override download URL for the local ONNX model file.
+    pub local_model_url: Option<String>,
+    /// Override download URL for the local tokenizer JSON file.
+    pub local_tokenizer_url: Option<String>,
 }
 
 /// Build a `SharedEmbedder` from a spec.
@@ -600,6 +617,9 @@ pub async fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
             if let Some(ref base_url) = spec.openai_base_url {
                 config = config.with_base_url(base_url);
             }
+            if let Some(dimensions) = spec.dimensions {
+                config = config.with_dimensions(dimensions);
+            }
             Ok(Arc::new(OpenAiEmbedder::new(config)?))
         }
         #[cfg(feature = "local-embeddings")]
@@ -615,7 +635,12 @@ pub async fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
             }
 
             // Try to ensure model files exist (downloads if missing)
-            if let Some(dir) = ensure_model_files().await {
+            if let Some(dir) = ensure_model_files(
+                spec.local_model_url.as_deref(),
+                spec.local_tokenizer_url.as_deref(),
+            )
+            .await
+            {
                 let model_path = dir.join("model.onnx");
                 let tokenizer_path = dir.join("tokenizer.json");
                 if model_path.exists() && tokenizer_path.exists() {
@@ -666,17 +691,29 @@ fn default_local_model_dir() -> Option<std::path::PathBuf> {
 // Model Download
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// HuggingFace model URLs for all-MiniLM-L6-v2
-const MODEL_URL: &str =
+/// Default HuggingFace model URL for all-MiniLM-L6-v2 ONNX model.
+pub const DEFAULT_EMBEDDING_MODEL_URL: &str =
     "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
-const TOKENIZER_URL: &str =
+/// Default HuggingFace tokenizer URL for all-MiniLM-L6-v2.
+pub const DEFAULT_EMBEDDING_TOKENIZER_URL: &str =
     "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json";
+
+/// Default HuggingFace model URL for GLiNER small v2.1 (span mode).
+pub const DEFAULT_NER_MODEL_URL: &str =
+    "https://huggingface.co/onnx-community/gliner_small-v2.1/resolve/main/onnx/model.onnx";
+/// Default HuggingFace tokenizer URL for GLiNER small v2.1.
+pub const DEFAULT_NER_TOKENIZER_URL: &str =
+    "https://huggingface.co/onnx-community/gliner_small-v2.1/resolve/main/tokenizer.json";
 
 /// Download embedding model files if they don't exist.
 ///
 /// Returns the directory path where files were downloaded, or None if download failed.
+/// Accepts optional URL overrides; falls back to HuggingFace defaults.
 #[cfg(feature = "local-embeddings")]
-async fn ensure_model_files() -> Option<std::path::PathBuf> {
+async fn ensure_model_files(
+    model_url: Option<&str>,
+    tokenizer_url: Option<&str>,
+) -> Option<std::path::PathBuf> {
     let dir = default_local_model_dir()?;
     let model_path = dir.join("model.onnx");
     let tokenizer_path = dir.join("tokenizer.json");
@@ -692,11 +729,14 @@ async fn ensure_model_files() -> Option<std::path::PathBuf> {
         return None;
     }
 
-    tracing::info!("Downloading embedding model (all-MiniLM-L6-v2)...");
+    let model_url = model_url.unwrap_or(DEFAULT_EMBEDDING_MODEL_URL);
+    let tokenizer_url = tokenizer_url.unwrap_or(DEFAULT_EMBEDDING_TOKENIZER_URL);
+
+    tracing::info!("Downloading embedding model...");
 
     // Download model file
     if !model_path.exists() {
-        if let Err(e) = download_file(MODEL_URL, &model_path).await {
+        if let Err(e) = download_file(model_url, &model_path).await {
             tracing::warn!("Failed to download model.onnx: {}", e);
             return None;
         }
@@ -705,7 +745,7 @@ async fn ensure_model_files() -> Option<std::path::PathBuf> {
 
     // Download tokenizer
     if !tokenizer_path.exists() {
-        if let Err(e) = download_file(TOKENIZER_URL, &tokenizer_path).await {
+        if let Err(e) = download_file(tokenizer_url, &tokenizer_path).await {
             tracing::warn!("Failed to download tokenizer.json: {}", e);
             // Clean up partial download
             let _ = std::fs::remove_file(&model_path);
@@ -718,9 +758,64 @@ async fn ensure_model_files() -> Option<std::path::PathBuf> {
     Some(dir)
 }
 
+/// Default directory for NER (GLiNER) model files.
+pub fn default_ner_model_dir() -> Option<std::path::PathBuf> {
+    dirs::data_dir().map(|d| d.join("arawn").join("models").join("ner"))
+}
+
+/// Download NER (GLiNER) model files if they don't exist.
+///
+/// Returns `(model_path, tokenizer_path)` or None if download failed.
+/// Accepts optional URL overrides; falls back to HuggingFace defaults.
+pub async fn ensure_ner_model_files(
+    model_url: Option<&str>,
+    tokenizer_url: Option<&str>,
+) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let dir = default_ner_model_dir()?;
+    let model_path = dir.join("model.onnx");
+    let tok_path = dir.join("tokenizer.json");
+
+    // Check if files already exist
+    if model_path.exists() && tok_path.exists() {
+        return Some((model_path, tok_path));
+    }
+
+    // Create directory if needed
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        tracing::warn!("Failed to create NER model directory: {}", e);
+        return None;
+    }
+
+    let model_url = model_url.unwrap_or(DEFAULT_NER_MODEL_URL);
+    let tokenizer_url = tokenizer_url.unwrap_or(DEFAULT_NER_TOKENIZER_URL);
+
+    tracing::info!("Downloading NER model (GLiNER small v2.1)...");
+
+    // Download model file
+    if !model_path.exists() {
+        if let Err(e) = download_file(model_url, &model_path).await {
+            tracing::warn!("Failed to download NER model.onnx: {}", e);
+            return None;
+        }
+        tracing::info!("Downloaded NER model.onnx");
+    }
+
+    // Download tokenizer
+    if !tok_path.exists() {
+        if let Err(e) = download_file(tokenizer_url, &tok_path).await {
+            tracing::warn!("Failed to download NER tokenizer.json: {}", e);
+            let _ = std::fs::remove_file(&model_path);
+            return None;
+        }
+        tracing::info!("Downloaded NER tokenizer.json");
+    }
+
+    tracing::info!("NER model ready");
+    Some((model_path, tok_path))
+}
+
 /// Download a file from URL to path.
-#[cfg(feature = "local-embeddings")]
-async fn download_file(url: &str, path: &std::path::Path) -> Result<()> {
+pub async fn download_file(url: &str, path: &std::path::Path) -> Result<()> {
     use std::io::Write;
 
     let client = Client::builder()
@@ -888,5 +983,39 @@ mod tests {
 
         assert_eq!(config.base_url, "http://custom.api");
         assert_eq!(config.model, "text-embedding-ada-002");
+        assert_eq!(config.dimensions, None);
+    }
+
+    #[test]
+    fn test_openai_embedder_dimensions_from_model_lookup() {
+        // Known models use hardcoded dimensions
+        let embedder = OpenAiEmbedder::new(OpenAiEmbedderConfig::new("key")).unwrap();
+        assert_eq!(embedder.dimensions(), 1536); // text-embedding-3-small default
+
+        let embedder = OpenAiEmbedder::new(
+            OpenAiEmbedderConfig::new("key").with_model("text-embedding-3-large"),
+        )
+        .unwrap();
+        assert_eq!(embedder.dimensions(), 3072);
+    }
+
+    #[test]
+    fn test_openai_embedder_dimensions_override() {
+        // Explicit dimensions override the model lookup
+        let config = OpenAiEmbedderConfig::new("key")
+            .with_model("text-embedding-3-small")
+            .with_dimensions(512);
+        let embedder = OpenAiEmbedder::new(config).unwrap();
+        assert_eq!(embedder.dimensions(), 512);
+    }
+
+    #[test]
+    fn test_openai_embedder_dimensions_override_unknown_model() {
+        // Custom model with explicit dimensions
+        let config = OpenAiEmbedderConfig::new("key")
+            .with_model("my-custom-embedding-model")
+            .with_dimensions(768);
+        let embedder = OpenAiEmbedder::new(config).unwrap();
+        assert_eq!(embedder.dimensions(), 768);
     }
 }
