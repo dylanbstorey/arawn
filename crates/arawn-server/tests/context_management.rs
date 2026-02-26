@@ -64,7 +64,11 @@ async fn test_compact_command_session_not_found() -> Result<()> {
         .send()
         .await?;
 
-    assert_eq!(resp.status().as_u16(), 404, "Should return 404 for missing session");
+    assert_eq!(
+        resp.status().as_u16(),
+        404,
+        "Should return 404 for missing session"
+    );
 
     Ok(())
 }
@@ -102,10 +106,7 @@ async fn test_compact_command_no_compaction_needed() -> Result<()> {
     let body: serde_json::Value = resp.json().await?;
 
     assert_eq!(body["compacted"], false);
-    assert!(body["message"]
-        .as_str()
-        .unwrap()
-        .contains("does not need"));
+    assert!(body["message"].as_str().unwrap().contains("does not need"));
 
     Ok(())
 }
@@ -160,8 +161,11 @@ async fn test_compact_command_with_many_turns() -> Result<()> {
     let body: serde_json::Value = resp.json().await?;
 
     // Should have performed compaction
-    assert!(body["compacted"].as_bool().unwrap_or(false) || !body["compacted"].as_bool().unwrap_or(true),
-        "Should return a compaction status");
+    assert!(
+        body["compacted"].as_bool().unwrap_or(false)
+            || !body["compacted"].as_bool().unwrap_or(true),
+        "Should return a compaction status"
+    );
 
     Ok(())
 }
@@ -170,7 +174,7 @@ async fn test_compact_command_with_many_turns() -> Result<()> {
 async fn test_compact_force_flag() -> Result<()> {
     let server = common::TestServer::start_with_responses(vec![
         "Response".to_string(),
-        "Summary text".to_string(),  // For compaction
+        "Summary text".to_string(), // For compaction
     ])
     .await?;
 
@@ -286,10 +290,7 @@ async fn test_compact_stream_returns_sse() -> Result<()> {
 
     // Check content-type indicates SSE
     let content_type = resp.headers().get("content-type");
-    assert!(
-        content_type.is_some(),
-        "Should have content-type header"
-    );
+    assert!(content_type.is_some(), "Should have content-type header");
 
     // Read the body (SSE events)
     let body = resp.text().await?;
@@ -431,7 +432,10 @@ async fn test_compaction_response_structure() -> Result<()> {
     let body: serde_json::Value = resp.json().await?;
 
     // Response should have expected structure
-    assert!(body.get("compacted").is_some(), "Should have compacted field");
+    assert!(
+        body.get("compacted").is_some(),
+        "Should have compacted field"
+    );
     assert!(body.get("message").is_some(), "Should have message field");
 
     // When not compacted, optional fields may be absent
@@ -452,9 +456,7 @@ async fn test_compaction_response_structure() -> Result<()> {
 
 #[tokio::test]
 async fn test_compact_same_session_concurrent() -> Result<()> {
-    let responses: Vec<String> = (0..10)
-        .map(|i| format!("Response {}", i))
-        .collect();
+    let responses: Vec<String> = (0..10).map(|i| format!("Response {}", i)).collect();
 
     let server = common::TestServer::start_with_responses(responses).await?;
 

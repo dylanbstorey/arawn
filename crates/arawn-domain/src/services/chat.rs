@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use arawn_agent::{Agent, Session, SessionId, SessionIndexer, AgentResponse};
+use arawn_agent::{Agent, AgentResponse, Session, SessionId, SessionIndexer};
 use arawn_workstream::{DirectoryManager, WorkstreamManager};
 use tracing::{debug, info, warn};
 
@@ -98,11 +98,7 @@ impl ChatService {
     /// 2. Returns the response
     ///
     /// Note: Session persistence is handled separately via the workstream manager.
-    pub async fn turn(
-        &self,
-        session: &mut Session,
-        message: &str,
-    ) -> Result<ChatResponse> {
+    pub async fn turn(&self, session: &mut Session, message: &str) -> Result<ChatResponse> {
         let session_id = session.id;
 
         debug!(session_id = %session_id, message_len = message.len(), "Executing chat turn");
@@ -133,7 +129,11 @@ impl ChatService {
     }
 
     /// Get allowed paths for a session.
-    pub fn allowed_paths(&self, workstream_id: &str, session_id: &str) -> Option<Vec<std::path::PathBuf>> {
+    pub fn allowed_paths(
+        &self,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Option<Vec<std::path::PathBuf>> {
         self.directory_manager
             .as_ref()
             .map(|dm| dm.allowed_paths(workstream_id, session_id))
@@ -251,6 +251,9 @@ mod tests {
         let messages = session_to_messages(&session);
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0], ("user".to_string(), "Hello".to_string()));
-        assert_eq!(messages[1], ("assistant".to_string(), "Hi there!".to_string()));
+        assert_eq!(
+            messages[1],
+            ("assistant".to_string(), "Hi there!".to_string())
+        );
     }
 }

@@ -209,8 +209,7 @@ impl Agent {
                         // Add feedback as a user message so the LLM can correct itself
                         let feedback = format!(
                             "Error: The tool '{}' does not exist. Available tools are: {}. Please use the exact tool name from this list.",
-                            invalid_tool,
-                            available_tools
+                            invalid_tool, available_tools
                         );
                         messages.push(Message::user(feedback));
 
@@ -389,9 +388,9 @@ impl Agent {
                     if let Some(c) = content {
                         match c {
                             arawn_llm::ToolResultContent::Text(text) => estimate_tokens(&text),
-                            arawn_llm::ToolResultContent::Blocks(blocks) => estimate_tokens(
-                                &serde_json::to_string(&blocks).unwrap_or_default(),
-                            ),
+                            arawn_llm::ToolResultContent::Blocks(blocks) => {
+                                estimate_tokens(&serde_json::to_string(&blocks).unwrap_or_default())
+                            }
                         }
                     } else {
                         0

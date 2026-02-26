@@ -58,10 +58,7 @@ pub enum DirectoryError {
 
     /// Git clone operation failed.
     #[error("Git clone failed for {url}: {stderr}")]
-    CloneFailed {
-        url: String,
-        stderr: String,
-    },
+    CloneFailed { url: String, stderr: String },
 
     /// Git command not found.
     #[error("Git is not installed or not in PATH")]
@@ -284,9 +281,8 @@ impl DirectoryManager {
         }
 
         // Check all characters
-        name.chars().all(|c| {
-            c.is_ascii_alphanumeric() || c == '-' || c == '_'
-        })
+        name.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     }
 
     /// Checks if a session ID is valid.
@@ -321,10 +317,7 @@ impl DirectoryManager {
             vec![self.scratch_session_path(session_id)]
         } else {
             // Named workstreams share production and work directories
-            vec![
-                self.production_path(workstream),
-                self.work_path(workstream),
-            ]
+            vec![self.production_path(workstream), self.work_path(workstream)]
         }
     }
 
@@ -423,7 +416,8 @@ impl DirectoryManager {
         }
 
         // Get the session directory (parent of work dir)
-        let session_dir = self.workstream_path(SCRATCH_WORKSTREAM)
+        let session_dir = self
+            .workstream_path(SCRATCH_WORKSTREAM)
             .join(SESSIONS_DIR)
             .join(session_id);
 
@@ -595,10 +589,7 @@ impl DirectoryManager {
     /// Given `file.txt`, tries `file(1).txt`, `file(2).txt`, etc.
     /// until finding a path that doesn't exist.
     fn resolve_conflict(path: &Path) -> PathBuf {
-        let stem = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("file");
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("file");
         let extension = path.extension().and_then(|s| s.to_str());
         let parent = path.parent().unwrap_or(Path::new(""));
 
@@ -925,7 +916,9 @@ impl DirectoryManager {
 
         // Check target workstream exists
         if !self.workstream_exists(target_workstream) {
-            return Err(DirectoryError::WorkstreamNotFound(target_workstream.to_string()));
+            return Err(DirectoryError::WorkstreamNotFound(
+                target_workstream.to_string(),
+            ));
         }
 
         // Source: scratch session work directory
@@ -956,7 +949,7 @@ impl DirectoryManager {
             let dest_path = dest_work.join(entry.file_name());
 
             // Use rename for atomic move (same filesystem) or fall back to copy+delete
-            if let Err(_) = fs::rename(&src_path, &dest_path) {
+            if fs::rename(&src_path, &dest_path).is_err() {
                 // Cross-filesystem move: copy and delete
                 if src_path.is_dir() {
                     Self::copy_dir_recursive(&src_path, &dest_path)?;
@@ -1127,10 +1120,7 @@ impl DirectoryManager {
             let path = entry.path();
 
             if path.is_dir() {
-                let session_id = entry
-                    .file_name()
-                    .to_string_lossy()
-                    .to_string();
+                let session_id = entry.file_name().to_string_lossy().to_string();
 
                 let work_path = path.join(WORK_DIR);
                 let bytes = Self::dir_size(&work_path).unwrap_or(0);
@@ -1160,17 +1150,13 @@ impl DirectoryManager {
         let mut size = 0u64;
         for entry in WalkDir::new(path).follow_links(false) {
             let entry = entry.map_err(|e| {
-                DirectoryError::Io(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                DirectoryError::Io(std::io::Error::other(
                     e.to_string(),
                 ))
             })?;
 
             if entry.file_type().is_file() {
-                size += entry
-                    .metadata()
-                    .map(|m| m.len())
-                    .unwrap_or(0);
+                size += entry.metadata().map(|m| m.len()).unwrap_or(0);
             }
         }
 
@@ -1249,9 +1235,8 @@ impl DirectoryManager {
         }
 
         // Calculate cutoff time if age filter specified
-        let cutoff = older_than_days.map(|days| {
-            SystemTime::now() - Duration::from_secs(days as u64 * 86400)
-        });
+        let cutoff = older_than_days
+            .map(|days| SystemTime::now() - Duration::from_secs(days as u64 * 86400));
 
         // Determine which directories to clean
         let paths_to_clean: Vec<PathBuf> = if workstream == SCRATCH_WORKSTREAM {
@@ -1573,7 +1558,8 @@ mod tests {
         // Work dir gone
         assert!(!session_path.exists());
         // Session dir also gone
-        let session_dir = manager.workstream_path(SCRATCH_WORKSTREAM)
+        let session_dir = manager
+            .workstream_path(SCRATCH_WORKSTREAM)
             .join(SESSIONS_DIR)
             .join("to-remove");
         assert!(!session_dir.exists());
@@ -1656,7 +1642,11 @@ mod tests {
 
         // Promote to production/
         let result = manager
-            .promote("test-project", Path::new("draft.txt"), Path::new("final.txt"))
+            .promote(
+                "test-project",
+                Path::new("draft.txt"),
+                Path::new("final.txt"),
+            )
             .unwrap();
 
         // Verify result
@@ -1690,7 +1680,11 @@ mod tests {
             )
             .unwrap();
 
-        assert!(result.path.ends_with("production/blog/posts/2024/article.md"));
+        assert!(
+            result
+                .path
+                .ends_with("production/blog/posts/2024/article.md")
+        );
         assert!(result.path.exists());
     }
 
@@ -1810,11 +1804,7 @@ mod tests {
         let (_dir, manager) = setup();
 
         let err = manager
-            .promote(
-                "nonexistent",
-                Path::new("file.txt"),
-                Path::new("file.txt"),
-            )
+            .promote("nonexistent", Path::new("file.txt"), Path::new("file.txt"))
             .unwrap_err();
 
         assert!(matches!(err, DirectoryError::WorkstreamNotFound(_)));
@@ -1825,11 +1815,7 @@ mod tests {
         let (_dir, manager) = setup();
 
         let err = manager
-            .promote(
-                "../escape",
-                Path::new("file.txt"),
-                Path::new("file.txt"),
-            )
+            .promote("../escape", Path::new("file.txt"), Path::new("file.txt"))
             .unwrap_err();
 
         assert!(matches!(err, DirectoryError::InvalidName(_)));
@@ -1872,11 +1858,7 @@ mod tests {
 
         // Export to external directory
         let result = manager
-            .export(
-                "test-project",
-                Path::new("report.pdf"),
-                export_dir.path(),
-            )
+            .export("test-project", Path::new("report.pdf"), export_dir.path())
             .unwrap();
 
         // Verify result
@@ -2030,7 +2012,10 @@ mod tests {
 
         // Source should still exist
         assert!(source_file.exists());
-        assert_eq!(fs::read_to_string(&source_file).unwrap(), "original content");
+        assert_eq!(
+            fs::read_to_string(&source_file).unwrap(),
+            "original content"
+        );
     }
 
     // ── Clone tests ────────────────────────────────────────────────────
@@ -2248,7 +2233,9 @@ mod tests {
         manager.create_workstream("empty-target").unwrap();
 
         // Attach session that doesn't exist (no work dir)
-        let result = manager.attach_session("nonexistent-session", "empty-target").unwrap();
+        let result = manager
+            .attach_session("nonexistent-session", "empty-target")
+            .unwrap();
 
         // Should succeed with 0 files migrated
         assert_eq!(result.files_migrated, 0);
@@ -2272,7 +2259,9 @@ mod tests {
         // Create scratch session
         let _ = manager.create_scratch_session("session-123").unwrap();
 
-        let err = manager.attach_session("session-123", "../escape").unwrap_err();
+        let err = manager
+            .attach_session("session-123", "../escape")
+            .unwrap_err();
         assert!(matches!(err, DirectoryError::InvalidName(_)));
     }
 
@@ -2283,7 +2272,9 @@ mod tests {
         // Create scratch session
         let _ = manager.create_scratch_session("session-123").unwrap();
 
-        let err = manager.attach_session("session-123", "nonexistent").unwrap_err();
+        let err = manager
+            .attach_session("session-123", "nonexistent")
+            .unwrap_err();
         assert!(matches!(err, DirectoryError::WorkstreamNotFound(_)));
     }
 
@@ -2298,7 +2289,9 @@ mod tests {
 
         manager.create_workstream("preserve-test").unwrap();
 
-        let result = manager.attach_session("session-789", "preserve-test").unwrap();
+        let result = manager
+            .attach_session("session-789", "preserve-test")
+            .unwrap();
 
         // Verify content is preserved exactly
         assert_eq!(
@@ -2435,7 +2428,7 @@ mod tests {
             production_bytes: 1_048_576, // 1 MB
             work_bytes: 524_288,         // 0.5 MB
             sessions: vec![],
-            total_bytes: 1_572_864,      // 1.5 MB
+            total_bytes: 1_572_864, // 1.5 MB
             warnings: vec![],
         };
 
@@ -2559,7 +2552,9 @@ mod tests {
         fs::write(s2_work.join("file3.txt"), "s2f3").unwrap();
 
         // Cleanup scratch workstream
-        let result = manager.cleanup_work(SCRATCH_WORKSTREAM, None, false).unwrap();
+        let result = manager
+            .cleanup_work(SCRATCH_WORKSTREAM, None, false)
+            .unwrap();
 
         // All 3 files from both sessions deleted
         assert_eq!(result.deleted_files, 3);
@@ -2604,7 +2599,9 @@ mod tests {
     fn test_cleanup_work_workstream_not_found() {
         let (_dir, manager) = setup();
 
-        let err = manager.cleanup_work("nonexistent", None, false).unwrap_err();
+        let err = manager
+            .cleanup_work("nonexistent", None, false)
+            .unwrap_err();
         assert!(matches!(err, DirectoryError::WorkstreamNotFound(_)));
     }
 
@@ -2612,7 +2609,9 @@ mod tests {
     fn test_cleanup_work_invalid_name() {
         let (_dir, manager) = setup();
 
-        let err = manager.cleanup_work("invalid/name", None, false).unwrap_err();
+        let err = manager
+            .cleanup_work("invalid/name", None, false)
+            .unwrap_err();
         assert!(matches!(err, DirectoryError::InvalidName(_)));
     }
 

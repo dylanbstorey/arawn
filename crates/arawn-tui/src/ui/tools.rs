@@ -2,11 +2,11 @@
 
 use crate::app::{App, ToolExecution};
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 /// Render the tool output pane (split view at bottom of screen).
@@ -72,7 +72,7 @@ fn build_title(app: &App) -> Line<'static> {
             Style::default().fg(Color::Gray)
         };
 
-        let name = Span::styled(format!("{}", tool.name), name_style);
+        let name = Span::styled(tool.name.to_string(), name_style);
 
         spans.push(status);
         spans.push(Span::raw(" "));

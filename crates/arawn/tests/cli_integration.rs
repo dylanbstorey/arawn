@@ -67,18 +67,12 @@ fn test_help_lists_subcommands() {
 fn test_verbose_flag_accepted() {
     // --verbose is global and should be parsed without error
     // (Will fail with connection error, but that's expected - we're testing parsing)
-    arawn()
-        .args(["--verbose", "--help"])
-        .assert()
-        .success();
+    arawn().args(["--verbose", "--help"]).assert().success();
 }
 
 #[test]
 fn test_json_flag_accepted() {
-    arawn()
-        .args(["--json", "--help"])
-        .assert()
-        .success();
+    arawn().args(["--json", "--help"]).assert().success();
 }
 
 #[test]
@@ -202,11 +196,11 @@ fn test_mcp_help() {
 
 #[test]
 fn test_tui_help() {
-    arawn()
-        .args(["tui", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("tui").or(predicate::str::contains("TUI")).or(predicate::str::contains("Terminal")));
+    arawn().args(["tui", "--help"]).assert().success().stdout(
+        predicate::str::contains("tui")
+            .or(predicate::str::contains("TUI"))
+            .or(predicate::str::contains("Terminal")),
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,10 +231,7 @@ fn test_invalid_flag_fails() {
 
 #[test]
 fn test_config_subcommands_listed() {
-    arawn()
-        .args(["config", "--help"])
-        .assert()
-        .success();
+    arawn().args(["config", "--help"]).assert().success();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -249,10 +240,7 @@ fn test_config_subcommands_listed() {
 
 #[test]
 fn test_auth_subcommands_listed() {
-    arawn()
-        .args(["auth", "--help"])
-        .assert()
-        .success();
+    arawn().args(["auth", "--help"]).assert().success();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,10 +249,7 @@ fn test_auth_subcommands_listed() {
 
 #[test]
 fn test_plugin_subcommands_listed() {
-    arawn()
-        .args(["plugin", "--help"])
-        .assert()
-        .success();
+    arawn().args(["plugin", "--help"]).assert().success();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,8 +258,5 @@ fn test_plugin_subcommands_listed() {
 
 #[test]
 fn test_mcp_subcommands_listed() {
-    arawn()
-        .args(["mcp", "--help"])
-        .assert()
-        .success();
+    arawn().args(["mcp", "--help"]).assert().success();
 }

@@ -10,16 +10,16 @@ const MAX_MESSAGES: usize = 10_000;
 /// Maximum number of tool executions to retain per response.
 const MAX_TOOLS: usize = 1_000;
 
+use crate::Tui;
 use crate::events::{Event, EventHandler};
 use crate::input::InputState;
 use crate::logs::LogBuffer;
 use crate::palette::{ActionId, CommandPalette};
-use crate::ui::CommandPopup;
 use crate::protocol::ServerMessage;
 use crate::sessions::{SessionList, SessionSummary};
 use crate::sidebar::{Sidebar, SidebarSection, WorkstreamEntry};
 use crate::ui;
-use crate::Tui;
+use crate::ui::CommandPopup;
 use anyhow::Result;
 use arawn_client::{ArawnClient, CreateWorkstreamRequest, UpdateWorkstreamRequest};
 use chrono::{DateTime, Utc};
@@ -421,8 +421,13 @@ impl App {
                     self.do_fetch_session_messages(&session_id).await;
                 }
                 PendingAction::MoveSessionToWorkstream(session_id, workstream_id) => {
-                    tracing::info!("Processing pending action: MoveSessionToWorkstream({}, {})", session_id, workstream_id);
-                    self.do_move_session_to_workstream(&session_id, &workstream_id).await;
+                    tracing::info!(
+                        "Processing pending action: MoveSessionToWorkstream({}, {})",
+                        session_id,
+                        workstream_id
+                    );
+                    self.do_move_session_to_workstream(&session_id, &workstream_id)
+                        .await;
                 }
             }
         }
@@ -438,7 +443,11 @@ impl App {
 
         match self.api.workstreams().create(request).await {
             Ok(workstream) => {
-                tracing::info!("Created workstream: {} ({})", workstream.title, workstream.id);
+                tracing::info!(
+                    "Created workstream: {} ({})",
+                    workstream.title,
+                    workstream.id
+                );
                 self.status_message = Some(format!("Created workstream: {}", workstream.title));
 
                 // Add to sidebar and switch to it
@@ -687,7 +696,8 @@ impl App {
                         id: ws.id.clone(),
                         name: ws.title.clone(),
                         session_count: 0, // Updated below when loading sessions
-                        is_current: ws.title == self.workstream || (ws.is_scratch && self.workstream == "scratch"),
+                        is_current: ws.title == self.workstream
+                            || (ws.is_scratch && self.workstream == "scratch"),
                         is_scratch: ws.is_scratch,
                         usage_bytes: None, // Updated via WebSocket events
                         limit_bytes: None,
@@ -697,7 +707,12 @@ impl App {
 
                 // Set initial selection to current workstream and store the ID
                 // Only consider active workstreams for selection
-                if let Some(pos) = self.sidebar.workstreams.iter().position(|ws| ws.is_current && !ws.is_archived()) {
+                if let Some(pos) = self
+                    .sidebar
+                    .workstreams
+                    .iter()
+                    .position(|ws| ws.is_current && !ws.is_archived())
+                {
                     self.sidebar.workstream_index = pos;
                     self.workstream_id = Some(self.sidebar.workstreams[pos].id.clone());
                     self.workstream = self.sidebar.workstreams[pos].name.clone();
@@ -728,11 +743,7 @@ impl App {
                 self.session_id = Some(session_id);
             }
 
-            ServerMessage::ChatChunk {
-                chunk,
-                done,
-                ..
-            } => {
+            ServerMessage::ChatChunk { chunk, done, .. } => {
                 if done {
                     // Mark last message as not streaming
                     if let Some(last) = self.messages.last_mut() {
@@ -798,7 +809,8 @@ impl App {
                 if code == "session_not_owned" {
                     // We tried to send a message but aren't the owner
                     self.is_session_owner = false;
-                    self.status_message = Some("Read-only mode: session owned by another client".to_string());
+                    self.status_message =
+                        Some("Read-only mode: session owned by another client".to_string());
                 } else {
                     self.status_message = Some(format!("Error: {}", message));
                 }
@@ -842,11 +854,13 @@ impl App {
 
                 if success {
                     // Format the result as a system message
-                    let result_str = if let Some(msg) = result.get("message").and_then(|v| v.as_str()) {
-                        msg.to_string()
-                    } else {
-                        serde_json::to_string_pretty(&result).unwrap_or_else(|_| "Success".to_string())
-                    };
+                    let result_str =
+                        if let Some(msg) = result.get("message").and_then(|v| v.as_str()) {
+                            msg.to_string()
+                        } else {
+                            serde_json::to_string_pretty(&result)
+                                .unwrap_or_else(|_| "Success".to_string())
+                        };
                     self.status_message = Some(format!("/{}: {}", command, result_str));
 
                     // Add as system message in chat
@@ -1161,22 +1175,29 @@ impl App {
 
                             // Validation
                             if title.is_empty() {
-                                self.status_message = Some("Workstream name cannot be empty".to_string());
+                                self.status_message =
+                                    Some("Workstream name cannot be empty".to_string());
                                 return;
                             }
                             if title.len() > 100 {
-                                self.status_message = Some("Workstream name too long (max 100 chars)".to_string());
+                                self.status_message =
+                                    Some("Workstream name too long (max 100 chars)".to_string());
                                 return;
                             }
                             // Check for duplicate names
-                            let name_exists = self.sidebar.workstreams.iter()
+                            let name_exists = self
+                                .sidebar
+                                .workstreams
+                                .iter()
                                 .any(|ws| ws.name.eq_ignore_ascii_case(&title));
                             if name_exists {
-                                self.status_message = Some(format!("Workstream '{}' already exists", title));
+                                self.status_message =
+                                    Some(format!("Workstream '{}' already exists", title));
                                 return;
                             }
 
-                            self.pending_actions.push(PendingAction::CreateWorkstream(title));
+                            self.pending_actions
+                                .push(PendingAction::CreateWorkstream(title));
                             self.input.clear();
                             self.input_mode = InputMode::Chat;
                             self.status_message = None;
@@ -1184,7 +1205,8 @@ impl App {
                         InputMode::RenameWorkstream(id) => {
                             let new_title = self.input.content().to_string();
                             let id = id.clone();
-                            self.pending_actions.push(PendingAction::RenameWorkstream(id, new_title));
+                            self.pending_actions
+                                .push(PendingAction::RenameWorkstream(id, new_title));
                             self.input.clear();
                             self.input_mode = InputMode::Chat;
                             self.status_message = None;
@@ -1329,8 +1351,7 @@ impl App {
 
         // Parse additional args (simple key=value or flags)
         for part in cmd.args.split_whitespace() {
-            if part.starts_with("--") {
-                let flag = &part[2..];
+            if let Some(flag) = part.strip_prefix("--") {
                 if let Some((key, value)) = flag.split_once('=') {
                     // --key=value
                     args[key] = serde_json::Value::String(value.to_string());
@@ -1380,9 +1401,9 @@ impl App {
         self.chat_auto_scroll = true;
 
         // Send via WebSocket with workstream context
-        if let Err(e) = self
-            .ws_client
-            .send_chat(message, self.session_id.clone(), self.workstream_id.clone())
+        if let Err(e) =
+            self.ws_client
+                .send_chat(message, self.session_id.clone(), self.workstream_id.clone())
         {
             self.status_message = Some(format!("Failed to send: {}", e));
             return;
@@ -1501,7 +1522,8 @@ impl App {
                     self.sidebar.section = SidebarSection::Workstreams;
                     self.moving_session_to_workstream = true;
                     self.focus.focus(FocusTarget::Sidebar);
-                    self.status_message = Some("Select target workstream (Enter to move, Esc to cancel)".to_string());
+                    self.status_message =
+                        Some("Select target workstream (Enter to move, Esc to cancel)".to_string());
                 } else {
                     tracing::warn!("Session move attempted with no active session");
                     self.status_message = Some("No session to move".to_string());
@@ -1515,7 +1537,8 @@ impl App {
                 self.input_mode = InputMode::NewWorkstream;
                 self.input.clear();
                 self.focus.return_to_input();
-                self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
+                self.status_message =
+                    Some("New workstream: Enter name (Esc to cancel)".to_string());
             }
             ActionId::ViewToggleToolPane => {
                 self.focus.toggle(FocusTarget::ToolPane);
@@ -1710,7 +1733,9 @@ impl App {
     fn run_pager(&self, pager: &str, content: &str) -> std::io::Result<()> {
         use crossterm::{
             execute,
-            terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+            terminal::{
+                EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+            },
         };
         use std::io::Write;
 
@@ -1724,9 +1749,7 @@ impl App {
         execute!(std::io::stdout(), LeaveAlternateScreen)?;
 
         // Run pager (blocks until user quits)
-        let status = std::process::Command::new(pager)
-            .arg(tmp.path())
-            .status();
+        let status = std::process::Command::new(pager).arg(tmp.path()).status();
 
         // Restore TUI (even if pager failed)
         execute!(std::io::stdout(), EnterAlternateScreen)?;
@@ -1735,8 +1758,7 @@ impl App {
         // Check pager result
         match status {
             Ok(exit) if exit.success() => Ok(()),
-            Ok(exit) => Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            Ok(exit) => Err(std::io::Error::other(
                 format!("Pager exited with status: {}", exit),
             )),
             Err(e) => Err(e),
@@ -1822,7 +1844,9 @@ impl App {
                     SidebarSection::Workstreams => {
                         if self.moving_session_to_workstream {
                             // Move current session to selected workstream
-                            if let (Some(session_id), Some(ws)) = (self.session_id.clone(), self.sidebar.selected_workstream()) {
+                            if let (Some(session_id), Some(ws)) =
+                                (self.session_id.clone(), self.sidebar.selected_workstream())
+                            {
                                 tracing::info!(
                                     "User confirmed move: session {} -> workstream {} ({})",
                                     session_id,
@@ -1830,9 +1854,14 @@ impl App {
                                     ws.id
                                 );
                                 let ws_id = ws.id.clone();
-                                self.pending_actions.push(PendingAction::MoveSessionToWorkstream(session_id, ws_id));
+                                self.pending_actions
+                                    .push(PendingAction::MoveSessionToWorkstream(
+                                        session_id, ws_id,
+                                    ));
                             } else {
-                                tracing::warn!("Move confirmed but session_id or workstream not available");
+                                tracing::warn!(
+                                    "Move confirmed but session_id or workstream not available"
+                                );
                             }
                             self.moving_session_to_workstream = false;
                             self.sidebar.close();
@@ -1879,7 +1908,8 @@ impl App {
                         self.input.clear();
                         self.sidebar.close();
                         self.focus.return_to_input();
-                        self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
+                        self.status_message =
+                            Some("New workstream: Enter name (Esc to cancel)".to_string());
                     }
                     SidebarSection::Sessions => {
                         // Switch to selected workstream if different
@@ -1903,7 +1933,8 @@ impl App {
                 self.input.clear();
                 self.sidebar.close();
                 self.focus.return_to_input();
-                self.status_message = Some("New workstream: Enter name (Esc to cancel)".to_string());
+                self.status_message =
+                    Some("New workstream: Enter name (Esc to cancel)".to_string());
             }
             KeyCode::Char('r') => {
                 self.clear_pending_deletes();
@@ -1932,7 +1963,8 @@ impl App {
                                 if pending_id == &ws.id {
                                     // Confirmed - execute delete
                                     let id = ws.id.clone();
-                                    self.pending_actions.push(PendingAction::DeleteWorkstream(id));
+                                    self.pending_actions
+                                        .push(PendingAction::DeleteWorkstream(id));
                                     self.clear_pending_deletes();
                                     return;
                                 }
@@ -1940,9 +1972,11 @@ impl App {
 
                             // First 'd' press - check if deletable and show confirmation
                             if ws.is_scratch {
-                                self.status_message = Some("Cannot delete scratch workstream".to_string());
+                                self.status_message =
+                                    Some("Cannot delete scratch workstream".to_string());
                             } else if ws.is_current {
-                                self.status_message = Some("Cannot delete current workstream".to_string());
+                                self.status_message =
+                                    Some("Cannot delete current workstream".to_string());
                             } else {
                                 // Set pending and show confirmation message
                                 let name = ws.name.clone();
@@ -1970,14 +2004,13 @@ impl App {
 
                             // First 'd' press - check if deletable and show confirmation
                             if session.is_current {
-                                self.status_message = Some("Cannot delete current session".to_string());
+                                self.status_message =
+                                    Some("Cannot delete current session".to_string());
                             } else {
                                 // Set pending and show confirmation message
                                 let id = session.id.clone();
                                 self.pending_delete_session = Some(id);
-                                self.status_message = Some(format!(
-                                    "Delete session? Press 'd' again to confirm, Esc to cancel"
-                                ));
+                                self.status_message = Some("Delete session? Press 'd' again to confirm, Esc to cancel".to_string());
                             }
                         }
                     }
@@ -1986,7 +2019,8 @@ impl App {
             KeyCode::Char('/') => {
                 // Start filtering - clear existing filter and start fresh
                 self.sidebar.filter_clear();
-                self.status_message = Some("Filter: type to search (Backspace to clear)".to_string());
+                self.status_message =
+                    Some("Filter: type to search (Backspace to clear)".to_string());
             }
             KeyCode::Char(c) => {
                 // Add to filter for incremental search

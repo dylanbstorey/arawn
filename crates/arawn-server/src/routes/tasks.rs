@@ -301,7 +301,10 @@ mod tests {
     fn create_test_router(state: AppState) -> Router {
         Router::new()
             .route("/tasks", get(list_tasks_handler))
-            .route("/tasks/{id}", get(get_task_handler).delete(cancel_task_handler))
+            .route(
+                "/tasks/{id}",
+                get(get_task_handler).delete(cancel_task_handler),
+            )
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
@@ -342,10 +345,7 @@ mod tests {
         // Add some tasks
         {
             let mut tasks = state.tasks().write().await;
-            tasks.insert(
-                "task-1".to_string(),
-                TrackedTask::new("task-1", "indexing"),
-            );
+            tasks.insert("task-1".to_string(), TrackedTask::new("task-1", "indexing"));
             let mut running = TrackedTask::new("task-2", "processing");
             running.start();
             tasks.insert("task-2".to_string(), running);
@@ -380,10 +380,7 @@ mod tests {
         // Add a task
         {
             let mut tasks = state.tasks().write().await;
-            tasks.insert(
-                "task-1".to_string(),
-                TrackedTask::new("task-1", "indexing"),
-            );
+            tasks.insert("task-1".to_string(), TrackedTask::new("task-1", "indexing"));
         }
 
         let app = create_test_router(state);

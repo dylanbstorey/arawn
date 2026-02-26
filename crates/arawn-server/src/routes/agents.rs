@@ -4,7 +4,10 @@
 //! Currently supports a single "main" agent, but designed for future
 //! multi-agent support.
 
-use axum::{Extension, Json, extract::{Path, State}};
+use axum::{
+    Extension, Json,
+    extract::{Path, State},
+};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 

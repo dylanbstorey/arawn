@@ -8,9 +8,7 @@ use clap::{Parser, Subcommand};
 mod client;
 mod commands;
 
-use commands::{
-    agent, ask, auth, chat, config, mcp, memory, notes, plugin, start, status, tui,
-};
+use commands::{agent, ask, auth, chat, config, mcp, memory, notes, plugin, start, status, tui};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLI Structure

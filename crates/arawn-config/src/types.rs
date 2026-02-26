@@ -2559,7 +2559,10 @@ max_context_tokens = 32000
             ..Default::default()
         };
         let err = llm.require_max_context_tokens().unwrap_err();
-        assert!(matches!(err, crate::ConfigError::MissingContextLimit { .. }));
+        assert!(matches!(
+            err,
+            crate::ConfigError::MissingContextLimit { .. }
+        ));
     }
 
     #[test]

@@ -113,7 +113,10 @@ impl<T> BoundedVec<T> {
     pub fn from_vec(items: Vec<T>, max_capacity: usize) -> Self {
         let skip = items.len().saturating_sub(max_capacity);
         let inner: Vec<T> = items.into_iter().skip(skip).collect();
-        Self { inner, max_capacity }
+        Self {
+            inner,
+            max_capacity,
+        }
     }
 
     /// Extend with items from an iterator.

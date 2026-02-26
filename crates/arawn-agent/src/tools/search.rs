@@ -627,7 +627,10 @@ mod tests {
         assert!(result.is_success());
         let content = result.to_llm_content();
         assert!(content.contains("root.rs"), "Should find root.rs");
-        assert!(!content.contains("nested.rs"), "Should NOT find nested.rs with non-recursive pattern");
+        assert!(
+            !content.contains("nested.rs"),
+            "Should NOT find nested.rs with non-recursive pattern"
+        );
     }
 
     #[tokio::test]

@@ -122,14 +122,14 @@ impl PathValidator {
             PathBuf::from("/var/spool"),
             PathBuf::from("/private/var/log"),
             PathBuf::from("/private/var/run"),
-            PathBuf::from("/System"),   // macOS
-            PathBuf::from("/Library"),  // macOS
+            PathBuf::from("/System"),  // macOS
+            PathBuf::from("/Library"), // macOS
             PathBuf::from("/bin"),
             PathBuf::from("/sbin"),
             PathBuf::from("/boot"),
             PathBuf::from("/root"),
-            PathBuf::from("/proc"),     // Linux
-            PathBuf::from("/sys"),      // Linux
+            PathBuf::from("/proc"), // Linux
+            PathBuf::from("/sys"),  // Linux
             PathBuf::from("/dev"),
         ];
 
@@ -237,10 +237,14 @@ impl PathValidator {
     /// - `PathError::DeniedPath` if the parent is in a denied directory
     pub fn validate_write(&self, path: &Path) -> PathResult<PathBuf> {
         // Get filename
-        let filename = path.file_name().ok_or_else(|| PathError::Invalid(path.to_path_buf()))?;
+        let filename = path
+            .file_name()
+            .ok_or_else(|| PathError::Invalid(path.to_path_buf()))?;
 
         // Get parent directory
-        let parent = path.parent().ok_or_else(|| PathError::Invalid(path.to_path_buf()))?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| PathError::Invalid(path.to_path_buf()))?;
 
         // Handle empty parent (e.g., just a filename)
         let parent = if parent.as_os_str().is_empty() {
@@ -325,7 +329,9 @@ impl PathValidator {
             };
 
             // Check both the original path and its canonical form
-            if path.starts_with(&allowed_canonical) || path_canonical.starts_with(&allowed_canonical) {
+            if path.starts_with(&allowed_canonical)
+                || path_canonical.starts_with(&allowed_canonical)
+            {
                 return true;
             }
         }
@@ -519,7 +525,10 @@ mod tests {
         // Should fail with symlink escape
         let result = validator.validate(&link_path);
         assert!(
-            matches!(result, Err(PathError::SymlinkEscape { .. }) | Err(PathError::NotAllowed { .. })),
+            matches!(
+                result,
+                Err(PathError::SymlinkEscape { .. }) | Err(PathError::NotAllowed { .. })
+            ),
             "Expected SymlinkEscape or NotAllowed, got: {:?}",
             result
         );
@@ -533,10 +542,8 @@ mod tests {
         let denied_dir = dir.path().join("denied");
         fs::create_dir(&denied_dir).unwrap();
 
-        let validator = PathValidator::with_denied(
-            vec![dir.path().to_path_buf()],
-            vec![denied_dir.clone()],
-        );
+        let validator =
+            PathValidator::with_denied(vec![dir.path().to_path_buf()], vec![denied_dir.clone()]);
 
         // Create file in denied directory
         let denied_file = denied_dir.join("secret.txt");
@@ -599,10 +606,8 @@ mod tests {
         let dir1 = tempfile::tempdir().unwrap();
         let dir2 = tempfile::tempdir().unwrap();
 
-        let validator = PathValidator::new(vec![
-            dir1.path().to_path_buf(),
-            dir2.path().to_path_buf(),
-        ]);
+        let validator =
+            PathValidator::new(vec![dir1.path().to_path_buf(), dir2.path().to_path_buf()]);
 
         // File in first directory
         let file1 = dir1.path().join("file1.txt");

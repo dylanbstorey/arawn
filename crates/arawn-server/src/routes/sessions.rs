@@ -11,10 +11,10 @@ use utoipa::ToSchema;
 
 use arawn_agent::{Session, SessionId};
 
+use super::pagination::PaginationParams;
 use crate::auth::Identity;
 use crate::error::ServerError;
 use crate::state::AppState;
-use super::pagination::PaginationParams;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -172,9 +172,10 @@ pub async fn create_session_handler(
             .with_session_mut(&session_id, |session| {
                 // Set title as metadata if provided
                 if let Some(title) = &request.title {
-                    session
-                        .metadata
-                        .insert("title".to_string(), serde_json::Value::String(title.clone()));
+                    session.metadata.insert(
+                        "title".to_string(),
+                        serde_json::Value::String(title.clone()),
+                    );
                 }
                 // Merge additional metadata
                 for (key, value) in &request.metadata {
@@ -251,7 +252,7 @@ pub async fn list_sessions_handler(
     }
 
     // Also include sessions from workstream storage (for historical sessions)
-    if let Some(ref workstreams) = state.workstreams() {
+    if let Some(workstreams) = state.workstreams() {
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
@@ -335,14 +336,16 @@ pub async fn get_session_handler(
     }
 
     // Try to load from workstream if workstreams are configured
-    if let Some(ref workstreams) = state.workstreams() {
+    if let Some(workstreams) = state.workstreams() {
         // First, find which workstream this session belongs to
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
                     if ws_sessions.iter().any(|s| s.id == session_id) {
                         // Found the workstream, try to load the session
-                        if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await {
+                        if let Ok((session, _)) =
+                            state.session_cache().get_or_load(id, &ws.id).await
+                        {
                             let allowed_paths = get_allowed_paths(&ws.id, &session_id);
                             return Ok(Json(session_to_detail_with_migration(
                                 &session,
@@ -357,7 +360,10 @@ pub async fn get_session_handler(
         }
     }
 
-    Err(ServerError::NotFound(format!("Session {} not found", session_id)))
+    Err(ServerError::NotFound(format!(
+        "Session {} not found",
+        session_id
+    )))
 }
 
 /// DELETE /api/v1/sessions/:id - Delete a session.
@@ -434,7 +440,7 @@ pub async fn update_session_handler(
             new_workstream_id = %new_workstream_id,
             "Attempting to reassign session to new workstream"
         );
-        if let Some(ref workstreams) = state.workstreams() {
+        if let Some(workstreams) = state.workstreams() {
             // Get the current workstream ID before reassignment to detect scratch→named migration
             let current_workstream_id = workstreams
                 .store()
@@ -466,7 +472,9 @@ pub async fn update_session_handler(
                                         );
                                         migration_result = Some(result);
                                     }
-                                    Err(arawn_workstream::DirectoryError::SessionWorkNotFound(_)) => {
+                                    Err(arawn_workstream::DirectoryError::SessionWorkNotFound(
+                                        _,
+                                    )) => {
                                         // No files to migrate, that's fine
                                         tracing::debug!(
                                             session_id = %session_id,
@@ -526,15 +534,19 @@ pub async fn update_session_handler(
                     error = %e,
                     "Failed to reload session after reassignment"
                 );
-                ServerError::NotFound(format!("Session {} not found after reassignment", session_id))
+                ServerError::NotFound(format!(
+                    "Session {} not found after reassignment",
+                    session_id
+                ))
             })?;
 
         // Apply title/metadata updates if provided
         if request.title.is_some() || request.metadata.is_some() {
             if let Some(ref title) = request.title {
-                session
-                    .metadata
-                    .insert("title".to_string(), serde_json::Value::String(title.clone()));
+                session.metadata.insert(
+                    "title".to_string(),
+                    serde_json::Value::String(title.clone()),
+                );
             }
             if let Some(ref metadata) = request.metadata {
                 for (key, value) in metadata {
@@ -551,7 +563,13 @@ pub async fn update_session_handler(
         let (files_migrated, allowed_paths) = match migration_result {
             Some(ref result) => (
                 Some(result.files_migrated),
-                Some(result.allowed_paths.iter().map(|p| p.display().to_string()).collect()),
+                Some(
+                    result
+                        .allowed_paths
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect(),
+                ),
             ),
             None => (None, None),
         };
@@ -570,9 +588,10 @@ pub async fn update_session_handler(
         .with_session_mut(&id, |session| {
             // Update title if provided
             if let Some(ref title) = request.title {
-                session
-                    .metadata
-                    .insert("title".to_string(), serde_json::Value::String(title.clone()));
+                session.metadata.insert(
+                    "title".to_string(),
+                    serde_json::Value::String(title.clone()),
+                );
             }
 
             // Merge metadata if provided
@@ -620,7 +639,7 @@ pub async fn get_session_messages_handler(
     // Try session cache first
     let session = if let Some(session) = state.session_cache().get(&id).await {
         session
-    } else if let Some(ref workstreams) = state.workstreams() {
+    } else if let Some(workstreams) = state.workstreams() {
         // Try to load from workstream
         let mut found_session = None;
         if let Ok(ws_list) = workstreams.list_workstreams() {
@@ -628,7 +647,8 @@ pub async fn get_session_messages_handler(
                 if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
                     if ws_sessions.iter().any(|s| s.id == session_id) {
                         // Found the workstream, try to load the session
-                        if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await
+                        if let Ok((session, _)) =
+                            state.session_cache().get_or_load(id, &ws.id).await
                         {
                             found_session = Some(session);
                             break;
@@ -637,9 +657,13 @@ pub async fn get_session_messages_handler(
                 }
             }
         }
-        found_session.ok_or_else(|| ServerError::NotFound(format!("Session {} not found", session_id)))?
+        found_session
+            .ok_or_else(|| ServerError::NotFound(format!("Session {} not found", session_id)))?
     } else {
-        return Err(ServerError::NotFound(format!("Session {} not found", session_id)));
+        return Err(ServerError::NotFound(format!(
+            "Session {} not found",
+            session_id
+        )));
     };
 
     let mut messages = Vec::new();

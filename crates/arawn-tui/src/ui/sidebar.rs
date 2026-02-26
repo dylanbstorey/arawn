@@ -3,11 +3,11 @@
 use crate::sessions::format_relative_time;
 use crate::sidebar::{Sidebar, SidebarSection};
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
-    Frame,
 };
 
 /// Width of the expanded sidebar (when open).
@@ -27,9 +27,10 @@ pub fn render_sidebar(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 /// Render the closed sidebar hint (minimal indicator).
 fn render_closed_hint(frame: &mut Frame, area: Rect) {
     // Just a thin vertical line with a hint character
-    let hint = Paragraph::new(vec![
-        Line::from(Span::styled("│", Style::default().fg(Color::DarkGray))),
-    ]);
+    let hint = Paragraph::new(vec![Line::from(Span::styled(
+        "│",
+        Style::default().fg(Color::DarkGray),
+    ))]);
     frame.render_widget(hint, area);
 }
 
@@ -44,11 +45,11 @@ fn render_open_sidebar(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 
     // Split into workstreams section and sessions section
     let chunks = Layout::vertical([
-        Constraint::Length(1),  // Workstreams header
-        Constraint::Length(6),  // Workstreams list (show ~5 items)
-        Constraint::Length(1),  // Sessions header
-        Constraint::Min(3),     // Sessions list
-        Constraint::Length(1),  // Footer
+        Constraint::Length(1), // Workstreams header
+        Constraint::Length(6), // Workstreams list (show ~5 items)
+        Constraint::Length(1), // Sessions header
+        Constraint::Min(3),    // Sessions list
+        Constraint::Length(1), // Footer
     ])
     .split(inner);
 
@@ -62,7 +63,9 @@ fn render_open_sidebar(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 /// Render the workstreams section header.
 fn render_workstreams_header(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
     let style = if sidebar.section == SidebarSection::Workstreams {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::DarkGray)
     };
@@ -77,7 +80,13 @@ fn render_workstreams_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 
     // Render active workstreams
     for (is_selected, ws) in sidebar.visible_workstreams() {
-        lines.push(render_workstream_line(sidebar, ws, is_selected, area.width, false));
+        lines.push(render_workstream_line(
+            sidebar,
+            ws,
+            is_selected,
+            area.width,
+            false,
+        ));
     }
 
     // Render archived section if there are archived workstreams
@@ -99,7 +108,13 @@ fn render_workstreams_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
 
         // Render archived workstreams
         for (is_selected, ws) in sidebar.visible_archived_workstreams() {
-            lines.push(render_workstream_line(sidebar, ws, is_selected, area.width, true));
+            lines.push(render_workstream_line(
+                sidebar,
+                ws,
+                is_selected,
+                area.width,
+                true,
+            ));
         }
     }
 
@@ -139,7 +154,11 @@ fn render_workstream_line(
     };
 
     // Calculate available width for name
-    let usage_width = if usage_str.is_empty() { 0 } else { usage_str.len() + 1 };
+    let usage_width = if usage_str.is_empty() {
+        0
+    } else {
+        usage_str.len() + 1
+    };
     let name_width = (width as usize).saturating_sub(3 + usage_width); // 3 = prefix + space
     let name = truncate_str(&name_display, name_width);
 
@@ -156,7 +175,9 @@ fn render_workstream_line(
                 .add_modifier(Modifier::ITALIC)
         }
     } else if is_selected && sidebar.section == SidebarSection::Workstreams {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     } else if ws.is_current {
         Style::default().add_modifier(Modifier::BOLD)
     } else if ws.is_scratch {
@@ -188,7 +209,10 @@ fn render_workstream_line(
     ];
 
     if !usage_str.is_empty() {
-        spans.push(Span::styled(format!(" {}", usage_str), Style::default().fg(usage_color)));
+        spans.push(Span::styled(
+            format!(" {}", usage_str),
+            Style::default().fg(usage_color),
+        ));
     }
 
     Line::from(spans)
@@ -210,7 +234,9 @@ fn format_size(bytes: u64) -> String {
 /// Render the sessions section header.
 fn render_sessions_header(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
     let style = if sidebar.section == SidebarSection::Sessions {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::DarkGray)
     };
@@ -234,9 +260,12 @@ fn render_sessions_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
     let mut lines = Vec::new();
 
     // Always show "+ New Session" at the top (index 0)
-    let new_session_selected = sidebar.is_new_session_selected() && sidebar.section == SidebarSection::Sessions;
+    let new_session_selected =
+        sidebar.is_new_session_selected() && sidebar.section == SidebarSection::Sessions;
     let new_session_style = if new_session_selected {
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default().fg(Color::DarkGray)
     };
@@ -253,7 +282,9 @@ fn render_sessions_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
         let title = truncate_str(&session.title, title_width);
 
         let style = if is_selected && sidebar.section == SidebarSection::Sessions {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if session.is_current {
             Style::default().add_modifier(Modifier::BOLD)
         } else {
@@ -271,7 +302,10 @@ fn render_sessions_list(sidebar: &Sidebar, frame: &mut Frame, area: Rect) {
             Span::styled(prefix, prefix_style),
             Span::styled(title, style),
             Span::raw(spacer),
-            Span::styled(format!(" {}", time_str), Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                format!(" {}", time_str),
+                Style::default().fg(Color::DarkGray),
+            ),
         ]));
     }
 

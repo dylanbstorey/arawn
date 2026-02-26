@@ -242,14 +242,12 @@ impl FileWatcher {
                             };
 
                             // Calculate relative path
-                            let relative_path = match calculate_relative_path(
-                                path,
-                                &workstreams_root,
-                                &workstream,
-                            ) {
-                                Some(rp) => rp,
-                                None => continue,
-                            };
+                            let relative_path =
+                                match calculate_relative_path(path, &workstreams_root, &workstream)
+                                {
+                                    Some(rp) => rp,
+                                    None => continue,
+                                };
 
                             // Determine action
                             let action = if event.kind == DebouncedEventKind::Any {
@@ -295,7 +293,10 @@ impl FileWatcher {
     /// Get the paths to watch for a workstream.
     fn get_watch_paths(&self, workstream_id: &str) -> WatcherResult<Vec<PathBuf>> {
         // Validate workstream name
-        if workstream_id.contains('/') || workstream_id.contains('\\') || workstream_id.contains("..") {
+        if workstream_id.contains('/')
+            || workstream_id.contains('\\')
+            || workstream_id.contains("..")
+        {
             return Err(WatcherError::InvalidName(workstream_id.to_string()));
         }
 

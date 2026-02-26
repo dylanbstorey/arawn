@@ -441,10 +441,7 @@ mod tests {
 
     #[test]
     fn test_parse_retry_after_header() {
-        assert_eq!(
-            parse_retry_after_header("5"),
-            Some(Duration::from_secs(5))
-        );
+        assert_eq!(parse_retry_after_header("5"), Some(Duration::from_secs(5)));
         assert_eq!(
             parse_retry_after_header(" 10 "),
             Some(Duration::from_secs(10))
@@ -570,9 +567,8 @@ mod tests {
         );
         assert_eq!(err.invalid_tool_name(), Some("read_file"));
 
-        let err = LlmError::Backend(
-            "attempted to call tool 'file_reader' which was not".to_string()
-        );
+        let err =
+            LlmError::Backend("attempted to call tool 'file_reader' which was not".to_string());
         assert_eq!(err.invalid_tool_name(), Some("file_reader"));
 
         // No tool name extractable

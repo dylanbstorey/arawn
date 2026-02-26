@@ -11,8 +11,8 @@ use axum::{
 };
 use futures::stream::Stream;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use tokio_util::sync::CancellationToken;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use arawn_agent::{SessionId, StreamChunk};
@@ -140,7 +140,9 @@ pub async fn chat_handler(
         .session_cache()
         .get(&session_id)
         .await
-        .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
+        .ok_or_else(|| {
+            ServerError::Internal("Session disappeared during processing".to_string())
+        })?;
 
     // Execute turn
     let response = state
@@ -158,7 +160,11 @@ pub async fn chat_handler(
     // Persist the turn to workstream storage
     if let Some(turn) = completed_turn {
         if let Some(workstream_id) = state.session_cache().get_workstream_id(&session_id).await {
-            if let Err(e) = state.session_cache().save_turn(session_id, &turn, &workstream_id).await {
+            if let Err(e) = state
+                .session_cache()
+                .save_turn(session_id, &turn, &workstream_id)
+                .await
+            {
                 tracing::warn!("Failed to persist turn to workstream: {}", e);
             }
         }
@@ -252,7 +258,9 @@ pub async fn chat_stream_handler(
         .session_cache()
         .get(&session_id)
         .await
-        .ok_or_else(|| ServerError::Internal("Session disappeared during processing".to_string()))?;
+        .ok_or_else(|| {
+            ServerError::Internal("Session disappeared during processing".to_string())
+        })?;
 
     // Get the agent stream
     let cancellation = CancellationToken::new();

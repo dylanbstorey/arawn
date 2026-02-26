@@ -265,7 +265,10 @@ fn handle_request(request: &JsonRpcRequest, config: &ServerConfig) -> JsonRpcRes
                     }))
                 }
                 "slow" => {
-                    let delay = args.get("delay_ms").and_then(|v| v.as_u64()).unwrap_or(1000);
+                    let delay = args
+                        .get("delay_ms")
+                        .and_then(|v| v.as_u64())
+                        .unwrap_or(1000);
                     thread::sleep(Duration::from_millis(delay));
                     Some(json!({
                         "content": [

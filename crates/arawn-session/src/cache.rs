@@ -81,8 +81,8 @@ impl SessionCache<NoPersistence> {
 impl<P: PersistenceHook> SessionCache<P> {
     /// Create a new session cache with a persistence backend.
     pub fn with_persistence(config: CacheConfig, persistence: P) -> Self {
-        let cap = NonZeroUsize::new(config.max_sessions)
-            .unwrap_or_else(|| NonZeroUsize::new(1).unwrap());
+        let cap =
+            NonZeroUsize::new(config.max_sessions).unwrap_or_else(|| NonZeroUsize::new(1).unwrap());
 
         let inner = CacheInner {
             lru: LruCache::new(cap),
@@ -115,11 +115,7 @@ impl<P: PersistenceHook> SessionCache<P> {
     ///
     /// This marks the session as recently used in the LRU cache
     /// and resets its TTL timer.
-    pub async fn get_or_load(
-        &self,
-        session_id: &str,
-        context_id: &str,
-    ) -> Result<SessionData> {
+    pub async fn get_or_load(&self, session_id: &str, context_id: &str) -> Result<SessionData> {
         // First check cache
         {
             let mut inner = self.inner.write().await;
@@ -128,7 +124,9 @@ impl<P: PersistenceHook> SessionCache<P> {
             if inner.ttl.is_expired(session_id) {
                 debug!(session_id = %session_id, "Session expired, removing from cache");
                 if let Some(entry) = inner.lru.pop(session_id) {
-                    let _ = inner.persistence.on_evict(session_id, &entry.data.context_id);
+                    let _ = inner
+                        .persistence
+                        .on_evict(session_id, &entry.data.context_id);
                 }
                 inner.ttl.remove(session_id);
             } else if let Some(entry) = inner.lru.get(session_id) {
@@ -285,7 +283,9 @@ impl<P: PersistenceHook> SessionCache<P> {
         inner.ttl.remove(session_id);
         if let Some(entry) = inner.lru.pop(session_id) {
             debug!(session_id = %session_id, "Session invalidated from cache");
-            let _ = inner.persistence.on_evict(session_id, &entry.data.context_id);
+            let _ = inner
+                .persistence
+                .on_evict(session_id, &entry.data.context_id);
         }
     }
 
@@ -301,7 +301,9 @@ impl<P: PersistenceHook> SessionCache<P> {
         for session_id in expired {
             if let Some(entry) = inner.lru.pop(&session_id) {
                 debug!(session_id = %session_id, "Cleaning up expired session");
-                let _ = inner.persistence.on_evict(&session_id, &entry.data.context_id);
+                let _ = inner
+                    .persistence
+                    .on_evict(&session_id, &entry.data.context_id);
             }
         }
 

@@ -2,20 +2,15 @@
 
 use crate::logs::LogBuffer;
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 /// Render the logs panel.
-pub fn render_logs_panel(
-    log_buffer: &LogBuffer,
-    scroll: usize,
-    frame: &mut Frame,
-    area: Rect,
-) {
+pub fn render_logs_panel(log_buffer: &LogBuffer, scroll: usize, frame: &mut Frame, area: Rect) {
     let entries = log_buffer.entries();
 
     let block = Block::default()
@@ -47,11 +42,7 @@ pub fn render_logs_panel(
         );
 
         // Shorten target to last component for readability
-        let target_short = entry
-            .target
-            .rsplit("::")
-            .next()
-            .unwrap_or(&entry.target);
+        let target_short = entry.target.rsplit("::").next().unwrap_or(&entry.target);
         let target_span = Span::styled(
             format!(" {}: ", target_short),
             Style::default().fg(Color::DarkGray),

@@ -305,7 +305,7 @@ pub mod local {
     //! This module requires the `local-embeddings` feature to be enabled.
 
     use super::*;
-    use ort::session::{builder::GraphOptimizationLevel, Session};
+    use ort::session::{Session, builder::GraphOptimizationLevel};
     use std::path::Path;
     use std::sync::Mutex;
     use tokenizers::Tokenizer;
@@ -461,11 +461,13 @@ pub mod local {
             let input_ids_tensor = ort::value::Tensor::from_array((shape, input_ids_flat))
                 .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
             let attention_mask_tensor =
-                ort::value::Tensor::from_array((shape, attention_mask_flat.clone()))
-                    .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
+                ort::value::Tensor::from_array((shape, attention_mask_flat.clone())).map_err(
+                    |e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)),
+                )?;
             let token_type_ids_tensor =
-                ort::value::Tensor::from_array((shape, token_type_ids_flat))
-                    .map_err(|e| crate::error::LlmError::Internal(format!("Tensor error: {}", e)))?;
+                ort::value::Tensor::from_array((shape, token_type_ids_flat)).map_err(|e| {
+                    crate::error::LlmError::Internal(format!("Tensor error: {}", e))
+                })?;
 
             // Acquire the session lock for inference
             let mut session = self.session.lock().map_err(|e| {
@@ -665,8 +667,10 @@ fn default_local_model_dir() -> Option<std::path::PathBuf> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// HuggingFace model URLs for all-MiniLM-L6-v2
-const MODEL_URL: &str = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
-const TOKENIZER_URL: &str = "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json";
+const MODEL_URL: &str =
+    "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx";
+const TOKENIZER_URL: &str =
+    "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json";
 
 /// Download embedding model files if they don't exist.
 ///
@@ -724,9 +728,10 @@ async fn download_file(url: &str, path: &std::path::Path) -> Result<()> {
         .build()
         .map_err(|e| crate::error::LlmError::Internal(format!("HTTP client error: {}", e)))?;
 
-    let response = client.get(url).send().await.map_err(|e| {
-        crate::error::LlmError::Internal(format!("Download request failed: {}", e))
-    })?;
+    let response =
+        client.get(url).send().await.map_err(|e| {
+            crate::error::LlmError::Internal(format!("Download request failed: {}", e))
+        })?;
 
     if !response.status().is_success() {
         return Err(crate::error::LlmError::Internal(format!(
@@ -735,23 +740,21 @@ async fn download_file(url: &str, path: &std::path::Path) -> Result<()> {
         )));
     }
 
-    let bytes = response.bytes().await.map_err(|e| {
-        crate::error::LlmError::Internal(format!("Failed to read response: {}", e))
-    })?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| crate::error::LlmError::Internal(format!("Failed to read response: {}", e)))?;
 
     // Write to temp file first, then rename for atomicity
     let temp_path = path.with_extension("tmp");
-    let mut file = std::fs::File::create(&temp_path).map_err(|e| {
-        crate::error::LlmError::Internal(format!("Failed to create file: {}", e))
-    })?;
+    let mut file = std::fs::File::create(&temp_path)
+        .map_err(|e| crate::error::LlmError::Internal(format!("Failed to create file: {}", e)))?;
 
-    file.write_all(&bytes).map_err(|e| {
-        crate::error::LlmError::Internal(format!("Failed to write file: {}", e))
-    })?;
+    file.write_all(&bytes)
+        .map_err(|e| crate::error::LlmError::Internal(format!("Failed to write file: {}", e)))?;
 
-    std::fs::rename(&temp_path, path).map_err(|e| {
-        crate::error::LlmError::Internal(format!("Failed to rename file: {}", e))
-    })?;
+    std::fs::rename(&temp_path, path)
+        .map_err(|e| crate::error::LlmError::Internal(format!("Failed to rename file: {}", e)))?;
 
     Ok(())
 }

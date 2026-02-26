@@ -9,8 +9,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::directory::{DirectoryManager, SCRATCH_WORKSTREAM};
 use crate::WorkstreamManager;
+use crate::directory::{DirectoryManager, SCRATCH_WORKSTREAM};
 
 /// Configuration for cleanup tasks.
 #[derive(Debug, Clone)]
@@ -90,7 +90,12 @@ pub struct DiskPressureEvent {
 
 impl DiskPressureEvent {
     /// Create a new disk pressure event.
-    pub fn new(level: PressureLevel, scope: impl Into<String>, usage_mb: f64, limit_mb: f64) -> Self {
+    pub fn new(
+        level: PressureLevel,
+        scope: impl Into<String>,
+        usage_mb: f64,
+        limit_mb: f64,
+    ) -> Self {
         Self {
             level,
             scope: scope.into(),
@@ -420,7 +425,10 @@ mod tests {
         let config = CleanupConfig::default();
         assert_eq!(config.scratch_cleanup_days, 7);
         assert_eq!(config.total_usage_warning_bytes, 10 * 1024 * 1024 * 1024);
-        assert_eq!(config.workstream_usage_warning_bytes, 2 * 1024 * 1024 * 1024);
+        assert_eq!(
+            config.workstream_usage_warning_bytes,
+            2 * 1024 * 1024 * 1024
+        );
         assert!(!config.dry_run);
     }
 

@@ -11,9 +11,9 @@ use uuid::Uuid;
 
 use arawn_agent::SessionId;
 
-use crate::state::AppState;
-use super::handlers::{handle_message, MessageResponse};
+use super::handlers::{MessageResponse, handle_message};
 use super::protocol::{ClientMessage, ServerMessage};
+use crate::state::AppState;
 
 /// Unique identifier for a WebSocket connection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

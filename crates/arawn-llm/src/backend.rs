@@ -465,7 +465,6 @@ impl LlmBackend for MockBackend {
     fn name(&self) -> &str {
         &self.name
     }
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

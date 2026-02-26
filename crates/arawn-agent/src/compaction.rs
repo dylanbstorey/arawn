@@ -3,14 +3,14 @@
 //! The [`SessionCompactor`] summarizes older turns in a session while preserving
 //! recent turns verbatim, enabling context management before hitting hard limits.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use arawn_llm::{CompletionRequest, Message, SharedBackend};
 
+use crate::Result;
 use crate::context::estimate_tokens;
 use crate::types::{Session, Turn};
-use crate::Result;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -182,7 +182,7 @@ impl SessionCompactor {
         cancel: Option<&CancellationToken>,
     ) -> Result<Option<CompactionResult>> {
         // Check for cancellation before starting
-        if cancel.map_or(false, |c| c.is_cancelled()) {
+        if cancel.is_some_and(|c| c.is_cancelled()) {
             if let Some(cb) = progress {
                 cb(CompactionProgress::Cancelled);
             }
@@ -205,7 +205,7 @@ impl SessionCompactor {
         }
 
         // Check for cancellation after reporting start
-        if cancel.map_or(false, |c| c.is_cancelled()) {
+        if cancel.is_some_and(|c| c.is_cancelled()) {
             if let Some(cb) = progress {
                 cb(CompactionProgress::Cancelled);
             }
@@ -227,7 +227,7 @@ impl SessionCompactor {
         let summary = self.summarize_turns(old_turns).await?;
 
         // Check for cancellation after summarization
-        if cancel.map_or(false, |c| c.is_cancelled()) {
+        if cancel.is_some_and(|c| c.is_cancelled()) {
             if let Some(cb) = progress {
                 cb(CompactionProgress::Cancelled);
             }
@@ -323,11 +323,10 @@ impl SessionCompactor {
         )
         .with_system(MID_SESSION_SUMMARY_PROMPT);
 
-        let response = self
-            .backend
-            .complete(request)
-            .await
-            .map_err(|e| crate::AgentError::internal(format!("Compaction LLM call failed: {e}")))?;
+        let response =
+            self.backend.complete(request).await.map_err(|e| {
+                crate::AgentError::internal(format!("Compaction LLM call failed: {e}"))
+            })?;
 
         Ok(response.text())
     }
@@ -557,10 +556,7 @@ mod tests {
             .await;
 
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            crate::AgentError::Cancelled
-        ));
+        assert!(matches!(result.unwrap_err(), crate::AgentError::Cancelled));
     }
 
     #[tokio::test]

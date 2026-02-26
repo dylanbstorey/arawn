@@ -19,7 +19,7 @@ use anyhow::Result;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::prelude::*;
 use std::io::{self, Stdout};
@@ -100,9 +100,9 @@ impl TuiConfig {
                 .get_context(name)
                 .ok_or_else(|| anyhow::anyhow!("Context '{}' not found", name))?
         } else {
-            config
-                .current()
-                .ok_or_else(|| anyhow::anyhow!("No current context. Set one with: arawn config use-context <name>"))?
+            config.current().ok_or_else(|| {
+                anyhow::anyhow!("No current context. Set one with: arawn config use-context <name>")
+            })?
         };
 
         Ok(Self {

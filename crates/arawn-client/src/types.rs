@@ -357,14 +357,9 @@ pub struct TokenUsage {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
     /// Session started.
-    SessionStart {
-        session_id: String,
-        turn_id: String,
-    },
+    SessionStart { session_id: String, turn_id: String },
     /// Text content chunk.
-    Content {
-        text: String,
-    },
+    Content { text: String },
     /// Tool call started.
     ToolStart {
         tool_name: String,
@@ -376,10 +371,7 @@ pub enum StreamEvent {
         content: String,
     },
     /// Tool call completed.
-    ToolEnd {
-        tool_call_id: String,
-        success: bool,
-    },
+    ToolEnd { tool_call_id: String, success: bool },
     /// Turn completed.
     Done {
         response: String,
@@ -387,9 +379,7 @@ pub enum StreamEvent {
         usage: Option<TokenUsage>,
     },
     /// Error occurred.
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

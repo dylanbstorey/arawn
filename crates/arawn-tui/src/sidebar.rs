@@ -222,7 +222,9 @@ impl Sidebar {
         self.workstreams
             .iter()
             .enumerate()
-            .filter(move |(_, ws)| !ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter)))
+            .filter(move |(_, ws)| {
+                !ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter))
+            })
             .map(move |(i, ws)| (i == self.workstream_index, ws))
     }
 
@@ -232,7 +234,9 @@ impl Sidebar {
         self.workstreams
             .iter()
             .enumerate()
-            .filter(move |(_, ws)| ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter)))
+            .filter(move |(_, ws)| {
+                ws.is_archived() && (filter.is_empty() || ws.name.to_lowercase().contains(&filter))
+            })
             .map(move |(i, ws)| (i == self.workstream_index, ws))
     }
 

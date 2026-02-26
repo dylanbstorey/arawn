@@ -1,20 +1,16 @@
 //! Session list overlay rendering.
 
-use crate::sessions::{format_relative_time, SessionList};
+use crate::sessions::{SessionList, format_relative_time};
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 /// Render the sessions overlay.
-pub fn render_sessions_overlay(
-    sessions: &SessionList,
-    frame: &mut Frame,
-    area: Rect,
-) {
+pub fn render_sessions_overlay(sessions: &SessionList, frame: &mut Frame, area: Rect) {
     // Create centered overlay (60% width, 60% height)
     let overlay_area = centered_rect(60, 60, area);
     frame.render_widget(Clear, overlay_area);

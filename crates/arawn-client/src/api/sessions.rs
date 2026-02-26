@@ -34,7 +34,9 @@ impl SessionsApi {
 
     /// Update a session.
     pub async fn update(&self, id: &str, request: UpdateSessionRequest) -> Result<SessionDetail> {
-        self.client.patch(&format!("sessions/{}", id), &request).await
+        self.client
+            .patch(&format!("sessions/{}", id), &request)
+            .await
     }
 
     /// Delete a session.

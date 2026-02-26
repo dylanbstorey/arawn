@@ -48,7 +48,6 @@ pub enum ConfigCommand {
     Path,
 
     // ── Client Context Commands ──────────────────────────────────────────
-
     /// Show the current context name
     CurrentContext,
 
@@ -430,12 +429,7 @@ async fn cmd_get_contexts() -> Result<()> {
         } else {
             " "
         };
-        println!(
-            "{}         {:<15} {}",
-            marker,
-            ctx.name,
-            ctx.server
-        );
+        println!("{}         {:<15} {}", marker, ctx.name, ctx.server);
     }
 
     Ok(())
@@ -464,9 +458,8 @@ async fn cmd_set_context(
 
     if is_new {
         // Creating new context — server is required
-        let server_url = server.ok_or_else(|| {
-            anyhow::anyhow!("--server is required when creating a new context")
-        })?;
+        let server_url = server
+            .ok_or_else(|| anyhow::anyhow!("--server is required when creating a new context"))?;
 
         let mut ctx = ClientContext::new(name, server_url);
         if let Some(ws) = workstream {
@@ -515,7 +508,9 @@ async fn cmd_delete_context(name: &str) -> Result<()> {
             arawn_config::save_client_config(&config)?;
             println!("Context \"{}\" deleted.", name);
             if config.current_context.is_none() {
-                println!("Note: No current context. Use 'arawn config use-context <name>' to set one.");
+                println!(
+                    "Note: No current context. Use 'arawn config use-context <name>' to set one."
+                );
             }
         }
         None => {

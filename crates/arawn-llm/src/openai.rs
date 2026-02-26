@@ -14,7 +14,7 @@ use std::time::Duration;
 use crate::backend::{ContentDelta, LlmBackend, ResponseStream, StreamEvent, with_retry};
 use crate::error::{LlmError, Result};
 use crate::types::{
-    CompletionRequest, CompletionResponse, ContentBlock, Message, Role, StopReason,
+    CompletionRequest, CompletionResponse, ContentBlock, Role, StopReason,
     ToolResultContent, Usage,
 };
 

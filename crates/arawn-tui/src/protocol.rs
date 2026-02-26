@@ -286,7 +286,11 @@ mod tests {
         let json = r#"{"type":"command_progress","command":"compact","message":"Starting...","percent":50}"#;
         let msg: ServerMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ServerMessage::CommandProgress { command, message, percent } => {
+            ServerMessage::CommandProgress {
+                command,
+                message,
+                percent,
+            } => {
                 assert_eq!(command, "compact");
                 assert_eq!(message, "Starting...");
                 assert_eq!(percent, Some(50));
@@ -308,7 +312,11 @@ mod tests {
         let json = r#"{"type":"command_result","command":"compact","success":true,"result":{"compacted":true}}"#;
         let msg: ServerMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ServerMessage::CommandResult { command, success, result } => {
+            ServerMessage::CommandResult {
+                command,
+                success,
+                result,
+            } => {
                 assert_eq!(command, "compact");
                 assert!(success);
                 assert_eq!(result["compacted"], true);
@@ -320,7 +328,9 @@ mod tests {
         let json = r#"{"type":"command_result","command":"compact","success":false,"result":{"error":"Session not found"}}"#;
         let msg: ServerMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ServerMessage::CommandResult { success, result, .. } => {
+            ServerMessage::CommandResult {
+                success, result, ..
+            } => {
                 assert!(!success);
                 assert_eq!(result["error"], "Session not found");
             }

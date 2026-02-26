@@ -13,11 +13,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use governor::{
-    Quota, RateLimiter,
-    clock::DefaultClock,
-    state::keyed::DefaultKeyedStateStore,
-};
+use governor::{Quota, RateLimiter, clock::DefaultClock, state::keyed::DefaultKeyedStateStore};
 use serde::Serialize;
 
 use crate::state::AppState;
@@ -103,7 +99,10 @@ fn extract_client_ip(request: &Request<Body>) -> IpAddr {
     }
 
     // Try to get from ConnectInfo extension (set by axum when using into_make_service_with_connect_info)
-    if let Some(connect_info) = request.extensions().get::<ConnectInfo<std::net::SocketAddr>>() {
+    if let Some(connect_info) = request
+        .extensions()
+        .get::<ConnectInfo<std::net::SocketAddr>>()
+    {
         return connect_info.0.ip();
     }
 

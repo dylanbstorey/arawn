@@ -1,21 +1,21 @@
 //! Main layout rendering.
 
 use crate::app::App;
-use crate::focus::FocusTarget;
 use crate::client::ConnectionStatus;
+use crate::focus::FocusTarget;
 use crate::ui::chat::render_chat;
 use crate::ui::input::{calculate_input_height, render_input as render_input_area};
 use crate::ui::logs::{render_logs_footer, render_logs_panel};
 use crate::ui::palette::render_palette_overlay as render_palette;
 use crate::ui::sessions::render_sessions_overlay as render_sessions;
-use crate::ui::sidebar::{render_sidebar, SIDEBAR_HINT_WIDTH, SIDEBAR_WIDTH};
+use crate::ui::sidebar::{SIDEBAR_HINT_WIDTH, SIDEBAR_WIDTH, render_sidebar};
 use crate::ui::tools::{render_tool_pane, render_tool_pane_footer};
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 /// Render the entire application UI.
@@ -41,11 +41,8 @@ pub fn render(app: &App, frame: &mut Frame) {
         .split(area);
         (Some(chunks[0]), chunks[1], Some(chunks[2]))
     } else {
-        let chunks = Layout::horizontal([
-            Constraint::Length(sidebar_width),
-            Constraint::Min(30),
-        ])
-        .split(area);
+        let chunks = Layout::horizontal([Constraint::Length(sidebar_width), Constraint::Min(30)])
+            .split(area);
         (Some(chunks[0]), chunks[1], None)
     };
 
@@ -137,11 +134,17 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
         ConnectionStatus::Reconnecting { .. } => ("◐", Color::Yellow),
         ConnectionStatus::Disconnected => ("○", Color::Red),
     };
-    let status = Span::styled(format!("{} ", status_text), Style::default().fg(status_color));
+    let status = Span::styled(
+        format!("{} ", status_text),
+        Style::default().fg(status_color),
+    );
 
     // Context indicator (if set)
     let context_span = if let Some(ref ctx) = app.context_name {
-        Span::styled(format!("ctx:{} ", ctx), Style::default().fg(Color::DarkGray))
+        Span::styled(
+            format!("ctx:{} ", ctx),
+            Style::default().fg(Color::DarkGray),
+        )
     } else {
         Span::raw("")
     };
@@ -167,7 +170,10 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
             Color::DarkGray
         };
 
-        (ws_text, Span::styled(usage_text, Style::default().fg(usage_color)))
+        (
+            ws_text,
+            Span::styled(usage_text, Style::default().fg(usage_color)),
+        )
     } else {
         (format!("ws:{} ", app.workstream), Span::raw(""))
     };
@@ -175,11 +181,21 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
     let workstream = Span::styled(workstream_text, Style::default().fg(Color::DarkGray));
 
     // Create spans that fill the line
-    let right_width = status.width() + context_span.width() + workstream.width() + usage_span.width();
-    let spacer_width = area.width.saturating_sub(title.width() as u16 + right_width as u16);
+    let right_width =
+        status.width() + context_span.width() + workstream.width() + usage_span.width();
+    let spacer_width = area
+        .width
+        .saturating_sub(title.width() as u16 + right_width as u16);
     let spacer = Span::raw("─".repeat(spacer_width as usize));
 
-    let line = Line::from(vec![title, spacer, status, context_span, workstream, usage_span]);
+    let line = Line::from(vec![
+        title,
+        spacer,
+        status,
+        context_span,
+        workstream,
+        usage_span,
+    ]);
     let header = Paragraph::new(line).style(Style::default().fg(Color::Cyan));
 
     frame.render_widget(header, area);
@@ -189,20 +205,14 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
 fn render_content(app: &App, frame: &mut Frame, area: Rect) {
     if app.show_tool_pane {
         // Split vertically: chat (top 70%), tool pane (bottom 30%)
-        let chunks = Layout::vertical([
-            Constraint::Percentage(70),
-            Constraint::Percentage(30),
-        ])
-        .split(area);
+        let chunks =
+            Layout::vertical([Constraint::Percentage(70), Constraint::Percentage(30)]).split(area);
 
         render_chat(app, frame, chunks[0]);
 
         // Tool pane with footer
-        let tool_chunks = Layout::vertical([
-            Constraint::Min(3),
-            Constraint::Length(1),
-        ])
-        .split(chunks[1]);
+        let tool_chunks =
+            Layout::vertical([Constraint::Min(3), Constraint::Length(1)]).split(chunks[1]);
 
         render_tool_pane(app, frame, tool_chunks[0]);
         render_tool_pane_footer(frame, tool_chunks[1]);
@@ -231,7 +241,10 @@ fn render_status_bar(app: &App, frame: &mut Frame, area: Rect) {
             SidebarSection::Workstreams => "workstreams",
             SidebarSection::Sessions => "sessions",
         };
-        format!("[{}] ↑↓ navigate │ Tab switch │ Enter select │ n new │ → close", section)
+        format!(
+            "[{}] ↑↓ navigate │ Tab switch │ Enter select │ n new │ → close",
+            section
+        )
     } else {
         "^K palette │ ^W sidebar │ ^E tools │ ^L logs │ ^Q quit".to_string()
     };
@@ -364,9 +377,10 @@ fn render_warning_banner(app: &App, frame: &mut Frame, area: Rect) {
             icon, warning.level, warning.workstream, warning.percent, usage_str, limit_str
         );
 
-        let banner = Paragraph::new(Line::from(vec![
-            Span::styled(text, Style::default().fg(color).add_modifier(Modifier::BOLD)),
-        ]))
+        let banner = Paragraph::new(Line::from(vec![Span::styled(
+            text,
+            Style::default().fg(color).add_modifier(Modifier::BOLD),
+        )]))
         .style(Style::default().bg(Color::DarkGray));
 
         frame.render_widget(banner, area);
@@ -390,13 +404,15 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
 
     // Current workstream usage
     if let Some(ref usage) = app.workstream_usage {
-        let ws_type = if usage.is_scratch { "⚡ scratch" } else { "workstream" };
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!(" {} {} ", ws_type, usage.workstream_name),
-                Style::default().add_modifier(Modifier::BOLD),
-            ),
-        ]));
+        let ws_type = if usage.is_scratch {
+            "⚡ scratch"
+        } else {
+            "workstream"
+        };
+        lines.push(Line::from(vec![Span::styled(
+            format!(" {} {} ", ws_type, usage.workstream_name),
+            Style::default().add_modifier(Modifier::BOLD),
+        )]));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
             Span::raw("   production/  "),
@@ -412,9 +428,7 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
                 Style::default().fg(Color::Yellow),
             ),
         ]));
-        lines.push(Line::from(vec![
-            Span::raw("   ─────────────────────"),
-        ]));
+        lines.push(Line::from(vec![Span::raw("   ─────────────────────")]));
         lines.push(Line::from(vec![
             Span::raw("   total        "),
             Span::styled(
@@ -435,7 +449,10 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
             lines.push(Line::from(""));
             lines.push(Line::from(vec![
                 Span::raw("   limit        "),
-                Span::styled(format!("{:>10}", usage.limit_size()), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("{:>10}", usage.limit_size()),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]));
             lines.push(Line::from(vec![
                 Span::raw("   usage        "),
@@ -454,12 +471,10 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
             ]));
         }
     } else {
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!(" workstream: {} ", app.workstream),
-                Style::default().add_modifier(Modifier::BOLD),
-            ),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!(" workstream: {} ", app.workstream),
+            Style::default().add_modifier(Modifier::BOLD),
+        )]));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "   No usage data available",
@@ -474,9 +489,12 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
     // Show warnings section if any
     if !app.disk_warnings.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled(" Active Warnings ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            " Active Warnings ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]));
 
         for warning in &app.disk_warnings {
             let (icon, color) = if warning.level == "critical" {

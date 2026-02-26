@@ -2,11 +2,11 @@
 
 use crate::input::InputState;
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 /// Minimum height for the input area (in lines).

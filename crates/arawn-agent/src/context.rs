@@ -718,7 +718,13 @@ mod tests {
         tracker.update(60_000); // 60% - below warning threshold
 
         let status = tracker.status();
-        assert!(matches!(status, ContextStatus::Ok { current: 60_000, max: 100_000 }));
+        assert!(matches!(
+            status,
+            ContextStatus::Ok {
+                current: 60_000,
+                max: 100_000
+            }
+        ));
         assert!(status.is_ok());
         assert!(!status.is_warning());
         assert!(!status.is_critical());
@@ -733,7 +739,13 @@ mod tests {
         tracker.update(75_000); // 75% - between warning (70%) and critical (90%)
 
         let status = tracker.status();
-        assert!(matches!(status, ContextStatus::Warning { current: 75_000, max: 100_000 }));
+        assert!(matches!(
+            status,
+            ContextStatus::Warning {
+                current: 75_000,
+                max: 100_000
+            }
+        ));
         assert!(!status.is_ok());
         assert!(status.is_warning());
         assert!(!status.is_critical());
@@ -748,7 +760,13 @@ mod tests {
         tracker.update(95_000); // 95% - above critical threshold (90%)
 
         let status = tracker.status();
-        assert!(matches!(status, ContextStatus::Critical { current: 95_000, max: 100_000 }));
+        assert!(matches!(
+            status,
+            ContextStatus::Critical {
+                current: 95_000,
+                max: 100_000
+            }
+        ));
         assert!(!status.is_ok());
         assert!(status.is_warning()); // Critical is also considered a warning
         assert!(status.is_critical());

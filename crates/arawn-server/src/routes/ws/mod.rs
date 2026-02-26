@@ -32,8 +32,8 @@ use crate::state::AppState;
 
 // Re-export public types
 pub use connection::ConnectionId;
-pub use protocol::{ClientMessage, ServerMessage};
 pub use handlers::MessageResponse;
+pub use protocol::{ClientMessage, ServerMessage};
 
 /// GET /ws - WebSocket upgrade handler.
 ///
@@ -82,11 +82,9 @@ fn validate_origin(headers: &HeaderMap, allowed_origins: &[String]) -> Result<()
         Some(origin) => match origin.to_str() {
             Ok(s) => s,
             Err(_) => {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    "Invalid Origin header encoding",
-                )
-                    .into_response());
+                return Err(
+                    (StatusCode::BAD_REQUEST, "Invalid Origin header encoding").into_response()
+                );
             }
         },
         None => {

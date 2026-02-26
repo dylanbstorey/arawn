@@ -384,7 +384,13 @@ mod tests {
         assert_eq!(m1.workstream_id, ws.id);
 
         let m2 = mgr
-            .send_message(Some(&ws.id), None, MessageRole::Assistant, "hi there!", None)
+            .send_message(
+                Some(&ws.id),
+                None,
+                MessageRole::Assistant,
+                "hi there!",
+                None,
+            )
             .unwrap();
         assert_eq!(m2.role, MessageRole::Assistant);
 

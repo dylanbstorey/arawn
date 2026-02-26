@@ -191,20 +191,15 @@ impl SandboxConfig {
     /// Create a config for a workstream session.
     ///
     /// Sets up write access to the workstream's production and work directories.
-    pub fn for_workstream(
-        workstream_production: PathBuf,
-        workstream_work: PathBuf,
-    ) -> Self {
-        Self::default()
-            .with_write_paths(vec![workstream_production, workstream_work])
+    pub fn for_workstream(workstream_production: PathBuf, workstream_work: PathBuf) -> Self {
+        Self::default().with_write_paths(vec![workstream_production, workstream_work])
     }
 
     /// Create a config for a scratch session.
     ///
     /// Sets up write access to the session's isolated work directory.
     pub fn for_scratch_session(session_work: PathBuf) -> Self {
-        Self::default()
-            .with_write_paths(vec![session_work])
+        Self::default().with_write_paths(vec![session_work])
     }
 }
 
@@ -258,17 +253,24 @@ mod tests {
         );
 
         assert_eq!(config.write_paths.len(), 2);
-        assert!(config.write_paths.contains(&PathBuf::from("/data/ws/production")));
+        assert!(
+            config
+                .write_paths
+                .contains(&PathBuf::from("/data/ws/production"))
+        );
         assert!(config.write_paths.contains(&PathBuf::from("/data/ws/work")));
     }
 
     #[test]
     fn test_scratch_config() {
-        let config = SandboxConfig::for_scratch_session(
-            PathBuf::from("/data/scratch/session-123/work"),
-        );
+        let config =
+            SandboxConfig::for_scratch_session(PathBuf::from("/data/scratch/session-123/work"));
 
         assert_eq!(config.write_paths.len(), 1);
-        assert!(config.write_paths.contains(&PathBuf::from("/data/scratch/session-123/work")));
+        assert!(
+            config
+                .write_paths
+                .contains(&PathBuf::from("/data/scratch/session-123/work"))
+        );
     }
 }

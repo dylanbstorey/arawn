@@ -68,8 +68,12 @@ pub trait MemoryBackend: Send + Sync {
     /// * `offset` - Number of results to skip (for pagination)
     ///
     /// Results are ordered by `created_at` descending (newest first).
-    fn list(&self, content_type: Option<ContentType>, limit: usize, offset: usize)
-        -> Result<Vec<Memory>>;
+    fn list(
+        &self,
+        content_type: Option<ContentType>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<Memory>>;
 
     /// Count memories with optional filtering.
     fn count(&self, content_type: Option<ContentType>) -> Result<usize>;
@@ -163,8 +167,8 @@ impl MemoryBackend for MockMemoryBackend {
 
     fn update(&self, memory: &Memory) -> Result<()> {
         let mut map = self.memories.lock().unwrap();
-        if map.contains_key(&memory.id) {
-            map.insert(memory.id, memory.clone());
+        if let std::collections::hash_map::Entry::Occupied(mut e) = map.entry(memory.id) {
+            e.insert(memory.clone());
             Ok(())
         } else {
             Err(crate::error::MemoryError::NotFound(format!(
@@ -217,7 +221,10 @@ impl MemoryBackend for MockMemoryBackend {
             memory.accessed_at = chrono::Utc::now();
             Ok(())
         } else {
-            Err(crate::error::MemoryError::NotFound(format!("Memory {}", id)))
+            Err(crate::error::MemoryError::NotFound(format!(
+                "Memory {}",
+                id
+            )))
         }
     }
 }

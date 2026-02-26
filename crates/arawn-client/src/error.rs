@@ -48,14 +48,12 @@ pub enum Error {
 impl Error {
     /// Check if this is a not-found error.
     pub fn is_not_found(&self) -> bool {
-        matches!(self, Error::NotFound(_))
-            || matches!(self, Error::Api { status: 404, .. })
+        matches!(self, Error::NotFound(_)) || matches!(self, Error::Api { status: 404, .. })
     }
 
     /// Check if this is an authentication error.
     pub fn is_auth_error(&self) -> bool {
-        matches!(self, Error::Auth(_))
-            || matches!(self, Error::Api { status: 401, .. })
+        matches!(self, Error::Auth(_)) || matches!(self, Error::Api { status: 401, .. })
     }
 
     /// Check if this is a rate limit error.

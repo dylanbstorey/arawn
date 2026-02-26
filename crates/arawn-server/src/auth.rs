@@ -468,7 +468,10 @@ mod tests {
     #[test]
     fn test_constant_time_eq_equal_strings() {
         assert!(super::constant_time_eq("hello", "hello"));
-        assert!(super::constant_time_eq("test-token-12345", "test-token-12345"));
+        assert!(super::constant_time_eq(
+            "test-token-12345",
+            "test-token-12345"
+        ));
         assert!(super::constant_time_eq("", ""));
     }
 

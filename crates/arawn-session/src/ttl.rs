@@ -24,7 +24,8 @@ impl TtlTracker {
 
     /// Record an access for a session (resets its TTL timer).
     pub fn touch(&mut self, session_id: &str) {
-        self.access_times.insert(session_id.to_string(), Instant::now());
+        self.access_times
+            .insert(session_id.to_string(), Instant::now());
     }
 
     /// Check if a session has expired.

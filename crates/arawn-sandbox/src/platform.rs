@@ -53,9 +53,7 @@ impl fmt::Display for Platform {
 #[derive(Debug, Clone)]
 pub enum SandboxStatus {
     /// Sandbox is available and ready to use.
-    Available {
-        platform: Platform,
-    },
+    Available { platform: Platform },
 
     /// Sandbox dependencies are missing.
     MissingDependency {
@@ -65,9 +63,7 @@ pub enum SandboxStatus {
     },
 
     /// Platform is not supported.
-    Unsupported {
-        platform_name: String,
-    },
+    Unsupported { platform_name: String },
 }
 
 impl SandboxStatus {

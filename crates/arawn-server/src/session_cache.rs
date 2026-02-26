@@ -85,18 +85,11 @@ impl SessionCache {
         workstreams: Option<Arc<WorkstreamManager>>,
         config: &C,
     ) -> Self {
-        Self::with_config(
-            workstreams,
-            config.max_sessions(),
-            config.session_ttl(),
-        )
+        Self::with_config(workstreams, config.max_sessions(), config.session_ttl())
     }
 
     /// Create a new session cache with specified capacity.
-    pub fn with_capacity(
-        workstreams: Option<Arc<WorkstreamManager>>,
-        max_sessions: usize,
-    ) -> Self {
+    pub fn with_capacity(workstreams: Option<Arc<WorkstreamManager>>, max_sessions: usize) -> Self {
         Self::with_config(workstreams, max_sessions, DEFAULT_SESSION_TTL)
     }
 
@@ -132,10 +125,15 @@ impl SessionCache {
     /// Returns the number of sessions that were cleaned up.
     pub async fn cleanup_expired(&self) -> usize {
         let mut inner = self.inner.write().await;
-        let expired: Vec<_> = inner.ttl.drain_expired().into_iter().filter_map(|s| {
-            // Parse the session ID back - TtlTracker uses String keys
-            uuid::Uuid::parse_str(&s).ok().map(SessionId::from_uuid)
-        }).collect();
+        let expired: Vec<_> = inner
+            .ttl
+            .drain_expired()
+            .into_iter()
+            .filter_map(|s| {
+                // Parse the session ID back - TtlTracker uses String keys
+                uuid::Uuid::parse_str(&s).ok().map(SessionId::from_uuid)
+            })
+            .collect();
 
         let mut count = 0;
         for session_id in expired {

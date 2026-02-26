@@ -2,19 +2,15 @@
 
 use crate::palette::CommandPalette;
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
-    Frame,
 };
 
 /// Render the command palette overlay.
-pub fn render_palette_overlay(
-    palette: &CommandPalette,
-    frame: &mut Frame,
-    area: Rect,
-) {
+pub fn render_palette_overlay(palette: &CommandPalette, frame: &mut Frame, area: Rect) {
     // Create centered overlay (60% width, 50% height)
     let overlay_area = centered_rect(60, 50, area);
     frame.render_widget(Clear, overlay_area);

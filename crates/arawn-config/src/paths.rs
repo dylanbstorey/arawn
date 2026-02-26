@@ -39,6 +39,7 @@ use serde::{Deserialize, Serialize};
 /// cleanup policies, and filesystem monitoring behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct PathConfig {
     /// Base path for all workstream data.
     /// Default: `~/.arawn`
@@ -56,16 +57,6 @@ pub struct PathConfig {
     pub monitoring: MonitoringConfig,
 }
 
-impl Default for PathConfig {
-    fn default() -> Self {
-        Self {
-            base_path: None, // Will use ~/.arawn when None
-            usage: UsageThresholds::default(),
-            cleanup: CleanupConfig::default(),
-            monitoring: MonitoringConfig::default(),
-        }
-    }
-}
 
 impl PathConfig {
     /// Get the effective base path, checking environment variable first.

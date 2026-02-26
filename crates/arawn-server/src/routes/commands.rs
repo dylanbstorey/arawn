@@ -14,8 +14,8 @@ use axum::{
 };
 use futures::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 use tokio::sync::RwLock;
+use utoipa::ToSchema;
 
 use arawn_agent::{CompactionResult, CompactorConfig, SessionCompactor, SessionId};
 use uuid::Uuid;
@@ -386,12 +386,12 @@ pub async fn compact_command_handler(
         ..Default::default()
     });
 
-    let params = serde_json::to_value(&request).map_err(|e| ServerError::Serialization(e))?;
+    let params = serde_json::to_value(&request).map_err(ServerError::Serialization)?;
 
     match command.execute(&state, params).await {
         Ok(CommandOutput::Completed { result }) => {
             let response: CompactResponse =
-                serde_json::from_value(result).map_err(|e| ServerError::Serialization(e))?;
+                serde_json::from_value(result).map_err(ServerError::Serialization)?;
             Ok(Json(response))
         }
         Ok(_) => Err(ServerError::Internal(
@@ -461,9 +461,7 @@ pub async fn compact_command_stream_handler(
     } else {
         // Add progress events
         events.push(CompactEvent::Started {
-            turns_to_compact: session
-                .turn_count()
-                .saturating_sub(config.preserve_recent),
+            turns_to_compact: session.turn_count().saturating_sub(config.preserve_recent),
         });
         events.push(CompactEvent::Summarizing);
 
@@ -504,9 +502,9 @@ pub async fn compact_command_stream_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ServerConfig;
     use arawn_agent::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
-    use crate::config::ServerConfig;
 
     fn create_test_state() -> AppState {
         let backend = MockBackend::with_text("Test summary of older conversation.");

@@ -189,13 +189,15 @@ pub async fn add_server_handler(
     Extension(_identity): Extension<Identity>,
     Json(request): Json<AddServerRequest>,
 ) -> Result<(StatusCode, Json<AddServerResponse>), ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     // Validate request
     if request.name.is_empty() {
-        return Err(ServerError::BadRequest("Server name is required".to_string()));
+        return Err(ServerError::BadRequest(
+            "Server name is required".to_string(),
+        ));
     }
 
     // Check if server already exists
@@ -304,9 +306,9 @@ pub async fn remove_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<Json<RemoveServerResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     let removed = {
         let mut manager = mcp_manager.write().await;
@@ -344,9 +346,9 @@ pub async fn list_servers_handler(
     State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
 ) -> Result<Json<ListServersResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     let manager = mcp_manager.read().await;
 
@@ -410,9 +412,9 @@ pub async fn list_server_tools_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<Json<ListToolsResponse>, ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     let manager = mcp_manager.read().await;
 
@@ -480,9 +482,9 @@ pub async fn connect_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<StatusCode, ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     let mut manager = mcp_manager.write().await;
 
@@ -528,9 +530,9 @@ pub async fn disconnect_server_handler(
     Extension(_identity): Extension<Identity>,
     Path(server_name): Path<String>,
 ) -> Result<StatusCode, ServerError> {
-    let mcp_manager = state.mcp_manager().ok_or_else(|| {
-        ServerError::Internal("MCP not enabled on this server".to_string())
-    })?;
+    let mcp_manager = state
+        .mcp_manager()
+        .ok_or_else(|| ServerError::Internal("MCP not enabled on this server".to_string()))?;
 
     let mut manager = mcp_manager.write().await;
 
@@ -591,14 +593,17 @@ mod tests {
 
     fn create_test_router(state: AppState) -> Router {
         Router::new()
-            .route("/mcp/servers", post(add_server_handler).get(list_servers_handler))
             .route(
-                "/mcp/servers/{name}",
-                delete(remove_server_handler),
+                "/mcp/servers",
+                post(add_server_handler).get(list_servers_handler),
             )
+            .route("/mcp/servers/{name}", delete(remove_server_handler))
             .route("/mcp/servers/{name}/tools", get(list_server_tools_handler))
             .route("/mcp/servers/{name}/connect", post(connect_server_handler))
-            .route("/mcp/servers/{name}/disconnect", post(disconnect_server_handler))
+            .route(
+                "/mcp/servers/{name}/disconnect",
+                post(disconnect_server_handler),
+            )
             .layer(middleware::from_fn_with_state(
                 state.clone(),
                 auth_middleware,
@@ -685,7 +690,9 @@ mod tests {
                     .uri("/mcp/servers")
                     .header("Authorization", "Bearer test-token")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"name": "test", "command": "", "connect": false}"#))
+                    .body(Body::from(
+                        r#"{"name": "test", "command": "", "connect": false}"#,
+                    ))
                     .unwrap(),
             )
             .await

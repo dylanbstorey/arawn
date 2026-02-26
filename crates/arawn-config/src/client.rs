@@ -557,7 +557,10 @@ contexts:
         let config = ClientConfig::from_yaml(yaml).unwrap();
         let current = config.current().unwrap();
         assert_eq!(current.name, "local");
-        assert_eq!(config.current_server_url(), Some("http://localhost:8080".to_string()));
+        assert_eq!(
+            config.current_server_url(),
+            Some("http://localhost:8080".to_string())
+        );
     }
 
     #[test]

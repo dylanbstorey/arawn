@@ -1,11 +1,11 @@
 //! Command autocomplete popup component.
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState},
-    Frame,
 };
 
 /// A command available for execution.
@@ -54,7 +54,10 @@ impl CommandPopup {
     /// These will be replaced with commands fetched from the server.
     fn default_commands() -> Vec<CommandInfo> {
         vec![
-            CommandInfo::new("compact", "Compact session history by summarizing older turns"),
+            CommandInfo::new(
+                "compact",
+                "Compact session history by summarizing older turns",
+            ),
             CommandInfo::new("help", "Show available commands"),
         ]
     }

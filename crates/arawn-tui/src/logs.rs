@@ -8,8 +8,8 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use tracing::field::{Field, Visit};
 use tracing::{Event, Level, Subscriber};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 /// Maximum number of log entries to keep.
 const MAX_LOG_ENTRIES: usize = 500;

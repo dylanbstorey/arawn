@@ -70,9 +70,7 @@ impl ArawnClient {
 
     /// Create a client with default settings pointing to localhost.
     pub fn localhost() -> Result<Self> {
-        Self::builder()
-            .base_url("http://127.0.0.1:8080")
-            .build()
+        Self::builder().base_url("http://127.0.0.1:8080").build()
     }
 
     /// Get the base URL.
@@ -197,11 +195,7 @@ impl ArawnClient {
     }
 
     /// Make a POST request for streaming (returns the response directly).
-    pub(crate) async fn post_stream<B>(
-        &self,
-        path: &str,
-        body: &B,
-    ) -> Result<reqwest::Response>
+    pub(crate) async fn post_stream<B>(&self, path: &str, body: &B) -> Result<reqwest::Response>
     where
         B: serde::Serialize + ?Sized,
     {

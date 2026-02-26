@@ -2,11 +2,11 @@
 
 use crate::app::{App, ChatMessage, ToolExecution};
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Paragraph, Wrap},
-    Frame,
 };
 
 /// Streaming cursor indicator.
@@ -59,7 +59,8 @@ pub fn render_chat(app: &App, frame: &mut Frame, area: Rect) {
         content_height.saturating_sub(view_height)
     } else {
         // Manual scroll: use the stored offset, clamped to valid range
-        app.chat_scroll.min(content_height.saturating_sub(view_height))
+        app.chat_scroll
+            .min(content_height.saturating_sub(view_height))
     };
 
     let chat = Paragraph::new(lines)
@@ -72,10 +73,7 @@ pub fn render_chat(app: &App, frame: &mut Frame, area: Rect) {
 /// Render user message with > prefix.
 fn render_user_message(lines: &mut Vec<Line<'static>>, msg: &ChatMessage) {
     let prefix = Span::styled("> ", Style::default().fg(Color::Cyan));
-    let content = Span::styled(
-        msg.content.clone(),
-        Style::default().fg(Color::White),
-    );
+    let content = Span::styled(msg.content.clone(), Style::default().fg(Color::White));
     lines.push(Line::from(vec![prefix, content]));
 }
 

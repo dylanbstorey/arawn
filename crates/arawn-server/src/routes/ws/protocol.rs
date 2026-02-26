@@ -321,20 +321,28 @@ mod tests {
 
         let json = r#"{"type": "chat", "session_id": "123", "message": "hello"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Chat { session_id: Some(id), workstream_id: None, .. } if id == "123"));
+        assert!(
+            matches!(msg, ClientMessage::Chat { session_id: Some(id), workstream_id: None, .. } if id == "123")
+        );
 
         let json = r#"{"type": "chat", "workstream_id": "ws-456", "message": "hello"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Chat { session_id: None, workstream_id: Some(ws_id), .. } if ws_id == "ws-456"));
+        assert!(
+            matches!(msg, ClientMessage::Chat { session_id: None, workstream_id: Some(ws_id), .. } if ws_id == "ws-456")
+        );
 
         let json = r#"{"type": "subscribe", "session_id": "123"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: None } if session_id == "123"));
+        assert!(
+            matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: None } if session_id == "123")
+        );
 
         // Subscribe with reconnect token
         let json = r#"{"type": "subscribe", "session_id": "456", "reconnect_token": "tok-xyz"}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
-        assert!(matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: Some(tok) } if session_id == "456" && tok == "tok-xyz"));
+        assert!(
+            matches!(msg, ClientMessage::Subscribe { session_id, reconnect_token: Some(tok) } if session_id == "456" && tok == "tok-xyz")
+        );
     }
 
     #[test]
@@ -489,7 +497,9 @@ mod tests {
         // Exactly 70% - should be warning
         let msg = ServerMessage::context_info("s", 70000, 100000);
         match msg {
-            ServerMessage::ContextInfo { status, percent, .. } => {
+            ServerMessage::ContextInfo {
+                status, percent, ..
+            } => {
                 assert_eq!(percent, 70);
                 assert_eq!(status, "warning");
             }
@@ -499,7 +509,9 @@ mod tests {
         // Exactly 90% - should be critical
         let msg = ServerMessage::context_info("s", 90000, 100000);
         match msg {
-            ServerMessage::ContextInfo { status, percent, .. } => {
+            ServerMessage::ContextInfo {
+                status, percent, ..
+            } => {
                 assert_eq!(percent, 90);
                 assert_eq!(status, "critical");
             }
@@ -509,7 +521,9 @@ mod tests {
         // Zero max tokens - should handle gracefully
         let msg = ServerMessage::context_info("s", 1000, 0);
         match msg {
-            ServerMessage::ContextInfo { percent, status, .. } => {
+            ServerMessage::ContextInfo {
+                percent, status, ..
+            } => {
                 assert_eq!(percent, 0);
                 assert_eq!(status, "ok");
             }

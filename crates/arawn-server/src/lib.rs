@@ -44,7 +44,7 @@ pub use state::AppState;
 
 use std::net::SocketAddr;
 
-use axum::{Router, middleware, extract::DefaultBodyLimit};
+use axum::{Router, extract::DefaultBodyLimit, middleware};
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -126,10 +126,7 @@ impl Server {
                 get(routes::get_session_messages_handler),
             )
             // Memory endpoints
-            .route(
-                "/memory",
-                post(routes::store_memory_handler),
-            )
+            .route("/memory", post(routes::store_memory_handler))
             .route("/memory/search", get(routes::memory_search_handler))
             .route("/memory/{id}", delete(routes::delete_memory_handler))
             // Notes endpoints

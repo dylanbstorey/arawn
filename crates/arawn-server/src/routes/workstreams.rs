@@ -12,9 +12,9 @@ use utoipa::ToSchema;
 
 use arawn_workstream::WorkstreamManager;
 
+use super::pagination::PaginationParams;
 use crate::error::ServerError;
 use crate::state::AppState;
-use super::pagination::PaginationParams;
 
 // ── Request/Response types ──────────────────────────────────────────
 
@@ -352,12 +352,10 @@ pub async fn create_workstream_handler(
 ) -> Result<(StatusCode, Json<WorkstreamResponse>), ServerError> {
     let mgr = get_manager(&state)?;
 
-    let ws = mgr
-        .create_workstream(&req.title, req.default_model.as_deref(), &req.tags)
-        ?;
+    let ws = mgr.create_workstream(&req.title, req.default_model.as_deref(), &req.tags)?;
 
     // Create directory structure for the new workstream
-    if let Some(ref dm) = state.directory_manager() {
+    if let Some(dm) = state.directory_manager() {
         dm.create_workstream(&ws.id).map_err(|e| {
             tracing::warn!(workstream = %ws.id, error = %e, "Failed to create workstream directories");
             ServerError::Internal(format!("Failed to create workstream directories: {}", e))
@@ -491,14 +489,12 @@ pub async fn update_workstream_handler(
     let mgr = get_manager(&state)?;
 
     // Update workstream fields
-    let ws = mgr
-        .update_workstream(
-            &id,
-            req.title.as_deref(),
-            req.summary.as_deref(),
-            req.default_model.as_deref(),
-        )
-        ?;
+    let ws = mgr.update_workstream(
+        &id,
+        req.title.as_deref(),
+        req.summary.as_deref(),
+        req.default_model.as_deref(),
+    )?;
 
     // Update tags if provided
     if let Some(ref tags) = req.tags {
@@ -590,9 +586,7 @@ pub async fn send_message_handler(
         }
     };
 
-    let msg = mgr
-        .send_message(Some(&id), None, role, &req.content, req.metadata.as_deref())
-        ?;
+    let msg = mgr.send_message(Some(&id), None, role, &req.content, req.metadata.as_deref())?;
 
     Ok((StatusCode::CREATED, Json(to_message_response(&msg))))
 }
@@ -625,9 +619,9 @@ pub async fn list_messages_handler(
     let mgr = get_manager(&state)?;
 
     let result = if let Some(since_str) = &query.since {
-        let since = since_str
-            .parse::<DateTime<Utc>>()
-            .map_err(|_| ServerError::BadRequest("Invalid 'since' timestamp. Use RFC 3339 format.".to_string()))?;
+        let since = since_str.parse::<DateTime<Utc>>().map_err(|_| {
+            ServerError::BadRequest("Invalid 'since' timestamp. Use RFC 3339 format.".to_string())
+        })?;
         mgr.get_messages_since(&id, since)
     } else {
         mgr.get_messages(&id)
@@ -676,9 +670,7 @@ pub async fn promote_handler(
         ));
     }
 
-    let ws = mgr
-        .promote_scratch(&req.title, &req.tags, req.default_model.as_deref())
-        ?;
+    let ws = mgr.promote_scratch(&req.title, &req.tags, req.default_model.as_deref())?;
 
     let tags = mgr.get_tags(&ws.id).ok();
     Ok((StatusCode::CREATED, Json(to_workstream_response(&ws, tags))))
@@ -859,15 +851,10 @@ pub async fn clone_repo_handler(
                 ServerError::NotFound(format!("Workstream not found: {ws}"))
             }
             arawn_workstream::directory::DirectoryError::AlreadyExists(path) => {
-                ServerError::Conflict(format!(
-                    "Destination already exists: {}",
-                    path.display()
-                ))
+                ServerError::Conflict(format!("Destination already exists: {}", path.display()))
             }
             arawn_workstream::directory::DirectoryError::GitNotFound => {
-                ServerError::ServiceUnavailable(
-                    "Git is not installed or not in PATH".to_string(),
-                )
+                ServerError::ServiceUnavailable("Git is not installed or not in PATH".to_string())
             }
             arawn_workstream::directory::DirectoryError::CloneFailed { url, stderr } => {
                 ServerError::BadRequest(format!("Clone failed for {url}: {stderr}"))
@@ -924,17 +911,15 @@ pub async fn get_usage_handler(
     })?;
 
     // Get usage statistics
-    let stats = dir_mgr
-        .get_usage(&workstream_id)
-        .map_err(|e| match e {
-            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
-                ServerError::NotFound(format!("Workstream not found: {ws}"))
-            }
-            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
-                ServerError::BadRequest(format!("Invalid workstream name: {name}"))
-            }
-            other => ServerError::Internal(format!("Failed to get usage stats: {other}")),
-        })?;
+    let stats = dir_mgr.get_usage(&workstream_id).map_err(|e| match e {
+        arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+            ServerError::NotFound(format!("Workstream not found: {ws}"))
+        }
+        arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+            ServerError::BadRequest(format!("Invalid workstream name: {name}"))
+        }
+        other => ServerError::Internal(format!("Failed to get usage stats: {other}")),
+    })?;
 
     // Convert session usages to response format
     let sessions: Vec<SessionUsageResponse> = stats

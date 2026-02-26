@@ -5,10 +5,10 @@ use uuid::Uuid;
 
 use arawn_agent::{SessionId, ToolCall, ToolResultRecord, Turn, TurnId};
 
-use crate::routes::commands::{CommandOutput, CommandRegistry};
-use crate::state::AppState;
 use super::connection::ConnectionState;
 use super::protocol::{ClientMessage, ServerMessage};
+use crate::routes::commands::{CommandOutput, CommandRegistry};
+use crate::state::AppState;
 
 /// Response from handling a message.
 pub enum MessageResponse {
@@ -31,25 +31,22 @@ pub async fn handle_message(
 
         ClientMessage::Auth { token } => handle_auth(token, conn_state, app_state),
 
-        ClientMessage::Subscribe { session_id, reconnect_token } => {
-            handle_subscribe(session_id, reconnect_token, conn_state, app_state).await
-        }
+        ClientMessage::Subscribe {
+            session_id,
+            reconnect_token,
+        } => handle_subscribe(session_id, reconnect_token, conn_state, app_state).await,
 
         ClientMessage::Unsubscribe { session_id } => {
             handle_unsubscribe(session_id, conn_state, app_state).await
         }
 
-        ClientMessage::Cancel { session_id } => {
-            handle_cancel(session_id, conn_state)
-        }
+        ClientMessage::Cancel { session_id } => handle_cancel(session_id, conn_state),
 
         ClientMessage::Chat {
             session_id,
             workstream_id,
             message,
-        } => {
-            handle_chat(session_id, workstream_id, message, conn_state, app_state).await
-        }
+        } => handle_chat(session_id, workstream_id, message, conn_state, app_state).await,
 
         ClientMessage::Command { command, args } => {
             handle_command(command, args, conn_state, app_state).await
@@ -176,10 +173,7 @@ async fn handle_unsubscribe(
 }
 
 /// Handle cancellation request.
-fn handle_cancel(
-    session_id: String,
-    conn_state: &mut ConnectionState,
-) -> MessageResponse {
+fn handle_cancel(session_id: String, conn_state: &mut ConnectionState) -> MessageResponse {
     if !conn_state.authenticated {
         return MessageResponse::Single(ServerMessage::error(
             "unauthorized",
@@ -360,7 +354,7 @@ async fn handle_chat(
     let session_id_str = session_id.to_string();
 
     // Store user message in workstream (if workstreams enabled)
-    if let Some(ref ws_manager) = app_state.workstreams() {
+    if let Some(ws_manager) = app_state.workstreams() {
         use arawn_workstream::MessageRole;
         if let Err(e) = ws_manager.send_message(
             workstream_id.as_deref(),
@@ -377,7 +371,9 @@ async fn handle_chat(
     let stream_result = {
         if let Some(mut session) = app_state.session_cache().get(&session_id).await {
             let cancellation = conn_state.cancellation.clone();
-            let stream = app_state.agent().turn_stream(&mut session, &message, cancellation);
+            let stream = app_state
+                .agent()
+                .turn_stream(&mut session, &message, cancellation);
             app_state.update_session(session_id, session).await;
             Some(stream)
         } else {

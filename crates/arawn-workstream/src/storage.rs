@@ -18,9 +18,9 @@
 
 use chrono::{DateTime, Utc};
 
+use crate::Result;
 use crate::store::{Session, Workstream};
 use crate::types::WorkstreamMessage;
-use crate::Result;
 
 /// Trait for workstream metadata storage.
 ///
@@ -457,7 +457,9 @@ mod tests {
     fn test_mock_workstream_storage_sessions() {
         let storage = MockWorkstreamStorage::new();
 
-        let ws = storage.create_workstream("Session Test", None, false).unwrap();
+        let ws = storage
+            .create_workstream("Session Test", None, false)
+            .unwrap();
 
         // Create session
         let session = storage.create_session(&ws.id).unwrap();

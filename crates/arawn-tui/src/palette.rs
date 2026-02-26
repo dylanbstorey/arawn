@@ -149,13 +149,16 @@ impl CommandPalette {
     pub fn visible_actions(&self) -> impl Iterator<Item = (bool, bool, &Action)> {
         let mut last_category: Option<&str> = None;
 
-        self.filtered_indices.iter().enumerate().map(move |(i, &idx)| {
-            let action = &self.actions[idx];
-            let is_selected = i == self.selected;
-            let is_first_in_category = last_category != Some(action.category);
-            last_category = Some(action.category);
-            (is_selected, is_first_in_category, action)
-        })
+        self.filtered_indices
+            .iter()
+            .enumerate()
+            .map(move |(i, &idx)| {
+                let action = &self.actions[idx];
+                let is_selected = i == self.selected;
+                let is_first_in_category = last_category != Some(action.category);
+                last_category = Some(action.category);
+                (is_selected, is_first_in_category, action)
+            })
     }
 
     /// Get the count of visible actions.

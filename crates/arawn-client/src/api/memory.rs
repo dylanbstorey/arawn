@@ -37,7 +37,10 @@ impl MemoryApi {
     }
 
     /// Search memories with options.
-    pub async fn search_with_options(&self, query: MemorySearchQuery) -> Result<MemorySearchResponse> {
+    pub async fn search_with_options(
+        &self,
+        query: MemorySearchQuery,
+    ) -> Result<MemorySearchResponse> {
         self.client.get_with_query("memory/search", &query).await
     }
 

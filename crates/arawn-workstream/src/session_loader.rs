@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use tracing;
 use uuid::Uuid;
 
+use crate::Result;
 use crate::message_store::MessageStore;
 use crate::types::{MessageRole, WorkstreamMessage};
-use crate::Result;
 
 /// Metadata for a tool use message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,15 +108,23 @@ impl<'a> SessionLoader<'a> {
         workstream_id: &str,
         session_id: &str,
     ) -> Result<Option<ReconstructedSession>> {
-        let messages = self.message_store.read_for_session(workstream_id, session_id)?;
+        let messages = self
+            .message_store
+            .read_for_session(workstream_id, session_id)?;
 
         if messages.is_empty() {
             return Ok(None);
         }
 
         let turns = self.reconstruct_turns(&messages);
-        let created_at = messages.first().map(|m| m.timestamp).unwrap_or_else(Utc::now);
-        let updated_at = messages.last().map(|m| m.timestamp).unwrap_or_else(Utc::now);
+        let created_at = messages
+            .first()
+            .map(|m| m.timestamp)
+            .unwrap_or_else(Utc::now);
+        let updated_at = messages
+            .last()
+            .map(|m| m.timestamp)
+            .unwrap_or_else(Utc::now);
 
         Ok(Some(ReconstructedSession {
             session_id: session_id.to_string(),
@@ -337,13 +345,31 @@ mod tests {
             .append("ws-1", Some("session-1"), MessageRole::User, "Hello", None)
             .unwrap();
         store
-            .append("ws-1", Some("session-1"), MessageRole::Assistant, "Hi there!", None)
+            .append(
+                "ws-1",
+                Some("session-1"),
+                MessageRole::Assistant,
+                "Hi there!",
+                None,
+            )
             .unwrap();
         store
-            .append("ws-1", Some("session-1"), MessageRole::User, "How are you?", None)
+            .append(
+                "ws-1",
+                Some("session-1"),
+                MessageRole::User,
+                "How are you?",
+                None,
+            )
             .unwrap();
         store
-            .append("ws-1", Some("session-1"), MessageRole::Assistant, "I'm great!", None)
+            .append(
+                "ws-1",
+                Some("session-1"),
+                MessageRole::Assistant,
+                "I'm great!",
+                None,
+            )
             .unwrap();
 
         let loader = SessionLoader::new(&store);
@@ -354,10 +380,16 @@ mod tests {
         assert_eq!(session.turns.len(), 2);
 
         assert_eq!(session.turns[0].user_message, "Hello");
-        assert_eq!(session.turns[0].assistant_response, Some("Hi there!".to_string()));
+        assert_eq!(
+            session.turns[0].assistant_response,
+            Some("Hi there!".to_string())
+        );
 
         assert_eq!(session.turns[1].user_message, "How are you?");
-        assert_eq!(session.turns[1].assistant_response, Some("I'm great!".to_string()));
+        assert_eq!(
+            session.turns[1].assistant_response,
+            Some("I'm great!".to_string())
+        );
     }
 
     #[test]
@@ -366,7 +398,13 @@ mod tests {
 
         // User message
         store
-            .append("ws-1", Some("session-1"), MessageRole::User, "Read the file", None)
+            .append(
+                "ws-1",
+                Some("session-1"),
+                MessageRole::User,
+                "Read the file",
+                None,
+            )
             .unwrap();
 
         // Tool use
@@ -427,7 +465,10 @@ mod tests {
         assert!(turn.tool_results[0].success);
         assert_eq!(turn.tool_results[0].content, "file contents here");
 
-        assert_eq!(turn.assistant_response, Some("The file contains...".to_string()));
+        assert_eq!(
+            turn.assistant_response,
+            Some("The file contains...".to_string())
+        );
     }
 
     #[test]

@@ -327,7 +327,13 @@ mod tests {
 
         // Messages in session-2
         store
-            .append("ws-1", Some("session-2"), MessageRole::User, "different", None)
+            .append(
+                "ws-1",
+                Some("session-2"),
+                MessageRole::User,
+                "different",
+                None,
+            )
             .unwrap();
 
         // Messages with no session

@@ -62,7 +62,9 @@ impl McpService {
 
     /// List all configured MCP server names.
     pub async fn list_server_names(&self) -> Result<Vec<String>> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let guard = manager.read().await;
@@ -74,7 +76,9 @@ impl McpService {
 
     /// Check if a server is connected.
     pub async fn is_server_connected(&self, name: &str) -> Result<bool> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let guard = manager.read().await;
@@ -83,7 +87,9 @@ impl McpService {
 
     /// Add a new MCP server configuration.
     pub async fn add_server(&self, config: McpServerConfig) -> Result<()> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let name = config.name.clone();
@@ -96,7 +102,9 @@ impl McpService {
 
     /// Remove an MCP server.
     pub async fn remove_server(&self, name: &str) -> Result<bool> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let mut guard = manager.write().await;
@@ -110,11 +118,14 @@ impl McpService {
 
     /// Connect to all configured MCP servers.
     pub async fn connect_all(&self) -> Result<()> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let mut guard = manager.write().await;
-        guard.connect_all()
+        guard
+            .connect_all()
             .map_err(|e| DomainError::Mcp(e.to_string()))?;
 
         debug!("Connected to all MCP servers");
@@ -123,11 +134,14 @@ impl McpService {
 
     /// Shutdown all MCP server connections.
     pub async fn shutdown_all(&self) -> Result<()> {
-        let manager = self.manager.as_ref()
+        let manager = self
+            .manager
+            .as_ref()
             .ok_or_else(|| DomainError::Mcp("MCP not enabled".to_string()))?;
 
         let mut guard = manager.write().await;
-        guard.shutdown_all()
+        guard
+            .shutdown_all()
             .map_err(|e| DomainError::Mcp(e.to_string()))?;
 
         debug!("Shutdown all MCP servers");

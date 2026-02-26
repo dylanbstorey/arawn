@@ -193,8 +193,7 @@ async fn connection_loop(
                 tracing::info!("Connected to server");
 
                 // Handle the connection
-                let disconnected =
-                    handle_connection(ws_stream, &mut client_rx, &server_tx).await;
+                let disconnected = handle_connection(ws_stream, &mut client_rx, &server_tx).await;
 
                 if !disconnected {
                     // Clean shutdown requested

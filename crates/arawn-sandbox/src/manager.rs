@@ -5,8 +5,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use sandbox_runtime::{
-    FilesystemConfig, NetworkConfig, SandboxManager as RuntimeSandboxManager,
-    SandboxRuntimeConfig,
+    FilesystemConfig, NetworkConfig, SandboxManager as RuntimeSandboxManager, SandboxRuntimeConfig,
 };
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -157,9 +156,7 @@ impl SandboxManager {
         );
 
         // Execute the wrapped command
-        let output = self
-            .execute_wrapped(&wrapped_command, config)
-            .await;
+        let output = self.execute_wrapped(&wrapped_command, config).await;
 
         // Reset sandbox state for next command
         self.runtime.reset().await;
@@ -343,13 +340,12 @@ mod tests {
         let manager = SandboxManager::new().await.unwrap();
 
         // Valid config
-        let config = SandboxConfig::default()
-            .with_working_dir("/tmp");
+        let config = SandboxConfig::default().with_working_dir("/tmp");
         assert!(manager.validate_config(&config).is_ok());
 
         // Invalid working dir
-        let config = SandboxConfig::default()
-            .with_working_dir("/nonexistent/path/that/does/not/exist");
+        let config =
+            SandboxConfig::default().with_working_dir("/nonexistent/path/that/does/not/exist");
         assert!(manager.validate_config(&config).is_err());
     }
 
@@ -368,7 +364,10 @@ mod tests {
         let manager = SandboxManager::new().await.unwrap();
         let config = SandboxConfig::default();
 
-        let output = manager.execute("echo 'hello sandbox'", &config).await.unwrap();
+        let output = manager
+            .execute("echo 'hello sandbox'", &config)
+            .await
+            .unwrap();
         assert!(output.success);
         assert!(output.stdout.contains("hello sandbox"));
     }
@@ -418,6 +417,10 @@ mod tests {
 
         // Command should fail due to sandbox restrictions
         // (exact behavior depends on platform)
-        assert!(!output.success || output.stderr.contains("denied") || output.stderr.contains("Operation not permitted"));
+        assert!(
+            !output.success
+                || output.stderr.contains("denied")
+                || output.stderr.contains("Operation not permitted")
+        );
     }
 }

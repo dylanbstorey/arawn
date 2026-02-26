@@ -11,7 +11,7 @@ use std::time::Duration;
 use anyhow::Result;
 use clap::{Args, Subcommand};
 
-use arawn_config::{load_config, save_config, McpServerEntry, McpTransportType};
+use arawn_config::{McpServerEntry, McpTransportType, load_config, save_config};
 use arawn_mcp::{McpClient, McpServerConfig};
 
 use super::Context;
@@ -198,7 +198,11 @@ fn print_list_table(servers: &[McpServerEntry], show_tools: bool, verbose: bool)
             McpTransportType::Http => "http",
         };
 
-        let status = if server.enabled { "enabled" } else { "disabled" };
+        let status = if server.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        };
 
         let target = if server.is_http() {
             server.url.clone().unwrap_or_default()

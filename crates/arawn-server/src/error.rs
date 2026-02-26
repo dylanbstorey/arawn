@@ -125,15 +125,11 @@ impl From<arawn_workstream::WorkstreamError> for ServerError {
     fn from(e: arawn_workstream::WorkstreamError) -> Self {
         match e {
             arawn_workstream::WorkstreamError::NotFound(msg) => ServerError::NotFound(msg),
-            arawn_workstream::WorkstreamError::Database(e) => {
-                ServerError::Storage(e.to_string())
-            }
+            arawn_workstream::WorkstreamError::Database(e) => ServerError::Storage(e.to_string()),
             arawn_workstream::WorkstreamError::Io(e) => {
                 ServerError::Storage(format!("IO error: {}", e))
             }
-            arawn_workstream::WorkstreamError::Serde(e) => {
-                ServerError::Serialization(e)
-            }
+            arawn_workstream::WorkstreamError::Serde(e) => ServerError::Serialization(e),
             arawn_workstream::WorkstreamError::Migration(msg) => {
                 ServerError::Internal(format!("Migration error: {}", msg))
             }

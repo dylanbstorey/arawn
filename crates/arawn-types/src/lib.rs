@@ -13,6 +13,6 @@ pub use hooks::{
 };
 
 pub use config::{
-    defaults as config_defaults, AgentConfigProvider, ConfigProvider, HasAgentConfig,
-    HasRateLimitConfig, HasSessionConfig, HasToolConfig, SessionConfigProvider, ToolConfigProvider,
+    AgentConfigProvider, ConfigProvider, HasAgentConfig, HasRateLimitConfig, HasSessionConfig,
+    HasToolConfig, SessionConfigProvider, ToolConfigProvider, defaults as config_defaults,
 };
