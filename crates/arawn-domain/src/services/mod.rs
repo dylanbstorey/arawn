@@ -4,7 +4,6 @@
 //! Arawn's functionality.
 
 pub mod chat;
-pub mod memory;
 pub mod mcp;
 
 use std::sync::Arc;
@@ -15,30 +14,6 @@ use tracing::info;
 
 pub use mcp::SharedMcpManager;
 
-/// Configuration for domain services.
-#[derive(Debug, Clone)]
-pub struct DomainConfig {
-    /// Maximum sessions to keep in cache.
-    pub max_cached_sessions: usize,
-    /// Session TTL in seconds.
-    pub session_ttl_secs: u64,
-    /// Enable memory operations.
-    pub memory_enabled: bool,
-    /// Enable MCP servers.
-    pub mcp_enabled: bool,
-}
-
-impl Default for DomainConfig {
-    fn default() -> Self {
-        Self {
-            max_cached_sessions: 100,
-            session_ttl_secs: 3600,
-            memory_enabled: true,
-            mcp_enabled: true,
-        }
-    }
-}
-
 /// Domain services facade.
 ///
 /// Provides unified access to all domain services. This is the main entry point
@@ -47,8 +22,6 @@ impl Default for DomainConfig {
 pub struct DomainServices {
     /// Chat service for conversation orchestration.
     chat: chat::ChatService,
-    /// Memory service for storing and searching memories.
-    memory: memory::MemoryService,
     /// MCP service for tool discovery and invocation.
     mcp: mcp::McpService,
 }
@@ -73,21 +46,14 @@ impl DomainServices {
             indexer.clone(),
         );
 
-        let memory = memory::MemoryService::new(agent.clone());
-
         let mcp = mcp::McpService::new(mcp_manager);
 
-        Self { chat, memory, mcp }
+        Self { chat, mcp }
     }
 
     /// Get the chat service.
     pub fn chat(&self) -> &chat::ChatService {
         &self.chat
-    }
-
-    /// Get the memory service.
-    pub fn memory(&self) -> &memory::MemoryService {
-        &self.memory
     }
 
     /// Get the MCP service.

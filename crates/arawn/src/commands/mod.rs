@@ -10,11 +10,8 @@ pub mod memory;
 pub mod notes;
 pub mod plugin;
 pub mod repl;
-pub mod research;
 pub mod start;
 pub mod status;
-pub mod stop;
-pub mod tasks;
 pub mod tui;
 
 /// Shared context for all commands.

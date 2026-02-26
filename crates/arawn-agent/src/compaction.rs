@@ -47,7 +47,7 @@ pub struct CompactorConfig {
 impl Default for CompactorConfig {
     fn default() -> Self {
         Self {
-            model: "claude-sonnet".to_string(),
+            model: String::new(),
             max_summary_tokens: 1024,
             preserve_recent: DEFAULT_PRESERVE_RECENT,
         }
@@ -150,11 +150,6 @@ impl SessionCompactor {
     /// Create a new session compactor.
     pub fn new(backend: SharedBackend, config: CompactorConfig) -> Self {
         Self { backend, config }
-    }
-
-    /// Create with default configuration.
-    pub fn with_defaults(backend: SharedBackend) -> Self {
-        Self::new(backend, CompactorConfig::default())
     }
 
     /// Set the number of recent turns to preserve.
@@ -357,6 +352,17 @@ mod tests {
         session
     }
 
+    fn test_config() -> CompactorConfig {
+        CompactorConfig {
+            model: "test-model".to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn test_compactor(backend: SharedBackend) -> SessionCompactor {
+        SessionCompactor::new(backend, test_config())
+    }
+
     #[test]
     fn test_compactor_config_defaults() {
         let config = CompactorConfig::default();
@@ -400,7 +406,7 @@ mod tests {
     #[test]
     fn test_needs_compaction_below_threshold() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         // 5 turns, preserve 3, so 2 compactable - below threshold of 3
         let session = create_test_session(5);
@@ -410,7 +416,7 @@ mod tests {
     #[test]
     fn test_needs_compaction_at_threshold() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         // 6 turns, preserve 3, so 3 compactable - at threshold of 3
         let session = create_test_session(6);
@@ -420,7 +426,7 @@ mod tests {
     #[test]
     fn test_needs_compaction_above_threshold() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         // 10 turns, preserve 3, so 7 compactable - above threshold of 3
         let session = create_test_session(10);
@@ -430,7 +436,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_empty_session() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let session = Session::new();
         let result = compactor.compact(&session).await.unwrap();
@@ -440,7 +446,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_insufficient_turns() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend); // preserve 3
+        let compactor = test_compactor(backend); // preserve 3
 
         // Only 3 turns - nothing to compact
         let session = create_test_session(3);
@@ -451,7 +457,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_preserves_recent_turns() {
         let backend = Arc::new(MockBackend::with_text("Summary of earlier conversation."));
-        let compactor = SessionCompactor::with_defaults(backend); // preserve 3
+        let compactor = test_compactor(backend); // preserve 3
 
         // 6 turns - should compact 3
         let session = create_test_session(6);
@@ -466,7 +472,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_custom_preserve_count() {
         let backend = Arc::new(MockBackend::with_text("Summary"));
-        let compactor = SessionCompactor::with_defaults(backend).with_preserve_recent(5);
+        let compactor = test_compactor(backend).with_preserve_recent(5);
 
         // 8 turns, preserve 5, compact 3
         let session = create_test_session(8);
@@ -480,7 +486,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_result_stats() {
         let backend = Arc::new(MockBackend::with_text("Short summary."));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let session = create_test_session(6);
         let result = compactor.compact(&session).await.unwrap().unwrap();
@@ -496,7 +502,7 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         let backend = Arc::new(MockBackend::with_text("Summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let progress_count = Arc::new(AtomicUsize::new(0));
         let progress_count_clone = progress_count.clone();
@@ -518,7 +524,7 @@ mod tests {
     #[test]
     fn test_estimate_turns_tokens() {
         let backend = Arc::new(MockBackend::with_text("summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let session = create_test_session(2);
         let tokens = compactor.estimate_turns_tokens(session.all_turns());
@@ -540,7 +546,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_cancelled_before_start() {
         let backend = Arc::new(MockBackend::with_text("Summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let session = create_test_session(6);
         let cancel = CancellationToken::new();
@@ -562,7 +568,7 @@ mod tests {
         use std::sync::atomic::{AtomicBool, Ordering};
 
         let backend = Arc::new(MockBackend::with_text("Summary"));
-        let compactor = SessionCompactor::with_defaults(backend);
+        let compactor = test_compactor(backend);
 
         let session = create_test_session(6);
         let cancel = CancellationToken::new();

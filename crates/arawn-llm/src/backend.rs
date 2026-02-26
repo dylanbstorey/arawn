@@ -230,9 +230,6 @@ pub trait LlmBackend: Send + Sync {
     /// Get the name of this backend.
     fn name(&self) -> &str;
 
-    /// Check if the backend is available and properly configured.
-    async fn health_check(&self) -> Result<()>;
-
     // ─────────────────────────────────────────────────────────────────────────
     // Tool Format Methods (with defaults)
     // ─────────────────────────────────────────────────────────────────────────
@@ -469,9 +466,6 @@ impl LlmBackend for MockBackend {
         &self.name
     }
 
-    async fn health_check(&self) -> Result<()> {
-        Ok(())
-    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -597,12 +591,6 @@ mod tests {
         assert_eq!(events.len(), 6);
         assert!(matches!(events[0], StreamEvent::MessageStart { .. }));
         assert!(matches!(events[5], StreamEvent::MessageStop));
-    }
-
-    #[tokio::test]
-    async fn test_mock_backend_health_check() {
-        let backend = MockBackend::with_text("test");
-        assert!(backend.health_check().await.is_ok());
     }
 
     #[test]

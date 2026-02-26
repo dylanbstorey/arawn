@@ -9,7 +9,4 @@ description = "Shared types for the Arawn agent system"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
-uuid = { workspace = true }
-chrono = { workspace = true }
-thiserror = { workspace = true }
 async-trait = "0.1"

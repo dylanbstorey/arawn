@@ -25,6 +25,10 @@ impl Default for OAuthConfig {
 
 impl OAuthConfig {
     /// Create OAuth config for Anthropic MAX plan.
+    ///
+    /// TODO: Make these configurable via `arawn.toml` if we need to support
+    /// mock OAuth servers for testing or if Anthropic changes endpoints.
+    /// See ARAWN-T-0224 (P2 tech debt).
     pub fn anthropic_max() -> Self {
         Self {
             client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e".to_string(),

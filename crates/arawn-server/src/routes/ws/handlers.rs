@@ -217,8 +217,9 @@ async fn handle_command(
         ));
     }
 
-    // Get the command registry (create with defaults)
-    let registry = CommandRegistry::with_defaults();
+    // Get the command registry with model from agent config
+    let model = &app_state.agent().config().model;
+    let registry = CommandRegistry::with_compact(model);
 
     // Look up the command handler
     let handler = match registry.get(&command) {

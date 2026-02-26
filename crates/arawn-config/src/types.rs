@@ -802,8 +802,8 @@ pub struct CompactionConfig {
     /// LLM backend name for compaction (references `llm_profiles`).
     /// Use "default" to use the global default LLM.
     pub backend: String,
-    /// Model override for compaction (optional).
-    pub model: Option<String>,
+    /// Model to use for compaction.
+    pub model: String,
     /// Target length for compacted output (characters).
     pub target_len: usize,
 }
@@ -814,7 +814,7 @@ impl Default for CompactionConfig {
             enabled: false,
             threshold: 8000,
             backend: "default".to_string(),
-            model: None,
+            model: "gpt-4o-mini".to_string(),
             target_len: 4000,
         }
     }
@@ -2267,7 +2267,7 @@ enabled = true
         assert!(!cfg.compaction.enabled);
         assert_eq!(cfg.compaction.threshold, 8000);
         assert_eq!(cfg.compaction.backend, "default");
-        assert!(cfg.compaction.model.is_none());
+        assert_eq!(cfg.compaction.model, "gpt-4o-mini");
         assert_eq!(cfg.compaction.target_len, 4000);
     }
 
@@ -2277,7 +2277,7 @@ enabled = true
         assert!(!cfg.enabled);
         assert_eq!(cfg.threshold, 8000);
         assert_eq!(cfg.backend, "default");
-        assert!(cfg.model.is_none());
+        assert_eq!(cfg.model, "gpt-4o-mini");
         assert_eq!(cfg.target_len, 4000);
     }
 
@@ -2300,7 +2300,7 @@ target_len = 2000
         assert!(delegation.compaction.enabled);
         assert_eq!(delegation.compaction.threshold, 5000);
         assert_eq!(delegation.compaction.backend, "fast");
-        assert_eq!(delegation.compaction.model.as_deref(), Some("gpt-4o-mini"));
+        assert_eq!(delegation.compaction.model, "gpt-4o-mini");
         assert_eq!(delegation.compaction.target_len, 2000);
     }
 
@@ -2363,7 +2363,7 @@ model = "claude-haiku"
         assert_eq!(delegation.max_result_len, 12000);
         assert!(delegation.compaction.enabled);
         assert_eq!(delegation.compaction.threshold, 6000);
-        assert_eq!(delegation.compaction.model.as_deref(), Some("claude-haiku"));
+        assert_eq!(delegation.compaction.model, "claude-haiku");
     }
 
     // ── MCP Config Tests ────────────────────────────────────────────

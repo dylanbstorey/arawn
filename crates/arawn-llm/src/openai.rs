@@ -466,31 +466,6 @@ impl LlmBackend for OpenAiBackend {
         &self.config.name
     }
 
-    async fn health_check(&self) -> Result<()> {
-        // For Ollama, check the models endpoint
-        if self.config.name == "ollama" {
-            let models_url = format!("{}/models", self.config.base_url.trim_end_matches("/v1"));
-            let response = self.client.get(&models_url).send().await?;
-            if response.status().is_success() {
-                return Ok(());
-            }
-        }
-
-        // For API-based services, make a minimal request
-        let model = self
-            .config
-            .model
-            .clone()
-            .unwrap_or_else(|| "gpt-3.5-turbo".to_string());
-        let request = CompletionRequest::new(model, vec![Message::user("ping")], 1);
-
-        match self.complete(request).await {
-            Ok(_) => Ok(()),
-            Err(LlmError::RateLimit(_)) => Ok(()), // Rate limit means reachable
-            Err(e) => Err(e),
-        }
-    }
-
     fn supports_native_tools(&self) -> bool {
         true
     }

@@ -46,12 +46,9 @@ fn test_help_lists_subcommands() {
         .assert()
         .success()
         .stdout(predicate::str::contains("start"))
-        .stdout(predicate::str::contains("stop"))
         .stdout(predicate::str::contains("status"))
         .stdout(predicate::str::contains("ask"))
         .stdout(predicate::str::contains("chat"))
-        .stdout(predicate::str::contains("research"))
-        .stdout(predicate::str::contains("tasks"))
         .stdout(predicate::str::contains("memory"))
         .stdout(predicate::str::contains("notes"))
         .stdout(predicate::str::contains("config"))
@@ -114,15 +111,6 @@ fn test_start_help() {
 }
 
 #[test]
-fn test_stop_help() {
-    arawn()
-        .args(["stop", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("Stop"));
-}
-
-#[test]
 fn test_status_help() {
     arawn()
         .args(["status", "--help"])
@@ -147,24 +135,6 @@ fn test_chat_help() {
         .assert()
         .success()
         .stdout(predicate::str::contains("chat"));
-}
-
-#[test]
-fn test_research_help() {
-    arawn()
-        .args(["research", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("research"));
-}
-
-#[test]
-fn test_tasks_help() {
-    arawn()
-        .args(["tasks", "--help"])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("task"));
 }
 
 #[test]

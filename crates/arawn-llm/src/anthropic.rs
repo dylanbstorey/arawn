@@ -228,25 +228,6 @@ impl LlmBackend for AnthropicBackend {
         "anthropic"
     }
 
-    async fn health_check(&self) -> Result<()> {
-        // Make a minimal request to check connectivity
-        // We use a very short max_tokens to minimize cost
-        let request = CompletionRequest::new(
-            "claude-3-haiku-20240307",
-            vec![crate::types::Message::user("ping")],
-            1,
-        );
-
-        match self.complete(request).await {
-            Ok(_) => Ok(()),
-            Err(LlmError::RateLimit(_)) => {
-                // Rate limit means the API is reachable
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
     fn supports_native_tools(&self) -> bool {
         true
     }

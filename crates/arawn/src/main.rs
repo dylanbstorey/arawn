@@ -9,8 +9,7 @@ mod client;
 mod commands;
 
 use commands::{
-    agent, ask, auth, chat, config, mcp, memory, notes, plugin, research, start, status, stop,
-    tasks, tui,
+    agent, ask, auth, chat, config, mcp, memory, notes, plugin, start, status, tui,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -48,9 +47,6 @@ pub enum Commands {
     /// Start the Arawn server
     Start(start::StartArgs),
 
-    /// Stop the running server
-    Stop(stop::StopArgs),
-
     /// Show server status and resource usage
     Status(status::StatusArgs),
 
@@ -59,12 +55,6 @@ pub enum Commands {
 
     /// Enter interactive chat mode (REPL)
     Chat(chat::ChatArgs),
-
-    /// Start a long-running research task
-    Research(research::ResearchArgs),
-
-    /// Manage running and recent tasks
-    Tasks(tasks::TasksArgs),
 
     /// Memory operations
     Memory(memory::MemoryArgs),
@@ -195,12 +185,9 @@ async fn main() -> Result<()> {
     // Dispatch to command handlers
     match cli.command {
         Commands::Start(args) => start::run(args, &ctx).await,
-        Commands::Stop(args) => stop::run(args, &ctx).await,
         Commands::Status(args) => status::run(args, &ctx).await,
         Commands::Ask(args) => ask::run(args, &ctx).await,
         Commands::Chat(args) => chat::run(args, &ctx).await,
-        Commands::Research(args) => research::run(args, &ctx).await,
-        Commands::Tasks(args) => tasks::run(args, &ctx).await,
         Commands::Memory(args) => memory::run(args, &ctx).await,
         Commands::Notes(args) => notes::run(args, &ctx).await,
         Commands::Config(args) => config::run(args, &ctx).await,

@@ -42,7 +42,7 @@ pub struct IndexerConfig {
 impl Default for IndexerConfig {
     fn default() -> Self {
         Self {
-            model: "gpt-4o-mini".to_string(),
+            model: String::new(),
             max_extraction_tokens: 4096,
             max_summary_tokens: 512,
         }
@@ -555,13 +555,20 @@ mod tests {
         .to_string()
     }
 
+    fn test_indexer_config() -> IndexerConfig {
+        IndexerConfig {
+            model: "test-model".to_string(),
+            ..Default::default()
+        }
+    }
+
     fn make_indexer(completer: impl Completer + 'static) -> SessionIndexer {
         let store = MemoryStore::open_in_memory().unwrap();
         SessionIndexer::new(
             Arc::new(store),
             Arc::new(completer),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         )
     }
 
@@ -572,7 +579,7 @@ mod tests {
             Arc::new(store),
             Arc::new(completer),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         )
     }
 
@@ -709,7 +716,7 @@ mod tests {
             store.clone(),
             Arc::new(completer1),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         );
 
         // First session: insert
@@ -724,7 +731,7 @@ mod tests {
             store.clone(),
             Arc::new(completer2),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         );
         let r2 = indexer2
             .index_session("sess-2", &[("user", "Still using Rust")])
@@ -757,7 +764,7 @@ mod tests {
             store.clone(),
             Arc::new(completer1),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         );
         let r1 = indexer1
             .index_session("sess-1", &[("user", "I use Vim")])
@@ -770,7 +777,7 @@ mod tests {
             store.clone(),
             Arc::new(completer2),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         );
         let r2 = indexer2
             .index_session("sess-2", &[("user", "Switched to Neovim")])
@@ -822,7 +829,7 @@ mod tests {
             Arc::new(store),
             Arc::new(completer),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         )
         .with_ner_engine(Arc::new(ner))
     }
@@ -837,7 +844,7 @@ mod tests {
             Arc::new(store),
             Arc::new(completer),
             None,
-            IndexerConfig::default(),
+            test_indexer_config(),
         )
         .with_ner_engine(Arc::new(ner))
     }

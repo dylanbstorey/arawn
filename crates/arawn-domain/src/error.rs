@@ -17,10 +17,6 @@ pub enum DomainError {
     #[error("Agent error: {0}")]
     Agent(#[from] arawn_agent::AgentError),
 
-    /// Memory operation error.
-    #[error("Memory error: {0}")]
-    Memory(String),
-
     /// MCP server error.
     #[error("MCP error: {0}")]
     Mcp(String),

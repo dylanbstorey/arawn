@@ -124,10 +124,13 @@ impl CommandRegistry {
         }
     }
 
-    /// Create a registry with default commands.
-    pub fn with_defaults() -> Self {
+    /// Create a registry with standard commands using the given model.
+    pub fn with_compact(model: &str) -> Self {
         let mut registry = Self::new();
-        registry.register(CompactCommand::default());
+        registry.register(CompactCommand::new(CompactorConfig {
+            model: model.to_string(),
+            ..Default::default()
+        }));
         registry
     }
 
@@ -246,17 +249,9 @@ pub struct CompactCommand {
     config: CompactorConfig,
 }
 
-impl Default for CompactCommand {
-    fn default() -> Self {
-        Self {
-            config: CompactorConfig::default(),
-        }
-    }
-}
-
 impl CompactCommand {
-    /// Create with custom config.
-    pub fn with_config(config: CompactorConfig) -> Self {
+    /// Create with the given config.
+    pub fn new(config: CompactorConfig) -> Self {
         Self { config }
     }
 }
@@ -356,11 +351,11 @@ impl CommandHandler for CompactCommand {
     tag = "commands"
 )]
 pub async fn list_commands_handler(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_identity): Extension<Identity>,
 ) -> Result<Json<ListCommandsResponse>, ServerError> {
-    // Create a registry with defaults (in a real app, this would be in AppState)
-    let registry = CommandRegistry::with_defaults();
+    let model = &state.agent().config().model;
+    let registry = CommandRegistry::with_compact(model);
     let commands = registry.list();
 
     Ok(Json(ListCommandsResponse { commands }))
@@ -385,7 +380,11 @@ pub async fn compact_command_handler(
     Extension(_identity): Extension<Identity>,
     Json(request): Json<CompactRequest>,
 ) -> Result<Json<CompactResponse>, ServerError> {
-    let command = CompactCommand::default();
+    let model = &state.agent().config().model;
+    let command = CompactCommand::new(CompactorConfig {
+        model: model.clone(),
+        ..Default::default()
+    });
 
     let params = serde_json::to_value(&request).map_err(|e| ServerError::Serialization(e))?;
 
@@ -437,8 +436,12 @@ pub async fn compact_command_stream_handler(
     // Get LLM backend for compaction
     let backend = state.agent().backend();
 
-    // Create compactor
-    let config = CompactorConfig::default();
+    // Create compactor with model from agent config
+    let model = state.agent().config().model.clone();
+    let config = CompactorConfig {
+        model,
+        ..Default::default()
+    };
     let compactor = SessionCompactor::new(backend, config.clone());
 
     // Build the list of events
@@ -521,9 +524,16 @@ mod tests {
         assert!(registry.list().is_empty());
     }
 
+    fn test_compact_command() -> CompactCommand {
+        CompactCommand::new(CompactorConfig {
+            model: "test-model".to_string(),
+            ..Default::default()
+        })
+    }
+
     #[test]
-    fn test_command_registry_with_defaults() {
-        let registry = CommandRegistry::with_defaults();
+    fn test_command_registry_with_compact() {
+        let registry = CommandRegistry::with_compact("test-model");
         let commands = registry.list();
         assert!(!commands.is_empty());
         assert!(commands.iter().any(|c| c.name == "compact"));
@@ -532,7 +542,7 @@ mod tests {
     #[test]
     fn test_command_registry_register_and_lookup() {
         let mut registry = CommandRegistry::new();
-        registry.register(CompactCommand::default());
+        registry.register(test_compact_command());
 
         let handler = registry.get("compact");
         assert!(handler.is_some());
@@ -542,7 +552,7 @@ mod tests {
     #[test]
     fn test_command_registry_list() {
         let mut registry = CommandRegistry::new();
-        registry.register(CompactCommand::default());
+        registry.register(test_compact_command());
 
         let commands = registry.list();
         assert_eq!(commands.len(), 1);
@@ -558,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_compact_command_metadata() {
-        let command = CompactCommand::default();
+        let command = test_compact_command();
         assert_eq!(command.name(), "compact");
         assert!(!command.description().is_empty());
     }
@@ -566,7 +576,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_command_invalid_session_id() {
         let state = create_test_state();
-        let command = CompactCommand::default();
+        let command = test_compact_command();
 
         let params = serde_json::json!({
             "session_id": "not-a-uuid"
@@ -580,7 +590,7 @@ mod tests {
     #[tokio::test]
     async fn test_compact_command_session_not_found() {
         let state = create_test_state();
-        let command = CompactCommand::default();
+        let command = test_compact_command();
 
         let params = serde_json::json!({
             "session_id": "00000000-0000-0000-0000-000000000001"
@@ -607,7 +617,7 @@ mod tests {
             })
             .await;
 
-        let command = CompactCommand::default();
+        let command = test_compact_command();
         let params = serde_json::json!({
             "session_id": session_id.to_string()
         });
@@ -639,7 +649,7 @@ mod tests {
             })
             .await;
 
-        let command = CompactCommand::default();
+        let command = test_compact_command();
         let params = serde_json::json!({
             "session_id": session_id.to_string(),
             "force": true

@@ -4,27 +4,17 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Domain facade for Arawn - orchestrates agent, session, memory, and MCP interactions"
+description = "Domain facade for Arawn - orchestrates agent, session, and MCP interactions"
 
 [dependencies]
 # Internal crates
 arawn-types = { workspace = true }
 arawn-agent = { workspace = true }
-arawn-config = { workspace = true }
-arawn-llm = { workspace = true }
-arawn-memory = { workspace = true }
 arawn-mcp = { workspace = true }
-arawn-sandbox = { workspace = true }
-arawn-session = { workspace = true }
 arawn-workstream = { workspace = true }
 
 # Async
 tokio = { workspace = true }
-async-trait = "0.1"
-futures-core = "0.3"
-
-# Synchronization
-parking_lot = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }
@@ -32,11 +22,6 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
-# Identity
-uuid = { workspace = true }
-
-# Time
-chrono = { workspace = true }
-
 [dev-dependencies]
+arawn-llm = { workspace = true }
 tempfile = "3"

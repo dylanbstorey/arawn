@@ -450,26 +450,6 @@ impl LlmClient {
         backend.complete_stream(request).await
     }
 
-    /// Check health of all configured providers.
-    pub async fn health_check(&self) -> HashMap<Provider, Result<()>> {
-        let mut results = HashMap::new();
-
-        for (&provider, backend) in &self.backends {
-            results.insert(provider, backend.health_check().await);
-        }
-
-        results
-    }
-
-    /// Check health of a specific provider.
-    pub async fn health_check_provider(&self, provider: Provider) -> Result<()> {
-        let backend = self.backends.get(&provider).ok_or_else(|| {
-            LlmError::Config(format!("Provider '{}' is not configured", provider))
-        })?;
-
-        backend.health_check().await
-    }
-
     /// Determine if we should attempt fallback for this error.
     fn should_fallback(&self, error: &LlmError) -> bool {
         // Network errors include timeouts (via reqwest::Error conversion)
@@ -493,11 +473,6 @@ impl LlmBackend for LlmClient {
 
     fn name(&self) -> &str {
         "llm-client"
-    }
-
-    async fn health_check(&self) -> Result<()> {
-        // Check primary provider
-        self.health_check_provider(self.primary).await
     }
 
     fn supports_native_tools(&self) -> bool {

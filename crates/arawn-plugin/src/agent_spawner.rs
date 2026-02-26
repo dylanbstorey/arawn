@@ -139,7 +139,7 @@ struct CompactionResult {
 async fn compact_result(
     text: &str,
     backend: &SharedBackend,
-    model: Option<&str>,
+    model: &str,
     target_len: usize,
 ) -> CompactionResult {
     let original_len = text.len();
@@ -151,8 +151,7 @@ async fn compact_result(
     );
 
     // Build the completion request
-    let model_name = model.unwrap_or("gpt-4o-mini");
-    let request = CompletionRequest::new(model_name, vec![Message::user(user_prompt)], 4096)
+    let request = CompletionRequest::new(model, vec![Message::user(user_prompt)], 4096)
         .with_system(COMPACTION_SYSTEM_PROMPT);
 
     // Execute the compaction
@@ -496,7 +495,7 @@ impl SubagentSpawner for PluginSubagentSpawner {
                             let result = compact_result(
                                 response_text,
                                 backend,
-                                self.compaction_config.model.as_deref(),
+                                &self.compaction_config.model,
                                 self.compaction_config.target_len,
                             )
                             .await;
@@ -1073,7 +1072,7 @@ mod tests {
         ));
 
         let long_text = "This is a very long text. ".repeat(500);
-        let result = compact_result(&long_text, &backend, None, 1000).await;
+        let result = compact_result(&long_text, &backend, "test-model", 1000).await;
 
         assert!(result.success);
         assert_eq!(result.original_len, long_text.len());
@@ -1086,7 +1085,7 @@ mod tests {
         assert!(!config.enabled);
         assert_eq!(config.threshold, 8000);
         assert_eq!(config.backend, "default");
-        assert!(config.model.is_none());
+        assert_eq!(config.model, "gpt-4o-mini");
         assert_eq!(config.target_len, 4000);
     }
 
@@ -1100,7 +1099,7 @@ mod tests {
             enabled: true,
             threshold: 1000,
             backend: "fast".to_string(),
-            model: Some("gpt-4o-mini".to_string()),
+            model: "gpt-4o-mini".to_string(),
             target_len: 500,
         };
 
@@ -1110,9 +1109,6 @@ mod tests {
         assert!(spawner.compaction_backend.is_some());
         assert!(spawner.compaction_config.enabled);
         assert_eq!(spawner.compaction_config.threshold, 1000);
-        assert_eq!(
-            spawner.compaction_config.model.as_deref(),
-            Some("gpt-4o-mini")
-        );
+        assert_eq!(spawner.compaction_config.model, "gpt-4o-mini");
     }
 }
