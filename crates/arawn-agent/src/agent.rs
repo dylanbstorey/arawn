@@ -572,10 +572,11 @@ impl Agent {
                 "Tool: executing"
             );
 
-            // Execute the tool
+            // Execute the tool with per-tool output limits
+            let output_config = self.tools.output_config_for(&tool_use.name);
             let result = match self
                 .tools
-                .execute(&tool_use.name, tool_use.input.clone(), &ctx)
+                .execute_with_config(&tool_use.name, tool_use.input.clone(), &ctx, &output_config)
                 .await
             {
                 Ok(result) => result,

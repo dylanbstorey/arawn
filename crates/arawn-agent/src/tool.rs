@@ -1071,6 +1071,8 @@ impl ToolResult {
 #[derive(Default)]
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
+    /// Per-tool output config overrides from user configuration.
+    output_overrides: HashMap<String, OutputConfig>,
 }
 
 impl ToolRegistry {
@@ -1078,7 +1080,17 @@ impl ToolRegistry {
     pub fn new() -> Self {
         Self {
             tools: HashMap::new(),
+            output_overrides: HashMap::new(),
         }
+    }
+
+    /// Set a per-tool output config override.
+    ///
+    /// This override takes precedence over the hardcoded defaults in
+    /// `output_config_for()`. Multiple tool names can map to the same
+    /// config (e.g., "shell" and "bash" share a limit).
+    pub fn set_output_config(&mut self, name: impl Into<String>, config: OutputConfig) {
+        self.output_overrides.insert(name.into(), config);
     }
 
     /// Register a tool.
@@ -1176,10 +1188,17 @@ impl ToolRegistry {
         tool.execute(params, ctx).await
     }
 
-    /// Get the recommended output config for a tool by name.
+    /// Get the output config for a tool by name.
     ///
-    /// Returns tool-specific limits based on the tool type.
+    /// Checks user-configured overrides first, then falls back to
+    /// hardcoded per-tool defaults.
     pub fn output_config_for(&self, name: &str) -> OutputConfig {
+        // Check overrides first
+        if let Some(config) = self.output_overrides.get(name) {
+            return config.clone();
+        }
+
+        // Fall back to hardcoded per-tool defaults
         match name {
             "shell" | "bash" => OutputConfig::for_shell(),
             "file_read" | "read_file" => OutputConfig::for_file_read(),
@@ -2094,6 +2113,45 @@ mod tests {
 
         let unknown_config = registry.output_config_for("unknown_tool");
         assert_eq!(unknown_config.max_size_bytes, DEFAULT_MAX_OUTPUT_SIZE);
+    }
+
+    #[test]
+    fn test_registry_output_config_override() {
+        let mut registry = ToolRegistry::new();
+
+        // Set a custom override for shell
+        registry.set_output_config("shell", OutputConfig::with_max_size(256 * 1024));
+
+        // Override should take precedence
+        let shell_config = registry.output_config_for("shell");
+        assert_eq!(shell_config.max_size_bytes, 256 * 1024);
+
+        // "bash" alias still uses hardcoded default (no override set for it)
+        let bash_config = registry.output_config_for("bash");
+        assert_eq!(bash_config.max_size_bytes, 100 * 1024);
+
+        // Unoverridden tools still use defaults
+        let file_config = registry.output_config_for("file_read");
+        assert_eq!(file_config.max_size_bytes, 500 * 1024);
+    }
+
+    #[test]
+    fn test_registry_output_config_override_all_aliases() {
+        let mut registry = ToolRegistry::new();
+
+        // Override both shell aliases
+        let config = OutputConfig::with_max_size(200 * 1024);
+        registry.set_output_config("shell", config.clone());
+        registry.set_output_config("bash", config);
+
+        assert_eq!(
+            registry.output_config_for("shell").max_size_bytes,
+            200 * 1024
+        );
+        assert_eq!(
+            registry.output_config_for("bash").max_size_bytes,
+            200 * 1024
+        );
     }
 
     #[tokio::test]

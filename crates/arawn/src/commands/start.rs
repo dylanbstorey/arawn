@@ -320,14 +320,17 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         "Tool configuration loaded"
     );
 
-    // Create shell tool with configured timeout
-    let shell_config =
-        tools::ShellConfig::new().with_timeout(Duration::from_secs(tools_cfg.shell.timeout_secs));
+    // Create shell tool with configured timeout and output limit
+    let shell_output_limit = tools_cfg.output.shell.unwrap_or(100 * 1024);
+    let shell_config = tools::ShellConfig::new()
+        .with_timeout(Duration::from_secs(tools_cfg.shell.timeout_secs))
+        .with_max_output_size(shell_output_limit);
 
-    // Create web fetch tool with configured timeout and max output size
+    // Create web fetch tool with configured timeout and output limit
+    let web_output_limit = tools_cfg.output.web_fetch.unwrap_or(200 * 1024);
     let web_config = tools::WebFetchConfig {
         timeout: Duration::from_secs(tools_cfg.web.timeout_secs),
-        max_text_length: tools_cfg.output.max_size_bytes,
+        max_text_length: web_output_limit,
         ..Default::default()
     };
 
@@ -339,6 +342,28 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     tool_registry.register(tools::GrepTool::new());
     tool_registry.register(tools::WebFetchTool::with_config(web_config));
     tool_registry.register(tools::NoteTool::new());
+
+    // Wire per-tool output config overrides from [tools.output]
+    use arawn_agent::OutputConfig;
+    let output_cfg = &tools_cfg.output;
+    if let Some(v) = output_cfg.shell {
+        tool_registry.set_output_config("shell", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("bash", OutputConfig::with_max_size(v));
+    }
+    if let Some(v) = output_cfg.file_read {
+        tool_registry.set_output_config("file_read", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("read_file", OutputConfig::with_max_size(v));
+    }
+    if let Some(v) = output_cfg.web_fetch {
+        tool_registry.set_output_config("web_fetch", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("fetch", OutputConfig::with_max_size(v));
+    }
+    if let Some(v) = output_cfg.search {
+        tool_registry.set_output_config("grep", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("glob", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("search", OutputConfig::with_max_size(v));
+        tool_registry.set_output_config("memory_search", OutputConfig::with_max_size(v));
+    }
 
     // Register workflow tool if pipeline is enabled.
     // Uses a labeled block so fallback failures skip tool registration

@@ -630,7 +630,6 @@ pub struct EmbeddingLocalConfig {
     pub tokenizer_url: Option<String>,
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Memory Configuration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1372,17 +1371,35 @@ pub struct ToolsConfig {
 }
 
 /// Tool output configuration.
+///
+/// Per-tool limits override the global `max_size_bytes` default.
+/// When a per-tool value is `None`, the hardcoded default for that
+/// tool type is used (shell=100KB, file_read=500KB, web_fetch=200KB,
+/// search=50KB).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ToolOutputConfig {
-    /// Maximum size of tool output in bytes before truncation.
+    /// Default maximum size of tool output in bytes before truncation.
+    /// Used for tools without a specific override.
     pub max_size_bytes: usize,
+    /// Max output size for shell/bash tool (default: 100KB).
+    pub shell: Option<usize>,
+    /// Max output size for file_read tool (default: 500KB).
+    pub file_read: Option<usize>,
+    /// Max output size for web_fetch tool (default: 200KB).
+    pub web_fetch: Option<usize>,
+    /// Max output size for search/grep/glob tools (default: 50KB).
+    pub search: Option<usize>,
 }
 
 impl Default for ToolOutputConfig {
     fn default() -> Self {
         Self {
             max_size_bytes: 102400, // 100KB
+            shell: None,
+            file_read: None,
+            web_fetch: None,
+            search: None,
         }
     }
 }
@@ -2712,5 +2729,39 @@ polling_interval_secs = 15
         assert_eq!(paths.usage.total_warning_gb, 15);
         assert_eq!(paths.cleanup.scratch_cleanup_days, 30);
         assert!(paths.monitoring.enabled);
+    }
+
+    #[test]
+    fn test_tool_output_config_per_tool_fields() {
+        let toml = r#"
+[tools.output]
+max_size_bytes = 102400
+shell = 204800
+file_read = 1048576
+web_fetch = 512000
+search = 25600
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let tools = config.tools.unwrap();
+        assert_eq!(tools.output.max_size_bytes, 102400);
+        assert_eq!(tools.output.shell, Some(204800));
+        assert_eq!(tools.output.file_read, Some(1048576));
+        assert_eq!(tools.output.web_fetch, Some(512000));
+        assert_eq!(tools.output.search, Some(25600));
+    }
+
+    #[test]
+    fn test_tool_output_config_defaults_none() {
+        let toml = r#"
+[tools.output]
+max_size_bytes = 102400
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let tools = config.tools.unwrap();
+        assert_eq!(tools.output.max_size_bytes, 102400);
+        assert!(tools.output.shell.is_none());
+        assert!(tools.output.file_read.is_none());
+        assert!(tools.output.web_fetch.is_none());
+        assert!(tools.output.search.is_none());
     }
 }
