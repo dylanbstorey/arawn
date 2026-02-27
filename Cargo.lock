@@ -417,7 +417,6 @@ dependencies = [
  "chrono",
  "futures",
  "governor",
- "lru",
  "reqwest",
  "serde",
  "serde_json",

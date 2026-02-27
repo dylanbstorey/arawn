@@ -9,20 +9,18 @@
 //! This makes workstream sessions the single source of truth while
 //! maintaining the in-memory performance needed for active sessions.
 //!
-// TODO(ARAWN-T-0231): Migrate to `arawn_session::SessionCache` with a workstream `PersistenceHook`
-// instead of this hand-rolled LRU + TtlTracker combo.
+//! The cache uses [`arawn_session::SessionCache`] with a
+//! [`WorkstreamPersistence`] hook that loads from and saves to
+//! workstream JSONL storage.
 
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
 use arawn_agent::{Session, SessionId, ToolCall, ToolResultRecord, Turn};
-use arawn_session::TtlTracker;
+use arawn_session::{CacheConfig, PersistenceHook};
 use arawn_types::HasSessionConfig;
 use arawn_workstream::{ReconstructedSession, SessionLoader, WorkstreamManager};
-use lru::LruCache;
-use tokio::sync::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, warn};
 
 /// Default maximum number of sessions to cache.
 /// With ~100KB average session size, this uses ~1GB of memory.
@@ -42,23 +40,70 @@ pub enum SessionCacheError {
     NoWorkstreamManager,
     #[error("Workstream error: {0}")]
     Workstream(#[from] arawn_workstream::WorkstreamError),
+    #[error("Cache error: {0}")]
+    Cache(#[from] arawn_session::Error),
 }
 
 pub type Result<T> = std::result::Result<T, SessionCacheError>;
 
-/// Cache entry with session data and workstream association.
-#[derive(Debug, Clone)]
-struct CacheEntry {
-    session: Session,
-    workstream_id: String,
+/// Persistence hook that loads/saves sessions from workstream JSONL storage.
+///
+/// When the cache misses, this hook loads the session from the workstream's
+/// JSONL message store. If no messages are found, it returns an empty session
+/// (matching the previous behavior where a cache miss creates a fresh session).
+pub struct WorkstreamPersistence {
+    workstreams: Option<Arc<WorkstreamManager>>,
 }
 
-/// Inner state protected by RwLock.
-struct CacheInner {
-    /// LRU cache of active sessions.
-    lru: LruCache<SessionId, CacheEntry>,
-    /// TTL tracker for session expiration.
-    ttl: TtlTracker,
+impl PersistenceHook for WorkstreamPersistence {
+    type Value = Session;
+
+    fn load(&self, session_id: &str, context_id: &str) -> arawn_session::Result<Option<Session>> {
+        let Some(ref manager) = self.workstreams else {
+            // No workstream manager — return an empty session
+            let sid = parse_session_id(session_id)?;
+            return Ok(Some(Session::with_id(sid)));
+        };
+
+        let loader = SessionLoader::new(manager.message_store());
+        match loader
+            .load_session(context_id, session_id)
+            .map_err(|e| arawn_session::Error::Persistence(e.to_string()))?
+        {
+            Some(reconstructed) => {
+                let sid = parse_session_id(session_id)?;
+                let session = convert_reconstructed_to_session(&reconstructed, sid);
+                Ok(Some(session))
+            }
+            None => {
+                // No messages found — return an empty session
+                let sid = parse_session_id(session_id)?;
+                Ok(Some(Session::with_id(sid)))
+            }
+        }
+    }
+
+    fn save(
+        &self,
+        _session_id: &str,
+        _context_id: &str,
+        _value: &Session,
+    ) -> arawn_session::Result<()> {
+        // Turns are saved explicitly via save_turn(); no bulk save needed.
+        Ok(())
+    }
+
+    fn delete(&self, _session_id: &str, _context_id: &str) -> arawn_session::Result<()> {
+        // Session deletion from workstream storage is handled elsewhere.
+        Ok(())
+    }
+}
+
+/// Parse a session ID string into a `SessionId`.
+fn parse_session_id(session_id: &str) -> arawn_session::Result<SessionId> {
+    uuid::Uuid::parse_str(session_id)
+        .map(SessionId::from_uuid)
+        .map_err(|e| arawn_session::Error::Persistence(format!("Invalid session ID: {e}")))
 }
 
 /// Session cache that loads from and persists to workstream storage.
@@ -66,11 +111,14 @@ struct CacheInner {
 /// Uses LRU eviction to prevent unbounded memory growth. Least recently
 /// used sessions are evicted when the cache reaches capacity. Sessions
 /// can also expire based on TTL if configured.
+///
+/// Backed by [`arawn_session::SessionCache`] with a [`WorkstreamPersistence`]
+/// hook for workstream JSONL storage.
 #[derive(Clone)]
 pub struct SessionCache {
-    /// Combined LRU cache and TTL tracker.
-    inner: Arc<RwLock<CacheInner>>,
-    /// Workstream manager for persistence.
+    /// Generic cache with workstream persistence.
+    inner: arawn_session::SessionCache<WorkstreamPersistence>,
+    /// Workstream manager for turn persistence.
     workstreams: Option<Arc<WorkstreamManager>>,
 }
 
@@ -102,55 +150,36 @@ impl SessionCache {
         max_sessions: usize,
         ttl: Option<Duration>,
     ) -> Self {
-        let cap = NonZeroUsize::new(max_sessions).unwrap_or(NonZeroUsize::new(1).unwrap());
-        let inner = CacheInner {
-            lru: LruCache::new(cap),
-            ttl: TtlTracker::new(ttl),
+        let mut cache_config = CacheConfig::new().with_max_sessions(max_sessions);
+        if let Some(ttl) = ttl {
+            cache_config = cache_config.with_ttl(ttl);
+        }
+
+        let persistence = WorkstreamPersistence {
+            workstreams: workstreams.clone(),
         };
+
         Self {
-            inner: Arc::new(RwLock::new(inner)),
+            inner: arawn_session::SessionCache::with_persistence(cache_config, persistence),
             workstreams,
         }
     }
 
     /// Get the current number of cached sessions.
     pub async fn len(&self) -> usize {
-        self.inner.read().await.lru.len()
+        self.inner.len().await
     }
 
     /// Check if the cache is empty.
     pub async fn is_empty(&self) -> bool {
-        self.inner.read().await.lru.is_empty()
+        self.inner.is_empty().await
     }
 
     /// Clean up expired sessions.
     ///
     /// Returns the number of sessions that were cleaned up.
     pub async fn cleanup_expired(&self) -> usize {
-        let mut inner = self.inner.write().await;
-        let expired: Vec<_> = inner
-            .ttl
-            .drain_expired()
-            .into_iter()
-            .filter_map(|s| {
-                // Parse the session ID back - TtlTracker uses String keys
-                uuid::Uuid::parse_str(&s).ok().map(SessionId::from_uuid)
-            })
-            .collect();
-
-        let mut count = 0;
-        for session_id in expired {
-            if inner.lru.pop(&session_id).is_some() {
-                debug!(session_id = %session_id, "Expired session removed from cache");
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            debug!(count = count, "Cleaned up expired sessions");
-        }
-
-        count
+        self.inner.cleanup_expired().await
     }
 
     /// Get a session from cache or load from workstream.
@@ -164,89 +193,12 @@ impl SessionCache {
     ) -> Result<(Session, String)> {
         let session_id_str = session_id.to_string();
 
-        // First check cache (using get which updates LRU order)
-        {
-            let mut inner = self.inner.write().await;
+        let session = self
+            .inner
+            .get_or_load(&session_id_str, workstream_id)
+            .await?;
 
-            // Check if expired first
-            if inner.ttl.is_expired(&session_id_str) {
-                debug!(session_id = %session_id, "Session expired, removing from cache");
-                inner.lru.pop(&session_id);
-                inner.ttl.remove(&session_id_str);
-            } else if let Some(entry) = inner.lru.get(&session_id) {
-                trace!(session_id = %session_id, "Session found in cache");
-                let result = (entry.session.clone(), entry.workstream_id.clone());
-                inner.ttl.touch(&session_id_str);
-                return Ok(result);
-            }
-        }
-
-        // Cache miss - try to load from workstream
-        debug!(session_id = %session_id, workstream_id = %workstream_id, "Session cache miss, loading from workstream");
-
-        if let Some(ref manager) = self.workstreams {
-            let loader = SessionLoader::new(manager.message_store());
-
-            match loader.load_session(workstream_id, &session_id_str)? {
-                Some(reconstructed) => {
-                    let session = convert_reconstructed_to_session(&reconstructed, session_id);
-
-                    // Insert into cache (LRU will evict oldest if at capacity)
-                    let mut inner = self.inner.write().await;
-                    inner.lru.put(
-                        session_id,
-                        CacheEntry {
-                            session: session.clone(),
-                            workstream_id: workstream_id.to_string(),
-                        },
-                    );
-                    inner.ttl.touch(&session_id_str);
-
-                    debug!(
-                        session_id = %session_id,
-                        turn_count = session.turn_count(),
-                        cache_size = inner.lru.len(),
-                        "Session loaded from workstream"
-                    );
-
-                    Ok((session, workstream_id.to_string()))
-                }
-                None => {
-                    // No messages found - create a new empty session
-                    let session = Session::with_id(session_id);
-
-                    // Insert into cache
-                    let mut inner = self.inner.write().await;
-                    inner.lru.put(
-                        session_id,
-                        CacheEntry {
-                            session: session.clone(),
-                            workstream_id: workstream_id.to_string(),
-                        },
-                    );
-                    inner.ttl.touch(&session_id_str);
-
-                    debug!(session_id = %session_id, "No messages found, created empty session");
-
-                    Ok((session, workstream_id.to_string()))
-                }
-            }
-        } else {
-            // No workstream manager - create an empty session in cache
-            let session = Session::with_id(session_id);
-
-            let mut inner = self.inner.write().await;
-            inner.lru.put(
-                session_id,
-                CacheEntry {
-                    session: session.clone(),
-                    workstream_id: workstream_id.to_string(),
-                },
-            );
-            inner.ttl.touch(&session_id_str);
-
-            Ok((session, workstream_id.to_string()))
-        }
+        Ok((session, workstream_id.to_string()))
     }
 
     /// Create a new session and add it to the cache.
@@ -255,15 +207,10 @@ impl SessionCache {
         let session_id = session.id;
         let session_id_str = session_id.to_string();
 
-        let mut inner = self.inner.write().await;
-        inner.lru.put(
-            session_id,
-            CacheEntry {
-                session: session.clone(),
-                workstream_id: workstream_id.to_string(),
-            },
-        );
-        inner.ttl.touch(&session_id_str);
+        let _ = self
+            .inner
+            .insert(&session_id_str, workstream_id, session.clone())
+            .await;
 
         (session_id, session)
     }
@@ -281,17 +228,12 @@ impl SessionCache {
         match session_id {
             Some(id) => {
                 let session_id_str = id.to_string();
-                // Check cache first (use get to update LRU)
-                {
-                    let mut inner = self.inner.write().await;
-                    // Skip if expired
-                    if !inner.ttl.is_expired(&session_id_str) {
-                        if let Some(entry) = inner.lru.get(&id) {
-                            let session = entry.session.clone();
-                            inner.ttl.touch(&session_id_str);
-                            return Ok((id, session, false));
-                        }
-                    }
+
+                // Check cache first (peek to avoid loading)
+                if let Some(session) = self.inner.peek(&session_id_str).await {
+                    // Touch the TTL by doing a get_or_load
+                    let _ = self.inner.get_or_load(&session_id_str, workstream_id).await;
+                    return Ok((id, session, false));
                 }
 
                 // Try to load from workstream
@@ -307,45 +249,31 @@ impl SessionCache {
 
     /// Check if a session exists in cache (and is not expired).
     pub async fn contains(&self, session_id: &SessionId) -> bool {
-        let inner = self.inner.read().await;
-        let session_id_str = session_id.to_string();
-        inner.lru.contains(session_id) && !inner.ttl.is_expired(&session_id_str)
+        self.inner.contains(&session_id.to_string()).await
     }
 
     /// Get a session from cache only (no workstream loading).
     /// Does NOT update LRU order (peek operation).
     pub async fn get(&self, session_id: &SessionId) -> Option<Session> {
-        let inner = self.inner.read().await;
-        let session_id_str = session_id.to_string();
-        if inner.ttl.is_expired(&session_id_str) {
-            None
-        } else {
-            inner.lru.peek(session_id).map(|e| e.session.clone())
-        }
+        self.inner.peek(&session_id.to_string()).await
     }
 
     /// Get the workstream ID for a cached session.
     /// Does NOT update LRU order (peek operation).
     pub async fn get_workstream_id(&self, session_id: &SessionId) -> Option<String> {
-        let inner = self.inner.read().await;
-        let session_id_str = session_id.to_string();
-        if inner.ttl.is_expired(&session_id_str) {
-            None
-        } else {
-            inner.lru.peek(session_id).map(|e| e.workstream_id.clone())
-        }
+        self.inner.peek_context_id(&session_id.to_string()).await
     }
 
     /// Update a session in cache.
     pub async fn update(&self, session_id: SessionId, session: Session) -> Result<()> {
         let session_id_str = session_id.to_string();
-        let mut inner = self.inner.write().await;
 
-        if let Some(entry) = inner.lru.get_mut(&session_id) {
-            entry.session = session;
-            inner.ttl.touch(&session_id_str);
+        // Get the existing context_id
+        if let Some(context_id) = self.inner.peek_context_id(&session_id_str).await {
+            self.inner
+                .update(&session_id_str, &context_id, session, false)
+                .await?;
         } else {
-            // Session not in cache - this shouldn't happen during normal operation
             warn!(session_id = %session_id, "Updating session that was not in cache");
         }
 
@@ -400,39 +328,51 @@ impl SessionCache {
     /// Remove a session from cache.
     pub async fn remove(&self, session_id: &SessionId) -> Option<Session> {
         let session_id_str = session_id.to_string();
-        let mut inner = self.inner.write().await;
-        inner.ttl.remove(&session_id_str);
-        inner.lru.pop(session_id).map(|e| e.session)
+
+        // Get context_id before removal (needed for persistence hook)
+        let context_id = self
+            .inner
+            .peek_context_id(&session_id_str)
+            .await
+            .unwrap_or_default();
+
+        self.inner
+            .remove(&session_id_str, &context_id)
+            .await
+            .ok()
+            .flatten()
     }
 
     /// Invalidate a cached session (e.g., after reassignment).
     pub async fn invalidate(&self, session_id: &SessionId) {
-        let session_id_str = session_id.to_string();
-        let mut inner = self.inner.write().await;
-        inner.ttl.remove(&session_id_str);
-        inner.lru.pop(session_id);
-        debug!(session_id = %session_id, "Session invalidated from cache");
+        self.inner.invalidate(&session_id.to_string()).await;
     }
 
     /// List all cached sessions (excludes expired).
     pub async fn list_cached(&self) -> Vec<(SessionId, String)> {
-        let inner = self.inner.read().await;
-        inner
-            .lru
-            .iter()
-            .filter(|(id, _)| !inner.ttl.is_expired(&id.to_string()))
-            .map(|(id, entry)| (*id, entry.workstream_id.clone()))
+        self.inner
+            .list_cached()
+            .await
+            .into_iter()
+            .filter_map(|(id_str, context_id)| {
+                uuid::Uuid::parse_str(&id_str)
+                    .ok()
+                    .map(|uuid| (SessionId::from_uuid(uuid), context_id))
+            })
             .collect()
     }
 
     /// Get all sessions (for backwards compatibility, excludes expired).
     pub async fn all_sessions(&self) -> std::collections::HashMap<SessionId, Session> {
-        let inner = self.inner.read().await;
-        inner
-            .lru
-            .iter()
-            .filter(|(id, _)| !inner.ttl.is_expired(&id.to_string()))
-            .map(|(id, entry)| (*id, entry.session.clone()))
+        self.inner
+            .for_each(|id_str, entry| {
+                uuid::Uuid::parse_str(id_str)
+                    .ok()
+                    .map(|uuid| (SessionId::from_uuid(uuid), entry.value.clone()))
+            })
+            .await
+            .into_iter()
+            .flatten()
             .collect()
     }
 
@@ -441,13 +381,7 @@ impl SessionCache {
     where
         F: FnOnce(&Session) -> R,
     {
-        let inner = self.inner.read().await;
-        let session_id_str = session_id.to_string();
-        if inner.ttl.is_expired(&session_id_str) {
-            None
-        } else {
-            inner.lru.peek(session_id).map(|e| f(&e.session))
-        }
+        self.inner.with_ref(&session_id.to_string(), f).await
     }
 
     /// Direct mutable access to cache for backwards compatibility during migration.
@@ -455,28 +389,16 @@ impl SessionCache {
     where
         F: FnOnce(&mut Session) -> R,
     {
-        let session_id_str = session_id.to_string();
-        let mut inner = self.inner.write().await;
-        if inner.ttl.is_expired(&session_id_str) {
-            None
-        } else {
-            inner.ttl.touch(&session_id_str);
-            inner.lru.get_mut(session_id).map(|e| f(&mut e.session))
-        }
+        self.inner.with_mut(&session_id.to_string(), f).await
     }
 
     /// Insert a session directly into cache.
     pub async fn insert(&self, session_id: SessionId, session: Session, workstream_id: &str) {
         let session_id_str = session_id.to_string();
-        let mut inner = self.inner.write().await;
-        inner.lru.put(
-            session_id,
-            CacheEntry {
-                session,
-                workstream_id: workstream_id.to_string(),
-            },
-        );
-        inner.ttl.touch(&session_id_str);
+        let _ = self
+            .inner
+            .insert(&session_id_str, workstream_id, session)
+            .await;
     }
 }
 

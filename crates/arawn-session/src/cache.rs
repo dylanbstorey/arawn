@@ -10,14 +10,17 @@ use tracing::{debug, trace};
 
 use crate::config::CacheConfig;
 use crate::error::{Error, Result};
-use crate::persistence::{NoPersistence, PersistenceHook, SessionData};
+use crate::persistence::{NoPersistence, PersistenceHook};
 use crate::ttl::TtlTracker;
 
 /// Entry stored in the cache.
 #[derive(Debug, Clone)]
-pub struct CacheEntry {
-    /// Session data.
-    pub data: SessionData,
+pub struct CacheEntry<V> {
+    /// Cached value.
+    pub value: V,
+
+    /// Context identifier (e.g., workstream ID).
+    pub context_id: String,
 
     /// When this entry was inserted into cache.
     pub cached_at: Instant,
@@ -26,11 +29,12 @@ pub struct CacheEntry {
     pub dirty: bool,
 }
 
-impl CacheEntry {
+impl<V> CacheEntry<V> {
     /// Create a new cache entry.
-    pub fn new(data: SessionData) -> Self {
+    pub fn new(value: V, context_id: String) -> Self {
         Self {
-            data,
+            value,
+            context_id,
             cached_at: Instant::now(),
             dirty: false,
         }
@@ -50,7 +54,7 @@ impl CacheEntry {
 /// Inner state protected by RwLock.
 struct CacheInner<P: PersistenceHook> {
     /// LRU cache of sessions.
-    lru: LruCache<String, CacheEntry>,
+    lru: LruCache<String, CacheEntry<P::Value>>,
 
     /// TTL tracker for expiration.
     ttl: TtlTracker,
@@ -66,6 +70,10 @@ struct CacheInner<P: PersistenceHook> {
 /// - Optional TTL-based expiration
 /// - Persistence hooks for loading/saving sessions
 /// - Thread-safe access via RwLock
+///
+/// The value type stored in the cache is determined by the persistence
+/// hook's associated `Value` type. With [`NoPersistence`], values are
+/// [`SessionData`]; custom hooks can store any `Clone + Send + Sync` type.
 pub struct SessionCache<P: PersistenceHook = NoPersistence> {
     inner: Arc<RwLock<CacheInner<P>>>,
     config: CacheConfig,
@@ -115,7 +123,7 @@ impl<P: PersistenceHook> SessionCache<P> {
     ///
     /// This marks the session as recently used in the LRU cache
     /// and resets its TTL timer.
-    pub async fn get_or_load(&self, session_id: &str, context_id: &str) -> Result<SessionData> {
+    pub async fn get_or_load(&self, session_id: &str, context_id: &str) -> Result<P::Value> {
         // First check cache
         {
             let mut inner = self.inner.write().await;
@@ -124,16 +132,14 @@ impl<P: PersistenceHook> SessionCache<P> {
             if inner.ttl.is_expired(session_id) {
                 debug!(session_id = %session_id, "Session expired, removing from cache");
                 if let Some(entry) = inner.lru.pop(session_id) {
-                    let _ = inner
-                        .persistence
-                        .on_evict(session_id, &entry.data.context_id);
+                    let _ = inner.persistence.on_evict(session_id, &entry.context_id);
                 }
                 inner.ttl.remove(session_id);
             } else if let Some(entry) = inner.lru.get(session_id) {
                 trace!(session_id = %session_id, "Session found in cache");
-                let data = entry.data.clone();
+                let value = entry.value.clone();
                 inner.ttl.touch(session_id);
-                return Ok(data);
+                return Ok(value);
             }
         }
 
@@ -142,12 +148,12 @@ impl<P: PersistenceHook> SessionCache<P> {
 
         let inner = self.inner.read().await;
         match inner.persistence.load(session_id, context_id)? {
-            Some(data) => {
+            Some(value) => {
                 drop(inner);
 
                 // Insert into cache
                 let mut inner = self.inner.write().await;
-                let entry = CacheEntry::new(data.clone());
+                let entry = CacheEntry::new(value.clone(), context_id.to_string());
                 inner.lru.put(session_id.to_string(), entry);
                 inner.ttl.touch(session_id);
 
@@ -157,7 +163,7 @@ impl<P: PersistenceHook> SessionCache<P> {
                     "Session loaded from persistence"
                 );
 
-                Ok(data)
+                Ok(value)
             }
             None => Err(Error::NotFound(session_id.to_string())),
         }
@@ -167,10 +173,7 @@ impl<P: PersistenceHook> SessionCache<P> {
     ///
     /// If the cache is at capacity, the least recently used session
     /// will be evicted (with on_evict callback).
-    pub async fn insert(&self, data: SessionData) -> Result<()> {
-        let session_id = data.id.clone();
-        let context_id = data.context_id.clone();
-
+    pub async fn insert(&self, session_id: &str, context_id: &str, value: P::Value) -> Result<()> {
         let mut inner = self.inner.write().await;
 
         // Check if we need to evict
@@ -178,20 +181,19 @@ impl<P: PersistenceHook> SessionCache<P> {
             // LRU will handle eviction, but we want to call on_evict
             if let Some((evicted_id, evicted_entry)) = inner.lru.peek_lru() {
                 let evicted_id = evicted_id.clone();
-                let evicted_context = evicted_entry.data.context_id.clone();
+                let evicted_context = evicted_entry.context_id.clone();
                 debug!(
                     session_id = %evicted_id,
                     "Evicting LRU session to make room"
                 );
-                // The actual eviction happens in put(), but we call on_evict first
                 let _ = inner.persistence.on_evict(&evicted_id, &evicted_context);
                 inner.ttl.remove(&evicted_id);
             }
         }
 
-        let entry = CacheEntry::new(data);
-        inner.lru.put(session_id.clone(), entry);
-        inner.ttl.touch(&session_id);
+        let entry = CacheEntry::new(value, context_id.to_string());
+        inner.lru.put(session_id.to_string(), entry);
+        inner.ttl.touch(session_id);
 
         trace!(
             session_id = %session_id,
@@ -204,29 +206,33 @@ impl<P: PersistenceHook> SessionCache<P> {
     }
 
     /// Update a session in the cache and optionally persist.
-    pub async fn update(&self, data: SessionData, persist: bool) -> Result<()> {
-        let session_id = data.id.clone();
-
+    pub async fn update(
+        &self,
+        session_id: &str,
+        context_id: &str,
+        value: P::Value,
+        persist: bool,
+    ) -> Result<()> {
         let mut inner = self.inner.write().await;
 
-        if let Some(entry) = inner.lru.get_mut(&session_id) {
-            entry.data = data.clone();
+        if let Some(entry) = inner.lru.get_mut(session_id) {
+            entry.value = value.clone();
             entry.dirty = !persist;
-            inner.ttl.touch(&session_id);
+            inner.ttl.touch(session_id);
 
             if persist {
-                inner.persistence.save(&data)?;
+                inner.persistence.save(session_id, context_id, &value)?;
             }
 
             Ok(())
         } else {
             // Not in cache - insert it
             drop(inner);
-            self.insert(data.clone()).await?;
+            self.insert(session_id, context_id, value.clone()).await?;
 
             if persist {
                 let inner = self.inner.read().await;
-                inner.persistence.save(&data)?;
+                inner.persistence.save(session_id, context_id, &value)?;
             }
 
             Ok(())
@@ -238,9 +244,10 @@ impl<P: PersistenceHook> SessionCache<P> {
         let mut inner = self.inner.write().await;
 
         if let Some(entry) = inner.lru.get_mut(session_id) {
-            let data = entry.data.clone();
+            let value = entry.value.clone();
+            let context_id = entry.context_id.clone();
             entry.mark_clean();
-            inner.persistence.save(&data)?;
+            inner.persistence.save(session_id, &context_id, &value)?;
             Ok(())
         } else {
             Err(Error::NotFound(session_id.to_string()))
@@ -253,18 +260,38 @@ impl<P: PersistenceHook> SessionCache<P> {
         inner.lru.contains(session_id) && !inner.ttl.is_expired(session_id)
     }
 
-    /// Peek at a session without updating LRU order or TTL.
-    pub async fn peek(&self, session_id: &str) -> Option<SessionData> {
+    /// Peek at a session value without updating LRU order or TTL.
+    pub async fn peek(&self, session_id: &str) -> Option<P::Value> {
         let inner = self.inner.read().await;
         if inner.ttl.is_expired(session_id) {
             None
         } else {
-            inner.lru.peek(session_id).map(|e| e.data.clone())
+            inner.lru.peek(session_id).map(|e| e.value.clone())
+        }
+    }
+
+    /// Peek at a cache entry without updating LRU order or TTL.
+    pub async fn peek_entry(&self, session_id: &str) -> Option<CacheEntry<P::Value>> {
+        let inner = self.inner.read().await;
+        if inner.ttl.is_expired(session_id) {
+            None
+        } else {
+            inner.lru.peek(session_id).cloned()
+        }
+    }
+
+    /// Get the context_id for a cached session without updating LRU.
+    pub async fn peek_context_id(&self, session_id: &str) -> Option<String> {
+        let inner = self.inner.read().await;
+        if inner.ttl.is_expired(session_id) {
+            None
+        } else {
+            inner.lru.peek(session_id).map(|e| e.context_id.clone())
         }
     }
 
     /// Remove a session from cache and persistence.
-    pub async fn remove(&self, session_id: &str, context_id: &str) -> Result<Option<SessionData>> {
+    pub async fn remove(&self, session_id: &str, context_id: &str) -> Result<Option<P::Value>> {
         let mut inner = self.inner.write().await;
 
         inner.ttl.remove(session_id);
@@ -274,7 +301,7 @@ impl<P: PersistenceHook> SessionCache<P> {
             inner.persistence.delete(session_id, context_id)?;
         }
 
-        Ok(entry.map(|e| e.data))
+        Ok(entry.map(|e| e.value))
     }
 
     /// Invalidate a session (remove from cache only, don't delete from persistence).
@@ -283,9 +310,7 @@ impl<P: PersistenceHook> SessionCache<P> {
         inner.ttl.remove(session_id);
         if let Some(entry) = inner.lru.pop(session_id) {
             debug!(session_id = %session_id, "Session invalidated from cache");
-            let _ = inner
-                .persistence
-                .on_evict(session_id, &entry.data.context_id);
+            let _ = inner.persistence.on_evict(session_id, &entry.context_id);
         }
     }
 
@@ -301,9 +326,7 @@ impl<P: PersistenceHook> SessionCache<P> {
         for session_id in expired {
             if let Some(entry) = inner.lru.pop(&session_id) {
                 debug!(session_id = %session_id, "Cleaning up expired session");
-                let _ = inner
-                    .persistence
-                    .on_evict(&session_id, &entry.data.context_id);
+                let _ = inner.persistence.on_evict(&session_id, &entry.context_id);
             }
         }
 
@@ -321,7 +344,7 @@ impl<P: PersistenceHook> SessionCache<P> {
             .lru
             .iter()
             .filter(|(id, _)| !inner.ttl.is_expired(id))
-            .map(|(id, entry)| (id.clone(), entry.data.context_id.clone()))
+            .map(|(id, entry)| (id.clone(), entry.context_id.clone()))
             .collect()
     }
 
@@ -332,6 +355,50 @@ impl<P: PersistenceHook> SessionCache<P> {
             size: inner.lru.len(),
             capacity: self.config.max_sessions,
             ttl_tracked: inner.ttl.len(),
+        }
+    }
+
+    /// Iterate over all non-expired entries, calling the provided closure.
+    pub async fn for_each<F, R>(&self, mut f: F) -> Vec<R>
+    where
+        F: FnMut(&str, &CacheEntry<P::Value>) -> R,
+    {
+        let inner = self.inner.read().await;
+        inner
+            .lru
+            .iter()
+            .filter(|(id, _)| !inner.ttl.is_expired(id))
+            .map(|(id, entry)| f(id, entry))
+            .collect()
+    }
+
+    /// Mutable access to a cached entry's value. Updates LRU order and TTL.
+    pub async fn with_mut<F, R>(&self, session_id: &str, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut P::Value) -> R,
+    {
+        let mut inner = self.inner.write().await;
+        if inner.ttl.is_expired(session_id) {
+            None
+        } else {
+            inner.ttl.touch(session_id);
+            inner.lru.get_mut(session_id).map(|e| {
+                e.dirty = true;
+                f(&mut e.value)
+            })
+        }
+    }
+
+    /// Read-only access to a cached entry's value. Does NOT update LRU order.
+    pub async fn with_ref<F, R>(&self, session_id: &str, f: F) -> Option<R>
+    where
+        F: FnOnce(&P::Value) -> R,
+    {
+        let inner = self.inner.read().await;
+        if inner.ttl.is_expired(session_id) {
+            None
+        } else {
+            inner.lru.peek(session_id).map(|e| f(&e.value))
         }
     }
 }
@@ -361,6 +428,7 @@ pub struct CacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::persistence::SessionData;
 
     #[tokio::test]
     async fn test_insert_and_get() {
@@ -368,7 +436,7 @@ mod tests {
         let cache = SessionCache::new(config);
 
         let data = SessionData::new("session-1", "ctx-1", vec![1, 2, 3]);
-        cache.insert(data.clone()).await.unwrap();
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
 
         let retrieved = cache.get_or_load("session-1", "ctx-1").await.unwrap();
         assert_eq!(retrieved.id, "session-1");
@@ -393,14 +461,17 @@ mod tests {
         // Insert 3 sessions
         for i in 1..=3 {
             let data = SessionData::new(format!("session-{}", i), "ctx-1", vec![]);
-            cache.insert(data).await.unwrap();
+            cache
+                .insert(&format!("session-{}", i), "ctx-1", data)
+                .await
+                .unwrap();
         }
 
         assert_eq!(cache.len().await, 3);
 
         // Insert a 4th - should evict session-1
         let data = SessionData::new("session-4", "ctx-1", vec![]);
-        cache.insert(data).await.unwrap();
+        cache.insert("session-4", "ctx-1", data).await.unwrap();
 
         assert_eq!(cache.len().await, 3);
         assert!(!cache.contains("session-1").await);
@@ -417,7 +488,10 @@ mod tests {
         // Insert 3 sessions
         for i in 1..=3 {
             let data = SessionData::new(format!("session-{}", i), "ctx-1", vec![]);
-            cache.insert(data).await.unwrap();
+            cache
+                .insert(&format!("session-{}", i), "ctx-1", data)
+                .await
+                .unwrap();
         }
 
         // Access session-1 to make it recently used
@@ -425,7 +499,7 @@ mod tests {
 
         // Insert a 4th - should evict session-2 (now LRU)
         let data = SessionData::new("session-4", "ctx-1", vec![]);
-        cache.insert(data).await.unwrap();
+        cache.insert("session-4", "ctx-1", data).await.unwrap();
 
         assert!(cache.contains("session-1").await); // Recently accessed
         assert!(!cache.contains("session-2").await); // Evicted
@@ -444,7 +518,7 @@ mod tests {
         let cache = SessionCache::new(config);
 
         let data = SessionData::new("session-1", "ctx-1", vec![]);
-        cache.insert(data).await.unwrap();
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
 
         assert!(cache.contains("session-1").await);
 
@@ -466,7 +540,7 @@ mod tests {
         let cache = SessionCache::new(config);
 
         let data = SessionData::new("session-1", "ctx-1", vec![]);
-        cache.insert(data).await.unwrap();
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
 
         // Wait a bit
         sleep(Duration::from_millis(60)).await;
@@ -487,7 +561,7 @@ mod tests {
         let cache = SessionCache::new(config);
 
         let data = SessionData::new("session-1", "ctx-1", vec![]);
-        cache.insert(data).await.unwrap();
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
 
         assert!(cache.contains("session-1").await);
 
@@ -509,7 +583,10 @@ mod tests {
         // Insert multiple sessions
         for i in 1..=3 {
             let data = SessionData::new(format!("session-{}", i), "ctx-1", vec![]);
-            cache.insert(data).await.unwrap();
+            cache
+                .insert(&format!("session-{}", i), "ctx-1", data)
+                .await
+                .unwrap();
         }
 
         assert_eq!(cache.len().await, 3);
@@ -530,11 +607,80 @@ mod tests {
 
         for i in 1..=5 {
             let data = SessionData::new(format!("session-{}", i), "ctx-1", vec![]);
-            cache.insert(data).await.unwrap();
+            cache
+                .insert(&format!("session-{}", i), "ctx-1", data)
+                .await
+                .unwrap();
         }
 
         let stats = cache.stats().await;
         assert_eq!(stats.size, 5);
         assert_eq!(stats.capacity, 100);
+    }
+
+    #[tokio::test]
+    async fn test_peek_context_id() {
+        let config = CacheConfig::new();
+        let cache = SessionCache::new(config);
+
+        let data = SessionData::new("session-1", "ctx-1", vec![]);
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
+
+        assert_eq!(
+            cache.peek_context_id("session-1").await,
+            Some("ctx-1".to_string())
+        );
+        assert_eq!(cache.peek_context_id("nonexistent").await, None);
+    }
+
+    #[tokio::test]
+    async fn test_with_mut() {
+        let config = CacheConfig::new();
+        let cache = SessionCache::new(config);
+
+        let data = SessionData::new("session-1", "ctx-1", vec![1, 2, 3]);
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
+
+        let result = cache
+            .with_mut("session-1", |v| {
+                v.state.push(4);
+                v.state.len()
+            })
+            .await;
+
+        assert_eq!(result, Some(4));
+
+        let peeked = cache.peek("session-1").await.unwrap();
+        assert_eq!(peeked.state, vec![1, 2, 3, 4]);
+    }
+
+    #[tokio::test]
+    async fn test_with_ref() {
+        let config = CacheConfig::new();
+        let cache = SessionCache::new(config);
+
+        let data = SessionData::new("session-1", "ctx-1", vec![1, 2, 3]);
+        cache.insert("session-1", "ctx-1", data).await.unwrap();
+
+        let len = cache.with_ref("session-1", |v| v.state.len()).await;
+        assert_eq!(len, Some(3));
+
+        let missing = cache.with_ref("nonexistent", |v| v.state.len()).await;
+        assert_eq!(missing, None);
+    }
+
+    #[tokio::test]
+    async fn test_for_each() {
+        let config = CacheConfig::new();
+        let cache = SessionCache::new(config);
+
+        let data1 = SessionData::new("session-1", "ctx-1", vec![]);
+        let data2 = SessionData::new("session-2", "ctx-2", vec![]);
+        cache.insert("session-1", "ctx-1", data1).await.unwrap();
+        cache.insert("session-2", "ctx-2", data2).await.unwrap();
+
+        let mut ids: Vec<String> = cache.for_each(|id, _| id.to_string()).await;
+        ids.sort();
+        assert_eq!(ids, vec!["session-1", "session-2"]);
     }
 }

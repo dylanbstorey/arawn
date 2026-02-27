@@ -23,8 +23,8 @@ mod error;
 mod persistence;
 mod ttl;
 
-pub use cache::{CacheEntry, SessionCache};
+pub use cache::{CacheEntry, CacheStats, SessionCache};
 pub use config::CacheConfig;
 pub use error::{Error, Result};
-pub use persistence::{PersistenceHook, SessionData};
+pub use persistence::{NoPersistence, PersistenceHook, SessionData};
 pub use ttl::TtlTracker;

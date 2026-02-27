@@ -1,14 +1,17 @@
 //! Persistence hooks for session loading and saving.
 //!
 //! This module defines traits that allow the session cache to be decoupled
-//! from specific storage backends.
+//! from specific storage backends. The [`PersistenceHook`] trait uses an
+//! associated `Value` type so backends can store domain-specific types
+//! (e.g., a rich `Session` object) without serialization overhead.
 
 use crate::error::Result;
 
 /// Data container for session state.
 ///
 /// This is a generic container that can hold any session-related data.
-/// The actual structure depends on the application using the cache.
+/// It serves as the default `Value` type for [`NoPersistence`] and can
+/// be used by backends that work with opaque byte blobs.
 #[derive(Debug, Clone)]
 pub struct SessionData {
     /// Unique identifier for the session.
@@ -55,18 +58,25 @@ impl SessionData {
 /// Trait for persistence backends.
 ///
 /// Implement this trait to connect the session cache to your storage backend.
-/// The cache will call these methods on cache misses and when saving sessions.
+/// The cache calls these methods on cache misses and when saving sessions.
+///
+/// The associated `Value` type determines what the cache stores in memory.
+/// For example, a server might use `Value = Session` (a rich domain object),
+/// while a simpler backend might use `Value = SessionData` (opaque bytes).
 pub trait PersistenceHook: Send + Sync {
+    /// The value type stored in the cache.
+    type Value: Clone + Send + Sync + 'static;
+
     /// Load a session from storage.
     ///
     /// Called when a session is requested but not found in cache.
     /// Return `Ok(None)` if the session doesn't exist in storage.
-    fn load(&self, session_id: &str, context_id: &str) -> Result<Option<SessionData>>;
+    fn load(&self, session_id: &str, context_id: &str) -> Result<Option<Self::Value>>;
 
     /// Save a session to storage.
     ///
     /// Called when a session needs to be persisted (e.g., after updates).
-    fn save(&self, data: &SessionData) -> Result<()>;
+    fn save(&self, session_id: &str, context_id: &str, value: &Self::Value) -> Result<()>;
 
     /// Delete a session from storage.
     ///
@@ -87,11 +97,13 @@ pub trait PersistenceHook: Send + Sync {
 pub struct NoPersistence;
 
 impl PersistenceHook for NoPersistence {
+    type Value = SessionData;
+
     fn load(&self, _session_id: &str, _context_id: &str) -> Result<Option<SessionData>> {
         Ok(None)
     }
 
-    fn save(&self, _data: &SessionData) -> Result<()> {
+    fn save(&self, _session_id: &str, _context_id: &str, _value: &SessionData) -> Result<()> {
         Ok(())
     }
 
