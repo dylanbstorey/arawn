@@ -24,7 +24,8 @@ use arawn_memory::{MemoryStore, init_vector_extension};
 use arawn_oauth;
 use arawn_pipeline::sandbox::ScriptExecutor;
 use arawn_pipeline::{
-    CatalogEntry, PipelineConfig, PipelineEngine, RuntimeCatalog, RuntimeCategory,
+    CatalogEntry, PipelineConfig, PipelineEngine, RuntimeCatalog, RuntimeCategory, WorkflowEvent,
+    WorkflowLoader, build_executor_factory,
 };
 use arawn_plugin::{HookDispatcher, PluginManager, PluginWatcher, SubscriptionManager, SyncAction};
 use arawn_server::{AppState, Server, ServerConfig};
@@ -268,6 +269,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     let pipeline_db_path = resolve_path(pipeline_cfg.database.clone(), "pipeline.db");
     let pipeline_workflow_dir = resolve_path(pipeline_cfg.workflow_dir.clone(), "workflows");
+    let mut _workflow_watcher_handle: Option<arawn_pipeline::WatcherHandle> = None;
 
     let pipeline_engine: Option<Arc<PipelineEngine>> = if pipeline_cfg.enabled {
         let engine_config = PipelineConfig {
@@ -447,9 +449,154 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
             tool_registry.register(tools::WorkflowTool::new(
                 engine.clone(),
                 pipeline_workflow_dir.clone(),
-                executor,
-                catalog,
+                executor.clone(),
+                catalog.clone(),
             ));
+
+            // Load existing workflow TOML files and start hot-reload watcher
+            match WorkflowLoader::new(&pipeline_workflow_dir) {
+                Ok(loader) => {
+                    let factory = build_executor_factory(executor.clone(), catalog.clone());
+
+                    // Load and register all existing workflow files
+                    let events = loader.load_all().await;
+                    for event in &events {
+                        if let WorkflowEvent::Loaded { name, path } = event {
+                            let wf = match arawn_pipeline::WorkflowFile::from_file(path) {
+                                Ok(wf) => wf,
+                                Err(e) => {
+                                    eprintln!(
+                                        "warning: failed to parse workflow {}: {}",
+                                        path.display(),
+                                        e
+                                    );
+                                    continue;
+                                }
+                            };
+                            match wf.workflow.to_dynamic_tasks(&factory) {
+                                Ok(tasks) => {
+                                    if let Err(e) = engine
+                                        .register_dynamic_workflow(
+                                            name,
+                                            &wf.workflow.description,
+                                            tasks,
+                                        )
+                                        .await
+                                    {
+                                        eprintln!(
+                                            "warning: failed to register workflow {}: {}",
+                                            name, e
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!(
+                                        "warning: failed to convert workflow {} tasks: {}",
+                                        name, e
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    if ctx.verbose {
+                        let loaded = events
+                            .iter()
+                            .filter(|e| matches!(e, WorkflowEvent::Loaded { .. }))
+                            .count();
+                        if loaded > 0 {
+                            println!("Workflow loader: {} workflows loaded", loaded);
+                        }
+                    }
+
+                    // Start file watcher for hot-reload
+                    match loader.watch() {
+                        Ok((mut event_rx, handle)) => {
+                            let engine_for_watcher = engine.clone();
+                            let factory_for_watcher = build_executor_factory(executor, catalog);
+
+                            tokio::spawn(async move {
+                                while let Some(event) = event_rx.recv().await {
+                                    match event {
+                                        WorkflowEvent::Loaded { name, path } => {
+                                            // Re-parse and register with the engine
+                                            let wf = match arawn_pipeline::WorkflowFile::from_file(
+                                                &path,
+                                            ) {
+                                                Ok(wf) => wf,
+                                                Err(e) => {
+                                                    tracing::warn!(
+                                                        "Hot-reload: failed to parse {}: {}",
+                                                        path.display(),
+                                                        e
+                                                    );
+                                                    continue;
+                                                }
+                                            };
+                                            match wf.workflow.to_dynamic_tasks(&factory_for_watcher)
+                                            {
+                                                Ok(tasks) => {
+                                                    if let Err(e) = engine_for_watcher
+                                                        .register_dynamic_workflow(
+                                                            &name,
+                                                            &wf.workflow.description,
+                                                            tasks,
+                                                        )
+                                                        .await
+                                                    {
+                                                        tracing::warn!(
+                                                            "Hot-reload: failed to register {}: {}",
+                                                            name,
+                                                            e
+                                                        );
+                                                    } else {
+                                                        tracing::info!(
+                                                            "Hot-reload: workflow {} reloaded",
+                                                            name
+                                                        );
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    tracing::warn!(
+                                                        "Hot-reload: failed to convert {} tasks: {}",
+                                                        name,
+                                                        e
+                                                    );
+                                                }
+                                            }
+                                        }
+                                        WorkflowEvent::Removed { name, .. } => {
+                                            tracing::info!("Hot-reload: workflow {} removed", name);
+                                            // Engine doesn't have an unregister method yet,
+                                            // but the loader has already removed it from its cache
+                                        }
+                                        WorkflowEvent::Error { path, error } => {
+                                            tracing::warn!(
+                                                "Hot-reload: error processing {}: {}",
+                                                path.display(),
+                                                error
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+
+                            // Store handle to keep watcher alive
+                            _workflow_watcher_handle = Some(handle);
+
+                            if ctx.verbose {
+                                println!("Workflow watcher: enabled");
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("warning: failed to start workflow watcher: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("warning: failed to create workflow loader: {}", e);
+                }
+            }
         }
     }
 

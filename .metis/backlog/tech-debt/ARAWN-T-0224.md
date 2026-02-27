@@ -4,15 +4,15 @@ level: task
 title: "MEDIUM priority codebase cleanup — dead code, hardcoded values, incomplete implementations"
 short_code: "ARAWN-T-0224"
 created_at: 2026-02-25T14:20:20.693218+00:00
-updated_at: 2026-02-25T14:20:20.693218+00:00
+updated_at: 2026-02-27T01:20:29.949994+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -38,6 +38,12 @@ Address all 60 MEDIUM-severity findings from the 2026-02-25 codebase audit. Thes
 - **Current Problems**: Constants duplicated across crates, server reimplements session caching (bypassing arawn-session), stub CLI subcommands mislead users, non-configurable timeouts and retry params limit deployment flexibility.
 - **Benefits of Fixing**: Single source of truth for constants, smaller surface area, configurable operational params, cleaner public API per crate.
 - **Risk Assessment**: Low — each fix is localized. Some items (arawn-session bypass) may warrant architectural discussion before changing.
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

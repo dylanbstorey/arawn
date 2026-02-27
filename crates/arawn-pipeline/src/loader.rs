@@ -28,7 +28,6 @@ pub enum WorkflowEvent {
 }
 
 /// In-memory cache of loaded workflow definitions.
-// TODO(ARAWN-T-0230): `path` field and `remove_file()` are scaffolding for hot-reload file watcher.
 #[derive(Debug, Clone)]
 struct LoadedWorkflow {
     definition: crate::definition::WorkflowDefinition,
@@ -61,6 +60,17 @@ impl WorkflowLoader {
                 ))
             })?;
         }
+
+        // Canonicalize so the path matches what the filesystem watcher reports.
+        // On macOS, /tmp is a symlink to /private/tmp — without this, watcher
+        // events would be silently filtered by the starts_with check in watch().
+        let workflow_dir = workflow_dir.canonicalize().map_err(|e| {
+            PipelineError::InitFailed(format!(
+                "Failed to canonicalize workflow directory {}: {}",
+                workflow_dir.display(),
+                e
+            ))
+        })?;
 
         Ok(Self {
             workflow_dir,
@@ -106,11 +116,25 @@ impl WorkflowLoader {
         events
     }
 
+    /// Normalize a path to use the canonical `workflow_dir` prefix.
+    ///
+    /// This ensures consistent keys in `path_to_name` regardless of whether
+    /// the caller passes `/tmp/x/f.toml` or `/private/tmp/x/f.toml` (macOS
+    /// symlink).
+    fn normalize_path(&self, path: &Path) -> PathBuf {
+        if let Some(filename) = path.file_name() {
+            self.workflow_dir.join(filename)
+        } else {
+            path.to_path_buf()
+        }
+    }
+
     /// Load or reload a single workflow file.
     async fn load_file(&self, path: &Path) -> WorkflowEvent {
+        let path = self.normalize_path(path);
         debug!("Loading workflow file: {}", path.display());
 
-        let wf_file = match WorkflowFile::from_file(path) {
+        let wf_file = match WorkflowFile::from_file(&path) {
             Ok(wf) => wf,
             Err(e) => {
                 warn!("Failed to parse {}: {}", path.display(), e);
@@ -154,10 +178,11 @@ impl WorkflowLoader {
 
     /// Handle a file being removed.
     async fn remove_file(&self, path: &Path) -> Option<WorkflowEvent> {
+        let path = self.normalize_path(path);
         let mut path_to_name = self.path_to_name.write().await;
         let mut workflows = self.workflows.write().await;
 
-        if let Some(name) = path_to_name.remove(path) {
+        if let Some(name) = path_to_name.remove(&path) {
             workflows.remove(&name);
             info!("Workflow removed: {} (was {})", name, path.display());
             Some(WorkflowEvent::Removed {
@@ -225,6 +250,11 @@ impl WorkflowLoader {
         let path_to_name = self.path_to_name.clone();
         let workflow_dir = self.workflow_dir.clone();
 
+        // Capture the tokio runtime handle now — std::thread::spawn creates a
+        // new thread that has no tokio context, so Handle::current() would
+        // panic inside the spawned thread.
+        let rt_handle = tokio::runtime::Handle::current();
+
         // Spawn blocking thread for the notify receiver (it's std::sync)
         let handle = std::thread::spawn(move || {
             // Keep debouncer alive in this thread
@@ -251,7 +281,7 @@ impl WorkflowLoader {
                     if event.kind == DebouncedEventKind::Any {
                         if path.exists() {
                             // File created or modified — load/reload
-                            let loader_event = tokio::runtime::Handle::current().block_on(async {
+                            let loader_event = rt_handle.block_on(async {
                                 let loader = WorkflowLoaderView {
                                     workflows,
                                     path_to_name,
@@ -263,7 +293,7 @@ impl WorkflowLoader {
                             }
                         } else {
                             // File deleted
-                            let maybe_event = tokio::runtime::Handle::current().block_on(async {
+                            let maybe_event = rt_handle.block_on(async {
                                 let loader = WorkflowLoaderView {
                                     workflows,
                                     path_to_name,
@@ -509,5 +539,114 @@ action = {{ type = "tool", name = "echo" }}
         let dir = tempfile::tempdir().unwrap();
         let loader = WorkflowLoader::new(dir.path()).unwrap();
         assert!(loader.get("nope").await.is_none());
+    }
+
+    #[tokio::test]
+    #[ignore] // Run with --ignored flag - requires filesystem event timing
+    async fn test_watch_detects_new_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+
+        let (mut rx, _handle) = loader.watch().unwrap();
+
+        // Give the watcher time to initialize
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Write a new workflow file
+        write_workflow(dir.path(), "new.toml", "hot_loaded");
+
+        // Wait for the debounced event (300ms debounce + margin)
+        let event = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for watcher event")
+            .expect("channel closed");
+
+        assert!(
+            matches!(&event, WorkflowEvent::Loaded { name, .. } if name == "hot_loaded"),
+            "expected Loaded event, got {:?}",
+            event
+        );
+
+        // Loader cache should have the workflow
+        assert!(loader.get("hot_loaded").await.is_some());
+    }
+
+    #[tokio::test]
+    #[ignore] // Run with --ignored flag - requires filesystem event timing
+    async fn test_watch_detects_modified_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_workflow(dir.path(), "wf.toml", "original");
+
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        loader.load_all().await;
+        assert!(loader.get("original").await.is_some());
+
+        let (mut rx, _handle) = loader.watch().unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Overwrite with different workflow name
+        write_workflow(dir.path(), "wf.toml", "modified");
+
+        let event = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for watcher event")
+            .expect("channel closed");
+
+        assert!(
+            matches!(&event, WorkflowEvent::Loaded { name, .. } if name == "modified"),
+            "expected Loaded event for modified, got {:?}",
+            event
+        );
+
+        assert!(loader.get("modified").await.is_some());
+    }
+
+    #[tokio::test]
+    #[ignore] // Run with --ignored flag - requires filesystem event timing
+    async fn test_watch_detects_deleted_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_workflow(dir.path(), "wf.toml", "to_delete");
+
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        loader.load_all().await;
+        assert_eq!(loader.len().await, 1);
+
+        let (mut rx, _handle) = loader.watch().unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Delete the file
+        std::fs::remove_file(dir.path().join("wf.toml")).unwrap();
+
+        let event = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for watcher event")
+            .expect("channel closed");
+
+        assert!(
+            matches!(&event, WorkflowEvent::Removed { name, .. } if name == "to_delete"),
+            "expected Removed event, got {:?}",
+            event
+        );
+
+        assert!(loader.is_empty().await);
+    }
+
+    #[tokio::test]
+    #[ignore] // Run with --ignored flag - requires filesystem event timing
+    async fn test_watch_ignores_non_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+
+        let (mut rx, _handle) = loader.watch().unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        // Write a non-TOML file — should be ignored
+        std::fs::write(dir.path().join("readme.md"), "# hello").unwrap();
+
+        // Should time out — no event expected
+        let result = tokio::time::timeout(Duration::from_secs(2), rx.recv()).await;
+        assert!(result.is_err(), "expected timeout (no event), but got one");
+
+        assert!(loader.is_empty().await);
     }
 }
