@@ -31,8 +31,3 @@ eventsource-stream = "0.2"
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6"
-
-[features]
-default = []
-# Enable blocking (sync) API in addition to async
-blocking = ["reqwest/blocking"]

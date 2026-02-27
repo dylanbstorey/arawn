@@ -28,6 +28,7 @@ pub enum WorkflowEvent {
 }
 
 /// In-memory cache of loaded workflow definitions.
+// TODO(ARAWN-T-0230): `path` field and `remove_file()` are scaffolding for hot-reload file watcher.
 #[derive(Debug, Clone)]
 struct LoadedWorkflow {
     definition: crate::definition::WorkflowDefinition,

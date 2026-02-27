@@ -24,6 +24,12 @@ const DEFAULT_API_VERSION: &str = "2023-06-01";
 /// Default timeout for requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 300;
 
+/// Default maximum retries for transient errors.
+const DEFAULT_MAX_RETRIES: u32 = 3;
+
+/// Default initial backoff between retries.
+const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -58,8 +64,8 @@ impl AnthropicConfig {
             base_url: DEFAULT_API_BASE.to_string(),
             api_version: DEFAULT_API_VERSION.to_string(),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            max_retries: 3,
-            retry_backoff: Duration::from_millis(500),
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_backoff: Duration::from_millis(DEFAULT_RETRY_BACKOFF_MS),
         }
     }
 

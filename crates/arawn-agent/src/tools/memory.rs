@@ -1,7 +1,7 @@
 //! Memory search tool.
 //!
 //! Provides a tool for searching the agent's memory/knowledge store.
-//! This is a stub that will be fully implemented when arawn-memory is built.
+// TODO(ARAWN-T-0233): Wire to real arawn-memory backend instead of returning stubs.
 
 use async_trait::async_trait;
 use serde_json::{Value, json};

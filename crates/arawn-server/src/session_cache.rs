@@ -8,6 +8,9 @@
 //!
 //! This makes workstream sessions the single source of truth while
 //! maintaining the in-memory performance needed for active sessions.
+//!
+// TODO(ARAWN-T-0231): Migrate to `arawn_session::SessionCache` with a workstream `PersistenceHook`
+// instead of this hand-rolled LRU + TtlTracker combo.
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;

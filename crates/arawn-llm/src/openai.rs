@@ -23,6 +23,12 @@ const DEFAULT_OPENAI_BASE: &str = "https://api.openai.com/v1";
 /// Default timeout for requests.
 const DEFAULT_TIMEOUT_SECS: u64 = 300;
 
+/// Default maximum retries for transient errors.
+const DEFAULT_MAX_RETRIES: u32 = 3;
+
+/// Default initial backoff between retries.
+const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,8 +66,8 @@ impl OpenAiConfig {
             base_url: DEFAULT_OPENAI_BASE.to_string(),
             model: None,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            max_retries: 3,
-            retry_backoff: Duration::from_millis(500),
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_backoff: Duration::from_millis(DEFAULT_RETRY_BACKOFF_MS),
             name: "openai".to_string(),
         }
     }
@@ -73,8 +79,8 @@ impl OpenAiConfig {
             base_url: "https://api.groq.com/openai/v1".to_string(),
             model: Some("llama-3.1-70b-versatile".to_string()),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            max_retries: 3,
-            retry_backoff: Duration::from_millis(500),
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_backoff: Duration::from_millis(DEFAULT_RETRY_BACKOFF_MS),
             name: "groq".to_string(),
         }
     }
@@ -86,8 +92,8 @@ impl OpenAiConfig {
             base_url: "http://localhost:11434/v1".to_string(),
             model: None,
             timeout: Duration::from_secs(600), // Longer timeout for local inference
-            max_retries: 3,
-            retry_backoff: Duration::from_millis(500),
+            max_retries: DEFAULT_MAX_RETRIES,
+            retry_backoff: Duration::from_millis(DEFAULT_RETRY_BACKOFF_MS),
             name: "ollama".to_string(),
         }
     }

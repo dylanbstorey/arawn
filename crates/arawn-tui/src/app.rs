@@ -1511,8 +1511,10 @@ impl App {
                 self.create_new_session();
             }
             ActionId::SessionsDelete => {
-                // TODO: Implement session deletion
-                self.status_message = Some("Session deletion not implemented yet".to_string());
+                self.sidebar.open();
+                self.sidebar.section = SidebarSection::Sessions;
+                self.focus.focus(FocusTarget::Sidebar);
+                self.status_message = Some("Select a session and press 'd' to delete".to_string());
             }
             ActionId::SessionsMoveToWorkstream => {
                 if let Some(ref sid) = self.session_id {
