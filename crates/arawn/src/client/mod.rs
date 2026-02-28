@@ -28,22 +28,36 @@ pub struct HealthResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MemoryResult {
     pub id: String,
+    #[serde(default)]
+    pub content_type: String,
     pub content: String,
+    #[serde(default)]
     pub score: f32,
+    #[serde(default)]
+    pub source: String,
 }
 
 /// Memory search response.
 #[derive(Debug, Deserialize)]
 pub struct MemorySearchResponse {
     pub results: Vec<MemoryResult>,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub count: usize,
 }
 
 /// Note from the server.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Note {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     pub content: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub created_at: String,
+    pub updated_at: String,
 }
 
 /// Create note request.
@@ -78,6 +92,12 @@ pub struct SessionListResponse {
 #[derive(Debug, Deserialize)]
 pub struct NotesResponse {
     pub notes: Vec<Note>,
+    #[serde(default)]
+    pub total: usize,
+    #[serde(default)]
+    pub limit: usize,
+    #[serde(default)]
+    pub offset: usize,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -428,6 +448,87 @@ impl Client {
 
         let response: NotesResponse = response.json().await?;
         Ok(response.notes)
+    }
+
+    /// Get a single note by ID.
+    pub async fn get_note(&self, id: &str) -> Result<Note> {
+        let url = self.base_url.join(&format!("/api/v1/notes/{}", id))?;
+
+        let mut request = self.http.get(url);
+
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            anyhow::bail!("Note not found: {}", id);
+        }
+
+        if !response.status().is_success() {
+            anyhow::bail!("Server returned error: {}", response.status());
+        }
+
+        let note: Note = response.json().await?;
+        Ok(note)
+    }
+
+    /// Delete a note by ID.
+    pub async fn delete_note(&self, id: &str) -> Result<()> {
+        let url = self.base_url.join(&format!("/api/v1/notes/{}", id))?;
+
+        let mut request = self.http.delete(url);
+
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            anyhow::bail!("Note not found: {}", id);
+        }
+
+        if !response.status().is_success() {
+            anyhow::bail!("Server returned error: {}", response.status());
+        }
+
+        Ok(())
+    }
+
+    /// Search notes via memory search endpoint, filtering for note results.
+    pub async fn search_notes(&self, query: &str, limit: usize) -> Result<Vec<MemoryResult>> {
+        let url = self.base_url.join("/api/v1/memory/search")?;
+
+        // Request more results since we'll filter to notes only
+        let search_limit = (limit * 3).max(20);
+        let mut request = self
+            .http
+            .get(url)
+            .query(&[("q", query), ("limit", &search_limit.to_string())]);
+
+        if let Some(ref token) = self.token {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Server returned error: {}", response.status());
+        }
+
+        let search_response: MemorySearchResponse = response.json().await?;
+
+        // Filter to note-sourced results and respect the requested limit
+        let notes: Vec<MemoryResult> = search_response
+            .results
+            .into_iter()
+            .filter(|r| r.source == "notes")
+            .take(limit)
+            .collect();
+
+        Ok(notes)
     }
 
     /// List sessions.

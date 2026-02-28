@@ -116,30 +116,82 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                 eprintln!("{} {}", red.apply_to("Error:"), e);
             }
         },
-        NotesCommand::Search { query } => {
-            println!("{}", style("Note Search").bold());
-            println!("{}", dim.apply_to("─".repeat(50)));
-            println!();
-            println!(
-                "{}",
-                dim.apply_to(format!("Searching: \"{}\" (not yet implemented)", query))
-            );
-        }
-        NotesCommand::Show { id } => {
-            println!("{}", style("Note Details").bold());
-            println!("{}", dim.apply_to("─".repeat(50)));
-            println!();
-            println!(
-                "{}",
-                dim.apply_to(format!("Note ID: {} (not yet implemented)", id))
-            );
-        }
-        NotesCommand::Delete { id } => {
-            println!(
-                "{}",
-                dim.apply_to(format!("Deleting note: {} (not yet implemented)", id))
-            );
-        }
+        NotesCommand::Search { query } => match client.search_notes(&query, 20).await {
+            Ok(results) => {
+                if ctx.json_output {
+                    println!("{}", serde_json::to_string_pretty(&results)?);
+                } else {
+                    println!("{}", style("Note Search").bold());
+                    println!("{}", dim.apply_to("─".repeat(50)));
+                    println!();
+
+                    if results.is_empty() {
+                        println!(
+                            "{}",
+                            dim.apply_to(format!("No notes matching \"{}\"", query))
+                        );
+                    } else {
+                        for result in &results {
+                            println!(
+                                "{} {}",
+                                dim.apply_to(format!("[{}]", &result.id[..8.min(result.id.len())])),
+                                truncate(&result.content, 60)
+                            );
+                        }
+                        println!();
+                        println!("{}", dim.apply_to(format!("{} result(s)", results.len())));
+                    }
+                }
+            }
+            Err(e) => {
+                let red = Style::new().red();
+                eprintln!("{} {}", red.apply_to("Error:"), e);
+            }
+        },
+        NotesCommand::Show { id } => match client.get_note(&id).await {
+            Ok(note) => {
+                if ctx.json_output {
+                    println!("{}", serde_json::to_string_pretty(&note)?);
+                } else {
+                    println!("{}", style("Note Details").bold());
+                    println!("{}", dim.apply_to("─".repeat(50)));
+                    println!();
+                    println!("{} {}", dim.apply_to("ID:"), note.id);
+                    if let Some(ref title) = note.title {
+                        println!("{} {}", dim.apply_to("Title:"), title);
+                    }
+                    if !note.tags.is_empty() {
+                        println!("{} {}", dim.apply_to("Tags:"), note.tags.join(", "));
+                    }
+                    println!("{} {}", dim.apply_to("Created:"), note.created_at);
+                    println!("{} {}", dim.apply_to("Updated:"), note.updated_at);
+                    println!();
+                    println!("{}", note.content);
+                }
+            }
+            Err(e) => {
+                let red = Style::new().red();
+                eprintln!("{} {}", red.apply_to("Error:"), e);
+            }
+        },
+        NotesCommand::Delete { id } => match client.delete_note(&id).await {
+            Ok(()) => {
+                if ctx.json_output {
+                    println!("{}", serde_json::json!({"deleted": id}));
+                } else {
+                    let green = Style::new().green();
+                    println!(
+                        "{} Note deleted: {}",
+                        green.apply_to("✓"),
+                        dim.apply_to(&id)
+                    );
+                }
+            }
+            Err(e) => {
+                let red = Style::new().red();
+                eprintln!("{} {}", red.apply_to("Error:"), e);
+            }
+        },
     }
 
     Ok(())
