@@ -311,6 +311,36 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         None
     };
 
+    // ── Memory store (early init for tool registration) ────────────────
+
+    let memory_cfg = config.memory.clone().unwrap_or_default();
+    let memory_db_path = memory_cfg
+        .database
+        .clone()
+        .map(|p| if p.is_relative() { data_dir.join(p) } else { p })
+        .unwrap_or_else(|| data_dir.join("memory.db"));
+
+    init_vector_extension();
+    let memory_store: Option<Arc<MemoryStore>> = match MemoryStore::open(&memory_db_path) {
+        Ok(mut store) => {
+            let graph_db_path = memory_db_path.with_extension("graph.db");
+            if let Err(e) = store.init_graph_at_path(&graph_db_path) {
+                eprintln!("warning: failed to init knowledge graph: {}", e);
+            }
+            if let Err(e) = store.init_vectors(embedder.dimensions(), embedder.name()) {
+                eprintln!("warning: failed to init vector store: {}", e);
+            }
+            if ctx.verbose {
+                println!("Memory store: {}", memory_db_path.display());
+            }
+            Some(Arc::new(store))
+        }
+        Err(e) => {
+            eprintln!("warning: failed to open memory store: {}", e);
+            None
+        }
+    };
+
     // ── Build agent ─────────────────────────────────────────────────────
 
     // Get tool configuration
@@ -344,6 +374,10 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     tool_registry.register(tools::GrepTool::new());
     tool_registry.register(tools::WebFetchTool::with_config(web_config));
     tool_registry.register(tools::NoteTool::new());
+    match &memory_store {
+        Some(store) => tool_registry.register(tools::MemorySearchTool::with_store(store.clone())),
+        None => tool_registry.register(tools::MemorySearchTool::new()),
+    }
 
     // Wire per-tool output config overrides from [tools.output]
     use arawn_agent::OutputConfig;
@@ -1026,28 +1060,9 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     // ── Session indexer ──────────────────────────────────────────────────
 
-    let memory_cfg = config.memory.clone().unwrap_or_default();
-    let mut memory_store: Option<Arc<MemoryStore>> = None;
     let indexer: Option<SessionIndexer> = if memory_cfg.indexing.enabled {
-        let memory_db_path = memory_cfg
-            .database
-            .clone()
-            .map(|p| if p.is_relative() { data_dir.join(p) } else { p })
-            .unwrap_or_else(|| data_dir.join("memory.db"));
-
-        init_vector_extension();
-        match MemoryStore::open(&memory_db_path) {
-            Ok(mut store) => {
-                let graph_db_path = memory_db_path.with_extension("graph.db");
-                if let Err(e) = store.init_graph_at_path(&graph_db_path) {
-                    eprintln!("warning: failed to init knowledge graph: {}", e);
-                }
-                if let Err(e) = store.init_vectors(embedder.dimensions(), embedder.name()) {
-                    eprintln!("warning: failed to init vector store: {}", e);
-                }
-                let store = Arc::new(store);
-                memory_store = Some(store.clone());
-
+        match &memory_store {
+            Some(store) => {
                 // Resolve the indexing LLM backend
                 let indexing_backend_name = &memory_cfg.indexing.backend;
                 let indexing_backend = backends
@@ -1064,7 +1079,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
                         #[allow(unused_mut)]
                         let mut idx = SessionIndexer::with_backend(
-                            store,
+                            store.clone(),
                             ib,
                             Some(embedder.clone()),
                             indexer_config,
@@ -1152,11 +1167,8 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
                     }
                 }
             }
-            Err(e) => {
-                eprintln!(
-                    "warning: failed to open memory store: {}, indexer disabled",
-                    e
-                );
+            None => {
+                eprintln!("warning: memory store not available, indexer disabled");
                 None
             }
         }

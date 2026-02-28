@@ -38,7 +38,7 @@ pub use web::{
 pub use search::{GlobTool, GrepTool};
 
 // Memory tool
-pub use memory::{MemoryResult, MemorySearchTool, MemoryType};
+pub use memory::MemorySearchTool;
 
 // Workflow tool
 pub use workflow::WorkflowTool;

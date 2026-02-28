@@ -101,10 +101,8 @@ pub use tools::{
     // Search tools
     GlobTool,
     GrepTool,
-    MemoryResult,
     // Memory tool
     MemorySearchTool,
-    MemoryType,
     Note,
     NoteStorage,
     // Note tool
