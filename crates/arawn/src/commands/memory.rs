@@ -108,14 +108,42 @@ async fn cmd_search(query: &str, limit: usize, ctx: &Context) -> Result<()> {
 
 async fn cmd_recent(limit: usize, ctx: &Context) -> Result<()> {
     let dim = Style::new().dim();
-    println!("{}", style("Recent Memories").bold());
-    println!("{}", dim.apply_to("─".repeat(50)));
-    println!();
-    println!(
-        "{}",
-        dim.apply_to(format!("(limit: {} - not yet implemented)", limit))
-    );
-    let _ = ctx;
+    let store = open_memory_store()?;
+
+    let memories = store.list_memories(None, limit, 0)?;
+
+    if ctx.json_output {
+        println!("{}", serde_json::to_string_pretty(&memories)?);
+    } else {
+        println!("{}", style("Recent Memories").bold());
+        println!("{}", dim.apply_to("─".repeat(50)));
+        println!();
+
+        if memories.is_empty() {
+            println!("{}", dim.apply_to("No memories found"));
+        } else {
+            for memory in &memories {
+                let type_label = memory.content_type.as_str();
+                let time = memory.created_at.format("%Y-%m-%d %H:%M");
+                println!(
+                    "{} {} {}",
+                    dim.apply_to(format!("[{}]", type_label)),
+                    truncate(&memory.content, 60),
+                    dim.apply_to(format!("({})", time)),
+                );
+            }
+            println!();
+            println!(
+                "{}",
+                dim.apply_to(format!(
+                    "{} memor{}",
+                    memories.len(),
+                    if memories.len() == 1 { "y" } else { "ies" }
+                ))
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -253,18 +281,44 @@ async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_export(output: Option<String>, _ctx: &Context) -> Result<()> {
-    let dim = Style::new().dim();
+async fn cmd_export(output: Option<String>, ctx: &Context) -> Result<()> {
+    let store = open_memory_store()?;
+
+    let memories = store.list_memories(None, usize::MAX, 0)?;
+    let notes = store.list_notes(usize::MAX, 0)?;
+
+    let export = serde_json::json!({
+        "memories": memories,
+        "notes": notes,
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "counts": {
+            "memories": memories.len(),
+            "notes": notes.len(),
+        }
+    });
+
+    let json = serde_json::to_string_pretty(&export)?;
+
     match output {
-        Some(path) => println!(
-            "{}",
-            dim.apply_to(format!("Exporting to: {} (not yet implemented)", path))
-        ),
-        None => println!(
-            "{}",
-            dim.apply_to("Exporting to stdout (not yet implemented)")
-        ),
+        Some(path) => {
+            std::fs::write(&path, &json)?;
+            if !ctx.json_output {
+                let green = Style::new().green();
+                let dim = Style::new().dim();
+                println!(
+                    "{} Exported {} memories and {} notes to {}",
+                    green.apply_to("✓"),
+                    memories.len(),
+                    notes.len(),
+                    dim.apply_to(&path),
+                );
+            }
+        }
+        None => {
+            println!("{}", json);
+        }
     }
+
     Ok(())
 }
 
