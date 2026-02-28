@@ -1238,6 +1238,45 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         "Session cache configured"
     );
 
+    // ── Session compressor (requires workstreams + LLM backend) ─────────
+    if let Some(compression_cfg) = config
+        .workstream
+        .as_ref()
+        .and_then(|ws| ws.compression.as_ref())
+    {
+        if compression_cfg.enabled && app_state.workstreams().is_some() {
+            let compression_backend = backends
+                .get(&compression_cfg.backend)
+                .or_else(|| backends.get("default"))
+                .cloned();
+
+            match compression_backend {
+                Some(cb) => {
+                    let compressor_config = arawn_workstream::CompressorConfig {
+                        model: compression_cfg.model.clone(),
+                        max_summary_tokens: compression_cfg.max_summary_tokens,
+                        token_threshold_chars: compression_cfg.token_threshold_chars,
+                    };
+                    let compressor = arawn_workstream::Compressor::new(cb, compressor_config);
+                    app_state = app_state.with_compressor(compressor);
+
+                    if ctx.verbose {
+                        println!(
+                            "Session compression: enabled (backend={}, model={})",
+                            compression_cfg.backend, compression_cfg.model,
+                        );
+                    }
+                }
+                None => {
+                    eprintln!(
+                        "warning: compression backend '{}' not found, compression disabled",
+                        compression_cfg.backend
+                    );
+                }
+            }
+        }
+    }
+
     let server = Server::from_state(app_state);
 
     println!("Arawn server starting on http://{}", addr);

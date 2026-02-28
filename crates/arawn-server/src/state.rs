@@ -35,7 +35,7 @@ use arawn_mcp::McpManager;
 use arawn_memory::MemoryStore;
 use arawn_sandbox::SandboxManager;
 use arawn_types::{HasSessionConfig, SharedHookDispatcher};
-use arawn_workstream::{DirectoryManager, WatcherHandle, WorkstreamManager};
+use arawn_workstream::{Compressor, DirectoryManager, WatcherHandle, WorkstreamManager};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
@@ -315,6 +315,9 @@ pub struct SharedServices {
 
     /// Domain services facade for unified service access.
     pub domain: Option<Arc<DomainServices>>,
+
+    /// Session/workstream compressor for LLM-based summarization.
+    pub compressor: Option<Arc<Compressor>>,
 }
 
 impl SharedServices {
@@ -335,6 +338,7 @@ impl SharedServices {
             file_watcher: None,
             memory_store: None,
             domain: None,
+            compressor: None,
         }
     }
 
@@ -383,6 +387,12 @@ impl SharedServices {
     /// Configure memory store for persistent notes and memories.
     pub fn with_memory_store(mut self, store: Arc<MemoryStore>) -> Self {
         self.memory_store = Some(store);
+        self
+    }
+
+    /// Configure session/workstream compressor.
+    pub fn with_compressor(mut self, compressor: Compressor) -> Self {
+        self.compressor = Some(Arc::new(compressor));
         self
     }
 
@@ -593,6 +603,12 @@ impl AppState {
         self
     }
 
+    /// Create application state with session/workstream compressor.
+    pub fn with_compressor(mut self, compressor: Compressor) -> Self {
+        self.services = self.services.with_compressor(compressor);
+        self
+    }
+
     /// Configure session cache using a config provider.
     pub fn with_session_config<C: HasSessionConfig>(mut self, config: &C) -> Self {
         self.runtime.session_cache =
@@ -681,6 +697,12 @@ impl AppState {
     #[inline]
     pub fn domain(&self) -> Option<&Arc<DomainServices>> {
         self.services.domain()
+    }
+
+    /// Get the compressor.
+    #[inline]
+    pub fn compressor(&self) -> Option<&Arc<Compressor>> {
+        self.services.compressor.as_ref()
     }
 
     /// Get the session cache.
@@ -807,11 +829,18 @@ impl AppState {
         id
     }
 
-    /// Close a session: remove it from the cache and trigger background indexing.
+    /// Close a session: remove it from the cache and trigger background indexing/compression.
     ///
     /// Returns `true` if the session existed and was removed.
-    /// Indexing runs asynchronously and does not block the caller.
+    /// Indexing and compression run asynchronously and do not block the caller.
     pub async fn close_session(&self, session_id: SessionId) -> bool {
+        // Capture workstream_id before removal (needed for compression)
+        let workstream_id = self
+            .runtime
+            .session_cache
+            .get_workstream_id(&session_id)
+            .await;
+
         let session = match self.runtime.session_cache.remove(&session_id).await {
             Some(s) => s,
             None => return false,
@@ -849,6 +878,68 @@ impl AppState {
                             errors = ?report.errors,
                             "Session indexing completed with errors"
                         );
+                    }
+                });
+            }
+        }
+
+        // Spawn background compression if compressor is configured and session has turns
+        if let (Some(compressor), Some(manager), Some(ws_id)) = (
+            &self.services.compressor,
+            &self.services.workstreams,
+            &workstream_id,
+        ) {
+            if !session.is_empty() {
+                let compressor = Arc::clone(compressor);
+                let manager = Arc::clone(manager);
+                let sid = session_id.to_string();
+                let ws_id = ws_id.clone();
+
+                tokio::spawn(async move {
+                    // End the workstream session (marks it in SQLite)
+                    if let Err(e) = manager.end_session(&sid) {
+                        warn!(
+                            session_id = %sid,
+                            error = %e,
+                            "Failed to end workstream session for compression"
+                        );
+                        return;
+                    }
+
+                    // Compress the session
+                    match compressor.compress_session(&manager, &sid).await {
+                        Ok(summary) => {
+                            info!(
+                                session_id = %sid,
+                                summary_len = summary.len(),
+                                "Background session compression complete"
+                            );
+
+                            // Update the workstream summary (reduce step)
+                            match compressor.compress_workstream(&manager, &ws_id).await {
+                                Ok(ws_summary) => {
+                                    info!(
+                                        workstream_id = %ws_id,
+                                        summary_len = ws_summary.len(),
+                                        "Background workstream compression complete"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        workstream_id = %ws_id,
+                                        error = %e,
+                                        "Workstream compression failed"
+                                    );
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            warn!(
+                                session_id = %sid,
+                                error = %e,
+                                "Session compression failed"
+                            );
+                        }
                     }
                 });
             }

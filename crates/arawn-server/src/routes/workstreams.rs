@@ -992,3 +992,74 @@ pub async fn cleanup_handler(
         requires_confirmation: result.requires_confirmation,
     }))
 }
+
+/// Response from compression operation.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct CompressResponse {
+    /// Workstream summary after compression.
+    pub summary: String,
+    /// Number of sessions that were compressed.
+    pub sessions_compressed: usize,
+}
+
+/// POST /api/v1/workstreams/:id/compress - Trigger manual compression.
+///
+/// Compresses all ended sessions in the workstream and produces a unified summary.
+#[utoipa::path(
+    post,
+    path = "/api/v1/workstreams/{id}/compress",
+    params(
+        ("id" = String, Path, description = "Workstream ID"),
+    ),
+    responses(
+        (status = 200, description = "Compression complete", body = CompressResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Workstream not found"),
+        (status = 503, description = "Compression or workstreams not configured"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "workstreams"
+)]
+pub async fn compress_workstream_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<CompressResponse>, ServerError> {
+    let mgr = get_manager(&state)?;
+
+    let compressor = state
+        .compressor()
+        .ok_or_else(|| ServerError::ServiceUnavailable("Compression not configured".to_string()))?;
+
+    // Verify workstream exists
+    mgr.get_workstream(&id)?;
+
+    // Compress all ended sessions that haven't been compressed yet
+    let sessions = mgr.list_sessions(&id)?;
+    let mut compressed_count = 0;
+
+    for session in &sessions {
+        if session.ended_at.is_some() && !session.compressed {
+            match compressor.compress_session(mgr, &session.id).await {
+                Ok(_) => compressed_count += 1,
+                Err(e) => {
+                    tracing::warn!(
+                        session_id = %session.id,
+                        error = %e,
+                        "Failed to compress session"
+                    );
+                }
+            }
+        }
+    }
+
+    // Reduce all session summaries into a workstream summary
+    let summary = compressor
+        .compress_workstream(mgr, &id)
+        .await
+        .map_err(|e| ServerError::Internal(format!("Workstream compression failed: {e}")))?;
+
+    Ok(Json(CompressResponse {
+        summary,
+        sessions_compressed: compressed_count,
+    }))
+}

@@ -1284,6 +1284,8 @@ pub struct WorkstreamConfig {
     pub data_dir: Option<PathBuf>,
     /// Session timeout in minutes (default: 60).
     pub session_timeout_minutes: i64,
+    /// Session/workstream compression configuration.
+    pub compression: Option<CompressionConfig>,
 }
 
 impl Default for WorkstreamConfig {
@@ -1292,6 +1294,48 @@ impl Default for WorkstreamConfig {
             database: None,
             data_dir: None,
             session_timeout_minutes: 60,
+            compression: None,
+        }
+    }
+}
+
+/// Configuration for automatic session/workstream compression.
+///
+/// When enabled, sessions are automatically compressed via LLM summarization
+/// when they end, and workstream summaries are updated from session summaries.
+///
+/// ```toml
+/// [workstream.compression]
+/// enabled = true
+/// backend = "default"
+/// model = "claude-sonnet-4-20250514"
+/// max_summary_tokens = 1024
+/// token_threshold_chars = 32000
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CompressionConfig {
+    /// Whether automatic compression is enabled (default: false).
+    pub enabled: bool,
+    /// LLM backend name for compression (references `llm_profiles`).
+    /// Use "default" to use the global default LLM.
+    pub backend: String,
+    /// Model to use for summarization calls.
+    pub model: String,
+    /// Max tokens for summary generation (default: 1024).
+    pub max_summary_tokens: u32,
+    /// Character threshold that triggers compression (default: 32000, ~8k tokens).
+    pub token_threshold_chars: usize,
+}
+
+impl Default for CompressionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            backend: "default".to_string(),
+            model: "claude-sonnet".to_string(),
+            max_summary_tokens: 1024,
+            token_threshold_chars: 32_000,
         }
     }
 }

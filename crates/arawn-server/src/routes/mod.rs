@@ -49,14 +49,14 @@ pub use tasks::{
     list_tasks_handler,
 };
 pub use workstreams::{
-    CleanupRequest, CleanupResponse, CloneRepoRequest, CloneRepoResponse, CreateWorkstreamRequest,
-    ExportFileRequest, ExportFileResponse, MessageListResponse, MessageResponse,
-    PromoteFileRequest, PromoteFileResponse, PromoteRequest, SendMessageRequest,
+    CleanupRequest, CleanupResponse, CloneRepoRequest, CloneRepoResponse, CompressResponse,
+    CreateWorkstreamRequest, ExportFileRequest, ExportFileResponse, MessageListResponse,
+    MessageResponse, PromoteFileRequest, PromoteFileResponse, PromoteRequest, SendMessageRequest,
     SessionListResponse, SessionResponse, SessionUsageResponse, UpdateWorkstreamRequest,
     UsageResponse, WorkstreamListResponse, WorkstreamResponse, cleanup_handler, clone_repo_handler,
-    create_workstream_handler, delete_workstream_handler, export_file_handler, get_usage_handler,
-    get_workstream_handler, list_messages_handler, list_workstream_sessions_handler,
-    list_workstreams_handler, promote_file_handler, promote_handler, send_message_handler,
-    update_workstream_handler,
+    compress_workstream_handler, create_workstream_handler, delete_workstream_handler,
+    export_file_handler, get_usage_handler, get_workstream_handler, list_messages_handler,
+    list_workstream_sessions_handler, list_workstreams_handler, promote_file_handler,
+    promote_handler, send_message_handler, update_workstream_handler,
 };
 pub use ws::{ClientMessage, ServerMessage, ws_handler};

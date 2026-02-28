@@ -171,6 +171,10 @@ impl Server {
             .route("/workstreams/{id}/clone", post(routes::clone_repo_handler))
             .route("/workstreams/{id}/usage", get(routes::get_usage_handler))
             .route("/workstreams/{id}/cleanup", post(routes::cleanup_handler))
+            .route(
+                "/workstreams/{id}/compress",
+                post(routes::compress_workstream_handler),
+            )
             // Config endpoint
             .route("/config", get(routes::get_config_handler))
             // Agent endpoints
