@@ -4,14 +4,14 @@ level: task
 title: "RLM integration tests"
 short_code: "ARAWN-T-0244"
 created_at: 2026-03-01T16:27:49.497372+00:00
-updated_at: 2026-03-01T19:56:02.697485+00:00
+updated_at: 2026-03-01T20:46:16.061548+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Write integration tests that exercise the full RLM exploration pipeline end-to-end, validating that all components work together correctly.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

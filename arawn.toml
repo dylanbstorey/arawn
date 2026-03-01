@@ -1,0 +1,7 @@
+[llm]
+backend = "groq"
+model = "openai/gpt-oss-20b"
+max_context_tokens = 131072
+
+[agent.default]
+max_tokens = 65536

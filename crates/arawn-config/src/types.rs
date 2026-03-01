@@ -451,6 +451,8 @@ pub struct AgentConfig {
     pub system_prompt: Option<String>,
     /// Max tool iterations.
     pub max_iterations: Option<u32>,
+    /// Maximum tokens per LLM response.
+    pub max_tokens: Option<u32>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

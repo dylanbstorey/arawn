@@ -1072,6 +1072,11 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         builder = builder.with_max_iterations(max_iter);
     }
 
+    // Wire max_tokens (per-response limit) from [agent.default] config
+    if let Some(max_tok) = config.agent.get("default").and_then(|a| a.max_tokens) {
+        builder = builder.with_max_tokens(max_tok);
+    }
+
     // Wire up hook dispatcher to the agent
     if let Some(ref dispatcher) = shared_hook_dispatcher {
         builder = builder.with_hook_dispatcher(dispatcher.clone());
