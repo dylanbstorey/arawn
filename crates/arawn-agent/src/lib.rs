@@ -36,6 +36,7 @@ pub mod indexing;
 pub mod mcp;
 pub mod orchestrator;
 pub mod prompt;
+pub mod rlm;
 pub mod stream;
 pub mod tool;
 pub mod tools;
@@ -92,6 +93,12 @@ pub use indexing::GlinerEngine;
 pub use indexing::{
     IndexReport, IndexerConfig, NerConfig, NerEngine, NerExtraction, NerOutput, NerRelation,
     NerSpan, SessionIndexer,
+};
+
+// Re-export RLM types
+pub use rlm::{
+    DEFAULT_READ_ONLY_TOOLS, ExplorationMetadata, ExplorationResult, RLM_SYSTEM_PROMPT, RlmConfig,
+    RlmSpawner,
 };
 
 // Re-export MCP adapter
