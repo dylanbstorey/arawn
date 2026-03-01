@@ -1,0 +1,17 @@
+[Unit]
+Description=Arawn AI Agent Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/arawn start
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=%h/.config/arawn/env
+WorkingDirectory=%h
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
