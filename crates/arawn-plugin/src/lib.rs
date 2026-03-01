@@ -1,8 +1,8 @@
 //! Plugin system for Arawn.
 //!
-//! Plugins bundle skills, hooks, agents, CLI tools, and prompt fragments
-//! together with a JSON manifest. This crate provides the core types,
-//! manifest parsing, and plugin loading infrastructure.
+//! Plugins bundle skills, hooks, agents, and prompt fragments together with a
+//! JSON manifest. This crate provides the core types, manifest parsing, and
+//! plugin loading infrastructure.
 //!
 //! Compatible with Claude Code's plugin format.
 //!
@@ -19,12 +19,9 @@
 //!     hooks.json             # hook configuration
 //!   agents/
 //!     my-agent.md            # agent: markdown with YAML frontmatter
-//!   commands/
-//!     my-command.sh          # CLI wrapper (JSON stdin/stdout)
 //! ```
 
 pub mod agent_spawner;
-pub mod cli_tool;
 pub mod hooks;
 pub mod manager;
 pub mod manifest;
@@ -36,14 +33,13 @@ pub mod watcher;
 
 pub use agent_spawner::{AgentSpawner, PluginSubagentSpawner};
 pub use arawn_types::HookOutcome;
-pub use cli_tool::CliPluginTool;
 pub use hooks::HookDispatcher;
 pub use manager::{LoadedAgent, LoadedPlugin, LoadedSkill, PluginManager};
 pub use manifest::{CapabilitySummary, PluginManifest};
 pub use skill::{Skill, SkillInvocation, SkillRegistry};
 pub use subscription::{GitOps, RuntimePluginsConfig, SubscriptionManager, SyncAction, SyncResult};
 pub use types::{
-    AgentConstraints, AgentSection, AgentSystemPrompt, CliToolDef, HookAction, HookDef, HookEvent,
+    AgentConstraints, AgentSection, AgentSystemPrompt, HookAction, HookDef, HookEvent,
     HookMatcherGroup, HookType, HooksConfig, PluginAgentConfig, PluginAgentDef, PromptFragment,
     SkillArg, SkillDef,
 };

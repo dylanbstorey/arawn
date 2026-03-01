@@ -2,7 +2,7 @@
 
 use crate::client::ArawnClient;
 use crate::error::Result;
-use crate::types::{DetailedHealthResponse, HealthResponse};
+use crate::types::HealthResponse;
 
 /// Health API client.
 ///
@@ -34,28 +34,6 @@ impl HealthApi {
                 status: response.status().as_u16(),
                 code: "health_check_failed".to_string(),
                 message: "Health check failed".to_string(),
-            })
-        }
-    }
-
-    /// Get detailed health information.
-    pub async fn detailed(&self) -> Result<DetailedHealthResponse> {
-        // Health endpoint is at root, not under /api/v1
-        let inner = self.client.inner();
-        let url = inner
-            .base_url
-            .join("health/detailed")
-            .map_err(crate::error::Error::from)?;
-
-        let response: reqwest::Response = inner.http.get(url).send().await?;
-
-        if response.status().is_success() {
-            Ok(response.json().await?)
-        } else {
-            Err(crate::error::Error::Api {
-                status: response.status().as_u16(),
-                code: "health_check_failed".to_string(),
-                message: "Detailed health check failed".to_string(),
             })
         }
     }

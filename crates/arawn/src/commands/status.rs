@@ -10,11 +10,7 @@ use crate::client::Client;
 
 /// Arguments for the status command.
 #[derive(Args, Debug)]
-pub struct StatusArgs {
-    /// Show detailed status information
-    #[arg(short, long)]
-    pub detailed: bool,
-}
+pub struct StatusArgs {}
 
 /// Status response for JSON output.
 #[derive(Debug, Serialize)]
@@ -25,7 +21,7 @@ struct StatusOutput {
 }
 
 /// Run the status command.
-pub async fn run(args: StatusArgs, ctx: &Context) -> Result<()> {
+pub async fn run(_args: StatusArgs, ctx: &Context) -> Result<()> {
     let client = Client::new(&ctx.server_url)?;
 
     match client.health().await {
@@ -52,17 +48,6 @@ pub async fn run(args: StatusArgs, ctx: &Context) -> Result<()> {
                 );
                 println!("  {} {}", dim.apply_to("Version:"), health.version);
                 println!("  {} {}", dim.apply_to("Server:"), ctx.server_url);
-
-                if args.detailed {
-                    println!();
-                    println!("{}", dim.apply_to("─".repeat(40)));
-                    println!();
-                    println!(
-                        "  {} (detailed metrics not yet implemented)",
-                        dim.apply_to("Metrics:")
-                    );
-                }
-
                 println!();
             }
         }

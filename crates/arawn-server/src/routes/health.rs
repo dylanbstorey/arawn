@@ -1,6 +1,6 @@
 //! Health check endpoints.
 
-use axum::{Json, Router, extract::State, routing::get};
+use axum::{Json, Router, routing::get};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -13,24 +13,6 @@ pub struct HealthResponse {
     pub status: String,
     /// Service version.
     pub version: String,
-}
-
-/// Detailed health check response.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct DetailedHealthResponse {
-    /// Service status.
-    pub status: String,
-    /// Service version.
-    pub version: String,
-    /// Agent status.
-    pub agent: AgentHealth,
-}
-
-/// Agent health status.
-#[derive(Debug, Serialize, ToSchema)]
-pub struct AgentHealth {
-    /// Whether the agent is ready.
-    pub ready: bool,
 }
 
 /// Simple health check (no auth required).
@@ -49,47 +31,9 @@ pub async fn health() -> Json<HealthResponse> {
     })
 }
 
-/// Detailed health check (requires auth).
-///
-/// Checks actual service dependencies to report accurate health status.
-#[utoipa::path(
-    get,
-    path = "/health/detailed",
-    responses(
-        (status = 200, description = "Detailed health status", body = DetailedHealthResponse),
-    ),
-    tag = "health"
-)]
-pub async fn health_detailed(State(state): State<AppState>) -> Json<DetailedHealthResponse> {
-    // Agent is always present (not optional), so it's always ready
-    // In the future, we could add a ping/health method to Agent
-    let agent_ready = true;
-
-    // Check if workstream storage is available (if configured)
-    let storage_ready = state
-        .workstreams()
-        .map(|ws| ws.list_workstreams().is_ok())
-        .unwrap_or(true); // Not configured = no dependency
-
-    // Overall status is degraded if any critical service is down
-    let status = if agent_ready && storage_ready {
-        "ok"
-    } else {
-        "degraded"
-    };
-
-    Json(DetailedHealthResponse {
-        status: status.to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        agent: AgentHealth { ready: agent_ready },
-    })
-}
-
 /// Create health check routes.
 pub fn health_routes() -> Router<AppState> {
-    Router::new()
-        .route("/health", get(health))
-        .route("/health/detailed", get(health_detailed))
+    Router::new().route("/health", get(health))
 }
 
 #[cfg(test)]

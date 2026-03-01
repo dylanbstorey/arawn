@@ -65,31 +65,6 @@ pub struct SkillArg {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLI Tool
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// A CLI-wrapper tool definition from a plugin manifest.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CliToolDef {
-    /// Tool name (registered in ToolRegistry).
-    pub name: String,
-    /// Human-readable description.
-    pub description: String,
-    /// Command to execute (relative to plugin dir).
-    pub command: PathBuf,
-    /// JSON Schema for tool parameters.
-    #[serde(default = "default_parameters")]
-    pub parameters: serde_json::Value,
-}
-
-fn default_parameters() -> serde_json::Value {
-    serde_json::json!({
-        "type": "object",
-        "properties": {}
-    })
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Plugin Agent
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -203,12 +178,6 @@ mod tests {
             let parsed: HookEvent = serde_json::from_str(&json).unwrap();
             assert_eq!(parsed, event);
         }
-    }
-
-    #[test]
-    fn test_default_parameters() {
-        let params = default_parameters();
-        assert_eq!(params["type"], "object");
     }
 
     #[test]

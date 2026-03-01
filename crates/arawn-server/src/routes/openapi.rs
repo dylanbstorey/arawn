@@ -20,7 +20,6 @@ use super::{agents, chat, commands, config, health, mcp, memory, sessions, tasks
     paths(
         // Health
         health::health,
-        health::health_detailed,
         // Config
         config::get_config_handler,
         // Sessions
@@ -80,8 +79,6 @@ use super::{agents, chat, commands, config, health, mcp, memory, sessions, tasks
         schemas(
             // Health
             health::HealthResponse,
-            health::DetailedHealthResponse,
-            health::AgentHealth,
             // Config
             config::ConfigResponse,
             config::ConfigFeatures,

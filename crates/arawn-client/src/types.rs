@@ -785,32 +785,3 @@ pub struct HealthResponse {
     #[serde(default)]
     pub version: Option<String>,
 }
-
-/// Detailed health response.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DetailedHealthResponse {
-    /// Overall status.
-    pub status: String,
-    /// Server version.
-    pub version: String,
-    /// Uptime in seconds.
-    pub uptime_seconds: u64,
-    /// Component health.
-    pub components: HealthComponents,
-}
-
-/// Health of individual components.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthComponents {
-    /// Agent status.
-    pub agent: String,
-    /// Memory status.
-    #[serde(default)]
-    pub memory: Option<String>,
-    /// Workstreams status.
-    #[serde(default)]
-    pub workstreams: Option<String>,
-    /// MCP status.
-    #[serde(default)]
-    pub mcp: Option<String>,
-}
