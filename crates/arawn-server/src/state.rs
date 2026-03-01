@@ -195,6 +195,9 @@ pub type TaskStore = Arc<RwLock<HashMap<String, TrackedTask>>>;
 // WebSocket Rate Limiting Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Sliding window duration for WebSocket rate limiting.
+const WS_RATE_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Tracks WebSocket connection attempts per IP address.
 #[derive(Debug, Clone)]
 pub struct WsConnectionTracker {
@@ -216,7 +219,7 @@ impl WsConnectionTracker {
     /// Also cleans up old entries.
     pub async fn check_rate(&self, ip: IpAddr, max_per_minute: u32) -> Result<(), Response> {
         let now = Instant::now();
-        let window = std::time::Duration::from_secs(60);
+        let window = WS_RATE_WINDOW;
         let cutoff = now - window;
 
         let mut connections = self.connections.write().await;
@@ -251,7 +254,7 @@ impl WsConnectionTracker {
     /// Cleanup old entries from all IPs.
     pub async fn cleanup(&self) {
         let now = Instant::now();
-        let window = std::time::Duration::from_secs(60);
+        let window = WS_RATE_WINDOW;
         let cutoff = now - window;
 
         let mut connections = self.connections.write().await;

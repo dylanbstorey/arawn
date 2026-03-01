@@ -196,12 +196,12 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     let port = args
         .port
         .or_else(|| server_cfg.map(|s| s.port))
-        .unwrap_or(8080);
+        .unwrap_or(arawn_types::config::defaults::DEFAULT_PORT);
     let bind = args
         .bind
         .clone()
         .or_else(|| server_cfg.map(|s| s.bind.clone()))
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+        .unwrap_or_else(|| arawn_types::config::defaults::DEFAULT_BIND.to_string());
     let addr: SocketAddr = format!("{}:{}", bind, port).parse()?;
 
     let workspace = args
@@ -1184,7 +1184,9 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
     // Use config values with defaults (rate_limiting=true, request_logging=true, api_rpm=120)
     let rate_limiting = server_cfg.map(|s| s.rate_limiting).unwrap_or(true);
     let request_logging = server_cfg.map(|s| s.request_logging).unwrap_or(true);
-    let api_rpm = server_cfg.map(|s| s.api_rpm).unwrap_or(120);
+    let api_rpm = server_cfg
+        .map(|s| s.api_rpm)
+        .unwrap_or(arawn_types::config::defaults::REQUESTS_PER_MINUTE);
 
     let server_config = ServerConfig::new(auth_token)
         .with_bind_address(addr)

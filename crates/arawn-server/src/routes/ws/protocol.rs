@@ -248,9 +248,10 @@ impl ServerMessage {
         } else {
             ((current_tokens as f64 / max_tokens as f64) * 100.0).min(100.0) as u8
         };
-        let status = if percent < 70 {
+        use arawn_types::config::defaults;
+        let status = if percent < defaults::CONTEXT_WARNING_PERCENT {
             "ok"
-        } else if percent < 90 {
+        } else if percent < defaults::CONTEXT_CRITICAL_PERCENT {
             "warning"
         } else {
             "critical"

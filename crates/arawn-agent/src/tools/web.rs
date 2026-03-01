@@ -39,7 +39,8 @@ impl Default for WebFetchConfig {
         Self {
             timeout: Duration::from_secs(30),
             max_size: 10 * 1024 * 1024, // 10MB for in-memory responses
-            user_agent: "Arawn/0.1 (Research Agent)".to_string(),
+            user_agent: concat!("Arawn/", env!("CARGO_PKG_VERSION"), " (Research Agent)")
+                .to_string(),
             extract_text: true,
             max_text_length: 50_000,
         }

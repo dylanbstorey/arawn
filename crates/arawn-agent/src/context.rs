@@ -12,6 +12,9 @@ use arawn_llm::{CompletionRequest, ContentBlock, Message, ToolResultBlock, ToolR
 /// Default characters per token ratio (rough estimate for English text).
 const CHARS_PER_TOKEN: usize = 4;
 
+/// Tokens reserved for the LLM response when building context.
+const RESERVED_RESPONSE_TOKENS: usize = 4096;
+
 /// Estimate token count for a string (rough approximation).
 ///
 /// Uses a simple heuristic of ~4 characters per token, which is
@@ -234,7 +237,7 @@ impl ContextBuilder {
     pub fn new() -> Self {
         Self {
             max_context_tokens: 100_000, // Default for Claude
-            chars_per_token: 4,          // Rough estimate
+            chars_per_token: CHARS_PER_TOKEN,
             system_prompt: None,
         }
     }
@@ -307,7 +310,7 @@ impl ContextBuilder {
 
         // Reserve space for the new user message and response
         let user_msg_tokens = self.estimate_tokens(user_message);
-        let reserved_tokens = user_msg_tokens + 4096; // Reserve for response
+        let reserved_tokens = user_msg_tokens + RESERVED_RESPONSE_TOKENS;
 
         // Calculate available tokens for history
         let available_tokens = self.max_context_tokens.saturating_sub(reserved_tokens);

@@ -1,5 +1,9 @@
 //! Sidebar panel rendering for workstreams and sessions.
 
+// Context usage thresholds (canonical source: arawn_types::config::defaults)
+const CONTEXT_WARNING_PERCENT: u8 = 70;
+const CONTEXT_CRITICAL_PERCENT: u8 = 90;
+
 use crate::sessions::format_relative_time;
 use crate::sidebar::{Sidebar, SidebarSection};
 use ratatui::{
@@ -192,9 +196,9 @@ fn render_workstream_line(
     // Usage color based on percentage
     let usage_color = if let (Some(usage), Some(limit)) = (ws.usage_bytes, ws.limit_bytes) {
         let percent = (usage as f64 / limit as f64 * 100.0) as u8;
-        if percent >= 90 {
+        if percent >= CONTEXT_CRITICAL_PERCENT {
             Color::Red
-        } else if percent >= 70 {
+        } else if percent >= CONTEXT_WARNING_PERCENT {
             Color::Yellow
         } else {
             Color::DarkGray

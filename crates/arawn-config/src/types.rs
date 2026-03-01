@@ -470,10 +470,10 @@ pub struct ServerConfig {
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            port: 8080,
-            bind: "127.0.0.1".to_string(),
+            port: arawn_types::config::defaults::DEFAULT_PORT,
+            bind: arawn_types::config::defaults::DEFAULT_BIND.to_string(),
             rate_limiting: true,
-            api_rpm: 120,
+            api_rpm: arawn_types::config::defaults::REQUESTS_PER_MINUTE,
             request_logging: true,
             bootstrap_dir: None,
             workspace: None,

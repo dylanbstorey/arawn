@@ -88,6 +88,12 @@ pub mod defaults {
     pub const MAX_ITERATIONS: u32 = 25;
     pub const REQUESTS_PER_MINUTE: u32 = 120;
     pub const BURST_SIZE: u32 = 10;
+    pub const DEFAULT_PORT: u16 = 8080;
+    pub const DEFAULT_BIND: &str = "127.0.0.1";
+    /// Context usage warning threshold (percentage).
+    pub const CONTEXT_WARNING_PERCENT: u8 = 70;
+    /// Context usage critical threshold (percentage).
+    pub const CONTEXT_CRITICAL_PERCENT: u8 = 90;
 
     pub fn cleanup_interval() -> Duration {
         Duration::from_secs(CLEANUP_INTERVAL_SECS)

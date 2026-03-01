@@ -1,5 +1,9 @@
 //! Main layout rendering.
 
+// Context usage thresholds (canonical source: arawn_types::config::defaults)
+const CONTEXT_WARNING_PERCENT: u8 = 70;
+const CONTEXT_CRITICAL_PERCENT: u8 = 90;
+
 use crate::app::App;
 use crate::client::ConnectionStatus;
 use crate::focus::FocusTarget;
@@ -162,9 +166,9 @@ fn render_header(app: &App, frame: &mut Frame, area: Rect) {
         };
 
         // Color based on usage percentage
-        let usage_color = if usage.percent >= 90 {
+        let usage_color = if usage.percent >= CONTEXT_CRITICAL_PERCENT {
             Color::Red
-        } else if usage.percent >= 70 {
+        } else if usage.percent >= CONTEXT_WARNING_PERCENT {
             Color::Yellow
         } else {
             Color::DarkGray
@@ -438,9 +442,9 @@ fn render_usage_popup(app: &App, frame: &mut Frame, area: Rect) {
         ]));
 
         if usage.limit_bytes > 0 {
-            let color = if usage.percent >= 90 {
+            let color = if usage.percent >= CONTEXT_CRITICAL_PERCENT {
                 Color::Red
-            } else if usage.percent >= 70 {
+            } else if usage.percent >= CONTEXT_WARNING_PERCENT {
                 Color::Yellow
             } else {
                 Color::Green
