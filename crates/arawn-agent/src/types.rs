@@ -352,6 +352,13 @@ pub struct AgentConfig {
     pub temperature: Option<f32>,
     /// Maximum tool execution iterations per turn.
     pub max_iterations: u32,
+    /// Maximum cumulative tokens (input + output) before stopping.
+    ///
+    /// When set, the agent checks total token usage after each LLM response
+    /// and stops gracefully if the budget is exceeded. Acts as a safety valve
+    /// for sub-agents like the RLM exploration agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_total_tokens: Option<usize>,
     /// Timeout for the entire turn.
     #[serde(with = "humantime_serde")]
     pub timeout: Duration,
@@ -370,6 +377,7 @@ impl AgentConfig {
             max_tokens: 4096,
             temperature: None,
             max_iterations: 25,
+            max_total_tokens: None,
             timeout: Duration::from_secs(300),
             system_prompt: None,
             workspace_path: None,
@@ -391,6 +399,12 @@ impl AgentConfig {
     /// Set max iterations.
     pub fn with_max_iterations(mut self, max_iterations: u32) -> Self {
         self.max_iterations = max_iterations;
+        self
+    }
+
+    /// Set cumulative token budget.
+    pub fn with_max_total_tokens(mut self, max_total_tokens: usize) -> Self {
+        self.max_total_tokens = Some(max_total_tokens);
         self
     }
 

@@ -227,6 +227,31 @@ impl Agent {
             total_input_tokens += response.usage.input_tokens;
             total_output_tokens += response.usage.output_tokens;
 
+            // Check token budget
+            if let Some(max) = self.config.max_total_tokens {
+                let total = (total_input_tokens + total_output_tokens) as usize;
+                if total > max {
+                    tracing::warn!(
+                        %session_id, %turn_id, total, max,
+                        "Token budget exceeded"
+                    );
+                    let text = response.text();
+                    let turn = session.current_turn_mut().unwrap();
+                    turn.complete(&text);
+                    turn.tool_calls = all_tool_calls.clone();
+                    turn.tool_results = all_tool_results.clone();
+
+                    return Ok(AgentResponse {
+                        text,
+                        tool_calls: all_tool_calls,
+                        tool_results: all_tool_results,
+                        iterations,
+                        usage: ResponseUsage::new(total_input_tokens, total_output_tokens),
+                        truncated: true,
+                    });
+                }
+            }
+
             tracing::debug!(
                 %session_id,
                 iteration = iterations,
@@ -794,6 +819,15 @@ impl AgentBuilder {
         self
     }
 
+    /// Set cumulative token budget (input + output).
+    ///
+    /// When set, the agent stops gracefully after exceeding this token total.
+    /// Useful as a safety valve for sub-agents like the RLM exploration agent.
+    pub fn with_max_total_tokens(mut self, max_total_tokens: usize) -> Self {
+        self.config.max_total_tokens = Some(max_total_tokens);
+        self
+    }
+
     /// Set the workspace path.
     ///
     /// The workspace is the root directory for file operations.
@@ -1135,6 +1169,53 @@ mod tests {
 
         assert!(response.truncated);
         assert_eq!(response.iterations, 6); // 5 + 1 that exceeded
+    }
+
+    #[tokio::test]
+    async fn test_turn_token_budget_exceeded() {
+        // Each mock response uses Usage::new(10, 20) = 30 tokens per iteration.
+        // With a budget of 50, the second iteration (60 total) should trigger truncation.
+        let responses: Vec<CompletionResponse> = (0..10)
+            .map(|i| {
+                mock_tool_use_response(&format!("call_{}", i), "test_tool", serde_json::json!({}))
+            })
+            .collect();
+
+        let backend = MockBackend::new(responses);
+
+        let mut tools = ToolRegistry::new();
+        tools.register(MockTool::new("test_tool"));
+
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_tools(tools)
+            .with_max_total_tokens(50)
+            .build()
+            .unwrap();
+
+        let mut session = Session::new();
+        let response = agent.turn(&mut session, "Use tools").await.unwrap();
+
+        assert!(response.truncated);
+        // Budget exceeded on iteration 2 (60 tokens > 50 budget)
+        assert_eq!(response.iterations, 2);
+        assert!(response.usage.total() > 50);
+    }
+
+    #[tokio::test]
+    async fn test_turn_no_token_budget() {
+        // Without a budget, token usage is not limited (only iterations)
+        let backend = MockBackend::new(vec![mock_text_response("Hello!")]);
+
+        let agent = Agent::builder().with_backend(backend).build().unwrap();
+
+        assert!(agent.config().max_total_tokens.is_none());
+
+        let mut session = Session::new();
+        let response = agent.turn(&mut session, "Hi").await.unwrap();
+
+        assert!(!response.truncated);
+        assert_eq!(response.text, "Hello!");
     }
 
     #[tokio::test]

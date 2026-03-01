@@ -4,14 +4,14 @@ level: task
 title: "Make SessionCompactor summary prompt configurable"
 short_code: "ARAWN-T-0237"
 created_at: 2026-03-01T15:55:20.199524+00:00
-updated_at: 2026-03-01T16:08:58.162725+00:00
+updated_at: 2026-03-01T16:17:29.690115+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Make the `SessionCompactor` summary prompt configurable so different agent types can provide their own compaction strategy. Currently the prompt is hardcoded as `MID_SESSION_SUMMARY_PROMPT` in `compaction.rs`. The RLM exploration agent needs a research-focused compaction prompt; future agent types will need their own.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

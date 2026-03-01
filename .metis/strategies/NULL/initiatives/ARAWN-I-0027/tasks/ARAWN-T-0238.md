@@ -4,14 +4,14 @@ level: task
 title: "Add cumulative token budget enforcement to Agent turn loop"
 short_code: "ARAWN-T-0238"
 created_at: 2026-03-01T15:57:39.831617+00:00
-updated_at: 2026-03-01T15:57:39.831617+00:00
+updated_at: 2026-03-01T16:17:35.213063+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -30,6 +30,8 @@ initiative_id: ARAWN-I-0027
 Add a cumulative token budget as a safety valve on the `Agent` turn loop. The existing loop checks `max_iterations` (line 160 of `agent.rs`) but has no guard on total token consumption. A sub-agent (like the RLM) running with tools can burn through tokens quickly — we need a hard stop that says "you've used X tokens total, wrap it up."
 
 This is generic infrastructure on `Agent`, not RLM-specific. Any agent type can set a token budget.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -67,4 +69,13 @@ Small change — one config field, one builder method, one check in the loop, tw
 
 ## Status Updates
 
-*To be added during implementation*
+### Implementation Complete
+- Added `max_total_tokens: Option<usize>` to `AgentConfig` with `None` default
+- Added `with_max_total_tokens()` builder methods on both `AgentConfig` and `AgentBuilder`
+- Added budget check in `Agent::turn()` after usage update — mirrors `max_iterations` exceeded pattern (graceful return with `truncated: true`)
+- Streaming path (`create_turn_stream`) doesn't track tokens — out of scope, separate concern
+- Added `test_turn_token_budget_exceeded` — verifies truncation when budget exceeded (50 token budget, 30 tokens/iteration, triggers on iteration 2)
+- Added `test_turn_no_token_budget` — verifies no limit enforced when `None`
+- `angreal check all` clean
+- `angreal test unit` all pass
+- No behavior change for existing callers (None = unlimited)
