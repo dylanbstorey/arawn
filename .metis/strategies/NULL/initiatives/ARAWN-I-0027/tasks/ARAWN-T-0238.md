@@ -4,14 +4,14 @@ level: task
 title: "Add cumulative token budget enforcement to Agent turn loop"
 short_code: "ARAWN-T-0238"
 created_at: 2026-03-01T15:57:39.831617+00:00
-updated_at: 2026-03-01T16:17:35.213063+00:00
+updated_at: 2026-03-01T16:25:05.260078+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -30,6 +30,8 @@ initiative_id: ARAWN-I-0027
 Add a cumulative token budget as a safety valve on the `Agent` turn loop. The existing loop checks `max_iterations` (line 160 of `agent.rs`) but has no guard on total token consumption. A sub-agent (like the RLM) running with tools can burn through tokens quickly — we need a hard stop that says "you've used X tokens total, wrap it up."
 
 This is generic infrastructure on `Agent`, not RLM-specific. Any agent type can set a token budget.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

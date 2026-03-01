@@ -1188,6 +1188,36 @@ impl ToolRegistry {
         tool.execute(params, ctx).await
     }
 
+    /// Create a new registry containing only tools whose names are in the allowlist.
+    ///
+    /// Returns a new `ToolRegistry` with cloned `Arc` refs for matching tools.
+    /// Names not matching any registered tool are silently ignored.
+    /// Output config overrides for matching tools are also carried over.
+    pub fn filtered_by_names(&self, names: &[&str]) -> ToolRegistry {
+        let tools: HashMap<String, Arc<dyn Tool>> = names
+            .iter()
+            .filter_map(|&name| {
+                self.tools
+                    .get(name)
+                    .map(|tool| (name.to_string(), Arc::clone(tool)))
+            })
+            .collect();
+
+        let output_overrides: HashMap<String, OutputConfig> = names
+            .iter()
+            .filter_map(|&name| {
+                self.output_overrides
+                    .get(name)
+                    .map(|config| (name.to_string(), config.clone()))
+            })
+            .collect();
+
+        ToolRegistry {
+            tools,
+            output_overrides,
+        }
+    }
+
     /// Get the output config for a tool by name.
     ///
     /// Checks user-configured overrides first, then falls back to
@@ -2198,5 +2228,98 @@ mod tests {
             }
             _ => panic!("Expected Text result"),
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ToolRegistry Filtering Tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_filtered_by_names_includes_matching() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob"));
+        registry.register(MockTool::new("grep"));
+        registry.register(MockTool::new("file_read"));
+        registry.register(MockTool::new("shell"));
+
+        let filtered = registry.filtered_by_names(&["glob", "grep", "file_read"]);
+
+        assert_eq!(filtered.len(), 3);
+        assert!(filtered.contains("glob"));
+        assert!(filtered.contains("grep"));
+        assert!(filtered.contains("file_read"));
+        assert!(!filtered.contains("shell"));
+    }
+
+    #[test]
+    fn test_filtered_by_names_excludes_non_matching() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("shell"));
+        registry.register(MockTool::new("file_write"));
+
+        let filtered = registry.filtered_by_names(&["glob", "grep"]);
+
+        assert!(filtered.is_empty());
+    }
+
+    #[test]
+    fn test_filtered_by_names_ignores_unknown() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob"));
+
+        let filtered = registry.filtered_by_names(&["glob", "nonexistent", "also_missing"]);
+
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered.contains("glob"));
+    }
+
+    #[test]
+    fn test_filtered_by_names_preserves_original() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob"));
+        registry.register(MockTool::new("shell"));
+
+        let _filtered = registry.filtered_by_names(&["glob"]);
+
+        // Original unchanged
+        assert_eq!(registry.len(), 2);
+        assert!(registry.contains("glob"));
+        assert!(registry.contains("shell"));
+    }
+
+    #[test]
+    fn test_filtered_by_names_carries_output_overrides() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob"));
+        registry.register(MockTool::new("shell"));
+        registry.set_output_config("glob", OutputConfig::with_max_size(999));
+
+        let filtered = registry.filtered_by_names(&["glob"]);
+
+        let config = filtered.output_config_for("glob");
+        assert_eq!(config.max_size_bytes, 999);
+    }
+
+    #[test]
+    fn test_filtered_by_names_llm_definitions() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob").with_description("Search files"));
+        registry.register(MockTool::new("shell").with_description("Run commands"));
+
+        let filtered = registry.filtered_by_names(&["glob"]);
+        let defs = filtered.to_llm_definitions();
+
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].name, "glob");
+    }
+
+    #[test]
+    fn test_filtered_by_names_empty_allowlist() {
+        let mut registry = ToolRegistry::new();
+        registry.register(MockTool::new("glob"));
+
+        let filtered = registry.filtered_by_names(&[]);
+
+        assert!(filtered.is_empty());
     }
 }
