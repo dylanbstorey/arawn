@@ -1068,7 +1068,7 @@ impl ToolResult {
 ///
 /// The registry maintains a collection of tools that can be used by the agent.
 /// It provides lookup by name and conversion to LLM tool definitions.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ToolRegistry {
     tools: HashMap<String, Arc<dyn Tool>>,
     /// Per-tool output config overrides from user configuration.

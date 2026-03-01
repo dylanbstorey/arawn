@@ -4,14 +4,14 @@ level: task
 title: "Add RLM configuration section"
 short_code: "ARAWN-T-0243"
 created_at: 2026-03-01T16:27:48.806569+00:00
-updated_at: 2026-03-01T16:27:48.806569+00:00
+updated_at: 2026-03-01T19:34:38.721645+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Add an `[rlm]` configuration section to `arawn-config` so RLM behavior is configurable via `arawn.toml`. Wire the config through to `RlmSpawner` creation in `start.rs`.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -61,4 +63,12 @@ Small — config struct, defaults, deserialization, wiring. Can be done in paral
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1
+- Added `RlmTomlConfig` struct to `arawn-config/src/types.rs` with 7 optional fields: model, max_turns, max_context_tokens, compaction_threshold, max_compactions, max_total_tokens, compaction_model
+- All fields are `Option<T>` — absent fields fall through to agent-side `RlmConfig` defaults
+- Added `rlm: Option<RlmTomlConfig>` to `ArawnConfig`, `RawConfig`, both `From` impls, and `merge()`
+- Added `Clone` derive to `ToolRegistry` (needed for cloning registry to pass to `RlmSpawner`)
+- Wired config in `start.rs`: reads `[rlm]` section, applies overrides to `RlmConfig`, creates `RlmSpawner`, registers `ExploreTool`
+- 5 tests: deserialization with all fields, defaults (all None), partial config, absent section, merge behavior
+- `angreal check all` passes clean
+- `angreal test unit` passes: 136 config tests (5 new), 1711 total, 0 failures

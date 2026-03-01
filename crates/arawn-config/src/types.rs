@@ -72,6 +72,9 @@ pub struct ArawnConfig {
 
     /// Path management configuration.
     pub paths: Option<crate::paths::PathConfig>,
+
+    /// RLM (Recursive Language Model) exploration agent configuration.
+    pub rlm: Option<RlmTomlConfig>,
 }
 
 impl ArawnConfig {
@@ -155,6 +158,10 @@ impl ArawnConfig {
         if other.paths.is_some() {
             self.paths = other.paths;
         }
+
+        if other.rlm.is_some() {
+            self.rlm = other.rlm;
+        }
     }
 
     /// Resolve the LLM config for a given agent name.
@@ -230,6 +237,7 @@ struct RawConfig {
     session: Option<SessionConfig>,
     tools: Option<ToolsConfig>,
     paths: Option<crate::paths::PathConfig>,
+    rlm: Option<RlmTomlConfig>,
 }
 
 /// The `[llm]` section which can contain both direct fields and named sub-tables.
@@ -294,6 +302,7 @@ impl From<RawConfig> for ArawnConfig {
             session: raw.session,
             tools: raw.tools,
             paths: raw.paths,
+            rlm: raw.rlm,
         }
     }
 }
@@ -331,6 +340,7 @@ impl From<ArawnConfig> for RawConfig {
             session: config.session,
             tools: config.tools,
             paths: config.paths,
+            rlm: config.rlm,
         }
     }
 }
@@ -1491,6 +1501,45 @@ impl arawn_types::HasToolConfig for ToolsConfig {
         self.output.max_size_bytes
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RLM Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Configuration for the RLM (Recursive Language Model) exploration agent.
+///
+/// Maps to the `[rlm]` section in `arawn.toml`. All fields are optional;
+/// when absent, the agent-side `RlmConfig` defaults apply.
+///
+/// ```toml
+/// [rlm]
+/// model = "claude-haiku-4-5-20251001"
+/// max_turns = 25
+/// max_context_tokens = 50000
+/// compaction_threshold = 0.7
+/// max_compactions = 10
+/// compaction_model = "claude-haiku-4-5-20251001"
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+#[derive(Default)]
+pub struct RlmTomlConfig {
+    /// Model to use for exploration. Empty string or absent = inherit from backend.
+    pub model: Option<String>,
+    /// Maximum agent turns before stopping (safety valve).
+    pub max_turns: Option<u32>,
+    /// Maximum estimated tokens before triggering compaction.
+    pub max_context_tokens: Option<usize>,
+    /// Fraction of `max_context_tokens` that triggers compaction (0.0–1.0).
+    pub compaction_threshold: Option<f32>,
+    /// Maximum compaction cycles before stopping.
+    pub max_compactions: Option<u32>,
+    /// Cumulative token budget for the entire exploration.
+    pub max_total_tokens: Option<usize>,
+    /// Separate model for compaction (cheaper/faster).
+    pub compaction_model: Option<String>,
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tests
@@ -2807,5 +2856,92 @@ max_size_bytes = 102400
         assert!(tools.output.file_read.is_none());
         assert!(tools.output.web_fetch.is_none());
         assert!(tools.output.search.is_none());
+    }
+
+    #[test]
+    fn test_rlm_config_deserialization() {
+        let toml = r#"
+[rlm]
+model = "claude-haiku-4-5-20251001"
+max_turns = 30
+max_context_tokens = 80000
+compaction_threshold = 0.6
+max_compactions = 5
+max_total_tokens = 200000
+compaction_model = "claude-haiku-4-5-20251001"
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let rlm = config.rlm.as_ref().unwrap();
+        assert_eq!(rlm.model.as_deref(), Some("claude-haiku-4-5-20251001"));
+        assert_eq!(rlm.max_turns, Some(30));
+        assert_eq!(rlm.max_context_tokens, Some(80000));
+        assert_eq!(rlm.compaction_threshold, Some(0.6));
+        assert_eq!(rlm.max_compactions, Some(5));
+        assert_eq!(rlm.max_total_tokens, Some(200000));
+        assert_eq!(
+            rlm.compaction_model.as_deref(),
+            Some("claude-haiku-4-5-20251001")
+        );
+    }
+
+    #[test]
+    fn test_rlm_config_defaults() {
+        let toml = r#"
+[rlm]
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let rlm = config.rlm.as_ref().unwrap();
+        assert!(rlm.model.is_none());
+        assert!(rlm.max_turns.is_none());
+        assert!(rlm.max_context_tokens.is_none());
+        assert!(rlm.compaction_threshold.is_none());
+        assert!(rlm.max_compactions.is_none());
+        assert!(rlm.max_total_tokens.is_none());
+        assert!(rlm.compaction_model.is_none());
+    }
+
+    #[test]
+    fn test_rlm_config_partial() {
+        let toml = r#"
+[rlm]
+max_turns = 10
+compaction_threshold = 0.5
+"#;
+        let config = ArawnConfig::from_toml(toml).unwrap();
+        let rlm = config.rlm.as_ref().unwrap();
+        assert_eq!(rlm.max_turns, Some(10));
+        assert_eq!(rlm.compaction_threshold, Some(0.5));
+        assert!(rlm.model.is_none());
+        assert!(rlm.max_context_tokens.is_none());
+    }
+
+    #[test]
+    fn test_rlm_config_absent() {
+        let config = ArawnConfig::new();
+        assert!(config.rlm.is_none());
+    }
+
+    #[test]
+    fn test_rlm_config_merge() {
+        let base_toml = r#"
+[rlm]
+max_turns = 20
+model = "base-model"
+"#;
+        let override_toml = r#"
+[rlm]
+max_turns = 50
+compaction_threshold = 0.8
+"#;
+        let mut base = ArawnConfig::from_toml(base_toml).unwrap();
+        let over = ArawnConfig::from_toml(override_toml).unwrap();
+        base.merge(over);
+
+        let rlm = base.rlm.as_ref().unwrap();
+        // Override replaces entire section
+        assert_eq!(rlm.max_turns, Some(50));
+        assert_eq!(rlm.compaction_threshold, Some(0.8));
+        // Note: merge replaces the whole Option, so base-only fields are lost
+        // This is consistent with how other config sections merge
     }
 }

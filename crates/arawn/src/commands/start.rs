@@ -974,6 +974,48 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
             None
         };
 
+    // ── Explore tool (RLM exploration agent) ────────────────────────────────
+
+    {
+        use arawn_agent::{ExploreTool, RlmConfig, RlmSpawner};
+
+        let mut rlm_config = RlmConfig::default();
+
+        // Apply [rlm] config overrides from arawn.toml
+        if let Some(ref rlm_toml) = config.rlm {
+            if let Some(ref model) = rlm_toml.model {
+                rlm_config.model = model.clone();
+            }
+            if let Some(max_turns) = rlm_toml.max_turns {
+                rlm_config.max_turns = max_turns;
+            }
+            if let Some(max_ctx) = rlm_toml.max_context_tokens {
+                rlm_config.max_context_tokens = max_ctx;
+            }
+            if let Some(threshold) = rlm_toml.compaction_threshold {
+                rlm_config.compaction_threshold = threshold;
+            }
+            if let Some(max_c) = rlm_toml.max_compactions {
+                rlm_config.max_compactions = max_c;
+            }
+            if let Some(max_t) = rlm_toml.max_total_tokens {
+                rlm_config.max_total_tokens = Some(max_t);
+            }
+            if let Some(ref c_model) = rlm_toml.compaction_model {
+                rlm_config.compaction_model = Some(c_model.clone());
+            }
+        }
+
+        let spawner =
+            RlmSpawner::new(backend.clone(), tool_registry.clone()).with_config(rlm_config);
+
+        tool_registry.register(ExploreTool::new(Arc::new(spawner)));
+
+        if ctx.verbose {
+            println!("Explore tool: RLM exploration agent registered");
+        }
+    }
+
     // ── Delegate tool (subagent delegation) ────────────────────────────────
 
     // Create delegate tool if any plugin agents are defined

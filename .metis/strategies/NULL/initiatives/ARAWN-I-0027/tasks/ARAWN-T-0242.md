@@ -4,14 +4,14 @@ level: task
 title: "Implement ExploreTool"
 short_code: "ARAWN-T-0242"
 created_at: 2026-03-01T16:27:47.805659+00:00
-updated_at: 2026-03-01T19:22:51.015404+00:00
+updated_at: 2026-03-01T19:34:01.805710+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Implement the `explore` tool that the main agent calls to trigger RLM exploration. This is a standard `Tool` trait implementation that wraps `RlmSpawner` and formats the result for injection into the main agent's context.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
