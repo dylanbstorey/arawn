@@ -34,6 +34,7 @@ pub mod context;
 pub mod error;
 pub mod indexing;
 pub mod mcp;
+pub mod orchestrator;
 pub mod prompt;
 pub mod stream;
 pub mod tool;
@@ -69,6 +70,11 @@ pub use agent::{Agent, AgentBuilder, RecallConfig};
 pub use compaction::{
     CancellationToken, CompactionProgress, CompactionResult, CompactorConfig, ProgressCallback,
     SessionCompactor,
+};
+
+// Re-export orchestrator types
+pub use orchestrator::{
+    CompactionOrchestrator, OrchestrationMetadata, OrchestrationResult, OrchestratorConfig,
 };
 
 // Re-export context types
