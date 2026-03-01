@@ -4,14 +4,14 @@ level: task
 title: "Add RLM configuration section"
 short_code: "ARAWN-T-0243"
 created_at: 2026-03-01T16:27:48.806569+00:00
-updated_at: 2026-03-01T19:34:38.721645+00:00
+updated_at: 2026-03-01T19:54:48.244888+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Add an `[rlm]` configuration section to `arawn-config` so RLM behavior is configurable via `arawn.toml`. Wire the config through to `RlmSpawner` creation in `start.rs`.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

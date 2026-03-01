@@ -18,6 +18,9 @@
 mod prompt;
 pub mod types;
 
+#[cfg(test)]
+mod integration_tests;
+
 pub use prompt::RLM_SYSTEM_PROMPT;
 pub use types::{ExplorationMetadata, ExplorationResult, RlmConfig};
 

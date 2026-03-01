@@ -161,6 +161,7 @@ dependencies = [
 name = "arawn-agent"
 version = "0.1.0"
 dependencies = [
+ "arawn-config",
  "arawn-llm",
  "arawn-mcp",
  "arawn-memory",

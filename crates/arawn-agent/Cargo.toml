@@ -51,5 +51,6 @@ gliner = ["dep:gline-rs-vendored", "dep:orp"]
 
 [dev-dependencies]
 arawn-llm = { workspace = true, features = ["testing"] }
+arawn-config = { workspace = true }
 tempfile = "3.10"
 serial_test = "3.2"
