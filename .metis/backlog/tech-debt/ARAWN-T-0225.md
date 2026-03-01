@@ -4,15 +4,15 @@ level: task
 title: "LOW priority codebase cleanup — dead code, hardcoded values, incomplete implementations"
 short_code: "ARAWN-T-0225"
 created_at: 2026-02-25T14:20:21.580871+00:00
-updated_at: 2026-02-25T14:20:21.580871+00:00
+updated_at: 2026-03-01T14:01:48.641217+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -38,6 +38,12 @@ Address 19 remaining findings from the 2026-02-25 codebase audit (re-audited 202
 - **Current Problems**: Mock types in production builds, blanket `#[allow(dead_code)]` hiding dead methods, stale version strings in User-Agent/OpenAPI, duplicated magic numbers across 4+ files, health check that can't detect memory store failures.
 - **Benefits of Fixing**: Smaller production binaries (mock types removed), accurate version reporting, single source of truth for thresholds/defaults, health endpoint that actually validates system components.
 - **Risk Assessment**: Low — most changes are constant extraction or cfg-gating. I2 (plugin CLI wiring) is the only item with moderate scope.
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

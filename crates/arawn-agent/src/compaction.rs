@@ -42,6 +42,8 @@ pub struct CompactorConfig {
     pub max_summary_tokens: u32,
     /// Number of recent turns to preserve verbatim.
     pub preserve_recent: usize,
+    /// Custom summary prompt. When `None`, uses the default `MID_SESSION_SUMMARY_PROMPT`.
+    pub summary_prompt: Option<String>,
 }
 
 impl Default for CompactorConfig {
@@ -50,6 +52,7 @@ impl Default for CompactorConfig {
             model: String::new(),
             max_summary_tokens: 1024,
             preserve_recent: DEFAULT_PRESERVE_RECENT,
+            summary_prompt: None,
         }
     }
 }
@@ -155,6 +158,16 @@ impl SessionCompactor {
     /// Set the number of recent turns to preserve.
     pub fn with_preserve_recent(mut self, count: usize) -> Self {
         self.config.preserve_recent = count;
+        self
+    }
+
+    /// Set a custom summary prompt for compaction.
+    ///
+    /// When set, this prompt is used instead of the default `MID_SESSION_SUMMARY_PROMPT`.
+    /// This allows different agent types (e.g., RLM exploration agents) to provide
+    /// domain-specific compaction strategies.
+    pub fn with_summary_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.config.summary_prompt = Some(prompt.into());
         self
     }
 
@@ -321,7 +334,12 @@ impl SessionCompactor {
             vec![Message::user(transcript)],
             self.config.max_summary_tokens,
         )
-        .with_system(MID_SESSION_SUMMARY_PROMPT);
+        .with_system(
+            self.config
+                .summary_prompt
+                .as_deref()
+                .unwrap_or(MID_SESSION_SUMMARY_PROMPT),
+        );
 
         let response =
             self.backend.complete(request).await.map_err(|e| {
@@ -480,6 +498,26 @@ mod tests {
         assert!(result.is_some());
         let result = result.unwrap();
         assert_eq!(result.turns_compacted, 3);
+    }
+
+    #[tokio::test]
+    async fn test_compact_custom_summary_prompt() {
+        let custom_prompt = "Summarize research findings, preserving sources and key facts.";
+        let backend = Arc::new(MockBackend::with_text("Research summary."));
+        let compactor = test_compactor(backend.clone()).with_summary_prompt(custom_prompt);
+
+        let session = create_test_session(6);
+        let result = compactor.compact(&session).await.unwrap();
+        assert!(result.is_some());
+
+        // Verify the custom prompt was passed to the LLM
+        let requests = backend.requests();
+        assert_eq!(requests.len(), 1);
+        let system = requests[0]
+            .system
+            .as_ref()
+            .expect("should have system prompt");
+        assert!(system.to_text().contains("research findings"));
     }
 
     #[tokio::test]

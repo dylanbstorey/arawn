@@ -7,7 +7,7 @@ created_at: 2026-01-31T04:43:26.744515+00:00
 updated_at: 2026-01-31T14:56:30.197222+00:00
 parent: 
 blocked_by: []
-archived: false
+archived: true
 
 tags:
   - "#task"
@@ -83,6 +83,8 @@ Single-line, pipe-delimited, marker-wrapped index:
 | Single-line format | Minimal context window consumption |
 | Marker-based injection | Idempotent updates without clobbering |
 | Version-specific fetch | Docs match project's actual dependency version |
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
