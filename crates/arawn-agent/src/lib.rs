@@ -108,6 +108,8 @@ pub use mcp::{
 
 // Re-export built-in tools
 pub use tools::{
+    // Explore tool
+    ExploreTool,
     // File tools
     FileReadTool,
     FileWriteTool,

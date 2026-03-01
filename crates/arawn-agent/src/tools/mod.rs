@@ -11,6 +11,7 @@
 
 mod catalog;
 mod delegate;
+mod explore;
 mod file;
 mod memory;
 mod note;
@@ -51,3 +52,6 @@ pub use catalog::CatalogTool;
 
 // Delegate tool
 pub use delegate::DelegateTool;
+
+// Explore tool
+pub use explore::ExploreTool;

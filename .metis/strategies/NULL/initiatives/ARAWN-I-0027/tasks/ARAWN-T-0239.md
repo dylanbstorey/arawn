@@ -4,14 +4,14 @@ level: task
 title: "Add read-only ToolRegistry filtering"
 short_code: "ARAWN-T-0239"
 created_at: 2026-03-01T16:27:45.717371+00:00
-updated_at: 2026-03-01T16:30:17.547508+00:00
+updated_at: 2026-03-01T16:33:00.341294+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/active"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,8 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Add a `filtered_by_names()` method to `ToolRegistry` that produces a new registry containing only the specified tools. The RLM exploration agent needs a restricted tool set (read-only tools only), and this is the mechanism to create it.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

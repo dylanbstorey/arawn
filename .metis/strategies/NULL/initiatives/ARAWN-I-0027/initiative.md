@@ -4,14 +4,14 @@ level: initiative
 title: "RLM Exploration Agent"
 short_code: "ARAWN-I-0027"
 created_at: 2026-02-16T16:55:11.109128+00:00
-updated_at: 2026-03-01T15:29:37.145330+00:00
+updated_at: 2026-03-01T16:27:40.966703+00:00
 parent: ARAWN-V-0001
 blocked_by: []
 archived: false
 
 tags:
   - "#initiative"
-  - "#phase/design"
+  - "#phase/decompose"
 
 
 exit_criteria_met: false

@@ -4,14 +4,14 @@ level: task
 title: "Build RLM module — RlmSpawner and types"
 short_code: "ARAWN-T-0241"
 created_at: 2026-03-01T16:27:47.024268+00:00
-updated_at: 2026-03-01T16:27:47.024268+00:00
+updated_at: 2026-03-01T19:22:27.967922+00:00
 parent: ARAWN-I-0027
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/todo"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -28,6 +28,10 @@ initiative_id: ARAWN-I-0027
 ## Objective
 
 Create the `arawn-agent/src/rlm/` module that ties together the compaction orchestrator, filtered tool registry, and RLM-specific configuration into a cohesive exploration API. This is the public interface that `ExploreTool` (T-0242) will call.
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -60,4 +64,19 @@ Create the `arawn-agent/src/rlm/` module that ties together the compaction orche
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1 — Implementation complete
+- Created `crates/arawn-agent/src/rlm/` module with 3 files:
+  - `mod.rs`: `RlmSpawner` struct with `explore()` method, `DEFAULT_READ_ONLY_TOOLS` constant
+  - `types.rs`: `RlmConfig`, `ExplorationResult`, `ExplorationMetadata`
+  - `prompt.rs`: `RLM_SYSTEM_PROMPT` constant (research-focused instructions)
+- `RlmSpawner::explore()` wires together:
+  - `ToolRegistry::filtered_by_names(DEFAULT_READ_ONLY_TOOLS)` for read-only access
+  - `Agent::builder()` with RLM system prompt, max_iterations=1, optional model/budget
+  - `CompactionOrchestrator` for explore→compact→continue cycles
+- Read-only tools: file_read, glob, grep, web_fetch, web_search, memory_search, think
+- Excluded (write/mutation): shell, file_write, delegate, note, workflow, catalog
+- Builder methods: `with_config()`, `with_compaction_backend()`
+- 6 tests: simple query, tool calls, tool filtering, custom config, metadata tokens, system prompt content
+- Added `pub mod rlm` and re-exports to `lib.rs`
+- `angreal check all` — clean (only pre-existing warnings)
+- `angreal test unit` — full suite passes
