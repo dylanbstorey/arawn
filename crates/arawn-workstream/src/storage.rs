@@ -118,6 +118,7 @@ pub trait MessageStorage: Send + Sync {
 }
 
 /// Mock implementation of WorkstreamStorage for testing.
+#[cfg(test)]
 #[derive(Debug, Default)]
 pub struct MockWorkstreamStorage {
     workstreams: std::sync::Mutex<std::collections::HashMap<String, Workstream>>,
@@ -125,6 +126,7 @@ pub struct MockWorkstreamStorage {
     tags: std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>,
 }
 
+#[cfg(test)]
 impl MockWorkstreamStorage {
     /// Create a new empty mock storage.
     pub fn new() -> Self {
@@ -132,6 +134,7 @@ impl MockWorkstreamStorage {
     }
 }
 
+#[cfg(test)]
 impl WorkstreamStorage for MockWorkstreamStorage {
     fn create_workstream(
         &self,
@@ -316,11 +319,13 @@ impl WorkstreamStorage for MockWorkstreamStorage {
 }
 
 /// Mock implementation of MessageStorage for testing.
+#[cfg(test)]
 #[derive(Debug, Default)]
 pub struct MockMessageStorage {
     messages: std::sync::Mutex<std::collections::HashMap<String, Vec<WorkstreamMessage>>>,
 }
 
+#[cfg(test)]
 impl MockMessageStorage {
     /// Create a new empty mock storage.
     pub fn new() -> Self {
@@ -328,6 +333,7 @@ impl MockMessageStorage {
     }
 }
 
+#[cfg(test)]
 impl MessageStorage for MockMessageStorage {
     fn append(
         &self,

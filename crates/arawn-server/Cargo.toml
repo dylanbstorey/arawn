@@ -44,7 +44,7 @@ utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
 arawn-agent = { workspace = true }
-arawn-llm = { workspace = true }
+arawn-llm = { workspace = true, features = ["testing"] }
 arawn-memory = { workspace = true }
 arawn-plugin = { workspace = true }
 reqwest = { workspace = true }

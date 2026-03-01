@@ -126,11 +126,13 @@ pub trait MemoryBackendExt: MemoryBackend {
 ///
 /// Stores memories in memory using a simple HashMap.
 /// Useful for unit tests that don't need persistence.
+#[cfg(test)]
 #[derive(Debug, Default)]
 pub struct MockMemoryBackend {
     memories: std::sync::Mutex<std::collections::HashMap<MemoryId, Memory>>,
 }
 
+#[cfg(test)]
 impl MockMemoryBackend {
     /// Create a new empty mock backend.
     pub fn new() -> Self {
@@ -153,6 +155,7 @@ impl MockMemoryBackend {
     }
 }
 
+#[cfg(test)]
 impl MemoryBackend for MockMemoryBackend {
     fn insert(&self, memory: &Memory) -> Result<()> {
         let mut map = self.memories.lock().unwrap();
@@ -229,6 +232,7 @@ impl MemoryBackend for MockMemoryBackend {
     }
 }
 
+#[cfg(test)]
 impl MemoryBackendExt for MockMemoryBackend {}
 
 #[cfg(test)]

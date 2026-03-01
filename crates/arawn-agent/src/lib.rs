@@ -48,7 +48,7 @@ pub use types::{
 };
 
 // Re-export tool types
-pub use tool::{MockTool, Tool, ToolContext, ToolRegistry, ToolResult};
+pub use tool::{Tool, ToolContext, ToolRegistry, ToolResult};
 
 // Re-export parameter validation types
 pub use tool::{

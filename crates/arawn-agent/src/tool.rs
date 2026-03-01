@@ -1224,6 +1224,7 @@ impl std::fmt::Debug for ToolRegistry {
 /// A mock tool for testing.
 ///
 /// Returns configurable responses and tracks calls for verification.
+#[cfg(test)]
 #[derive(Debug)]
 pub struct MockTool {
     name: String,
@@ -1233,6 +1234,7 @@ pub struct MockTool {
     calls: std::sync::Mutex<Vec<serde_json::Value>>,
 }
 
+#[cfg(test)]
 impl MockTool {
     /// Create a new mock tool.
     pub fn new(name: impl Into<String>) -> Self {
@@ -1282,6 +1284,7 @@ impl MockTool {
     }
 }
 
+#[cfg(test)]
 #[async_trait]
 impl Tool for MockTool {
     fn name(&self) -> &str {

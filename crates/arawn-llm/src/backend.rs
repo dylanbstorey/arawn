@@ -9,7 +9,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::error::{LlmError, ResponseValidationError, Result, is_retryable};
+#[cfg(any(test, feature = "testing"))]
+use crate::error::LlmError;
+use crate::error::{ResponseValidationError, Result, is_retryable};
 use crate::types::{
     CompletionRequest, CompletionResponse, ContentBlock, StopReason, ToolDefinition, Usage,
 };
@@ -334,12 +336,11 @@ pub fn default_format_tool_result(tool_use_id: &str, content: &str, is_error: bo
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock Backend
+// Mock Backend (test-only; enable via `testing` feature for cross-crate use)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A mock backend for testing purposes.
-///
 /// A response or error that can be returned by MockBackend.
+#[cfg(any(test, feature = "testing"))]
 #[derive(Debug, Clone)]
 pub enum MockResponse {
     /// A successful response.
@@ -348,6 +349,7 @@ pub enum MockResponse {
     Error(String),
 }
 
+#[cfg(any(test, feature = "testing"))]
 impl From<CompletionResponse> for MockResponse {
     fn from(response: CompletionResponse) -> Self {
         MockResponse::Success(response)
@@ -356,6 +358,7 @@ impl From<CompletionResponse> for MockResponse {
 
 /// Returns pre-configured responses in order, useful for deterministic testing
 /// of the agent loop and tool execution.
+#[cfg(any(test, feature = "testing"))]
 #[derive(Debug)]
 pub struct MockBackend {
     name: String,
@@ -363,6 +366,7 @@ pub struct MockBackend {
     request_log: std::sync::Mutex<Vec<CompletionRequest>>,
 }
 
+#[cfg(any(test, feature = "testing"))]
 impl MockBackend {
     /// Create a new mock backend with the given responses.
     ///
@@ -414,6 +418,7 @@ impl MockBackend {
     }
 }
 
+#[cfg(any(test, feature = "testing"))]
 #[async_trait]
 impl LlmBackend for MockBackend {
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse> {

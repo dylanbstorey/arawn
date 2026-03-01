@@ -3,9 +3,6 @@
 //! This module provides a client for interacting with the Arawn server's
 //! REST API and WebSocket endpoints.
 
-// Allow unused items - this is a client API where not all methods are used yet
-#![allow(dead_code)]
-
 use anyhow::Result;
 use futures::{SinkExt, Stream, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -19,6 +16,7 @@ use url::Url;
 
 /// Health check response from the server.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields used by serde deserialization
 pub struct HealthResponse {
     pub status: String,
     pub version: String,
@@ -39,6 +37,7 @@ pub struct MemoryResult {
 
 /// Memory search response.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Fields used by serde deserialization
 pub struct MemorySearchResponse {
     pub results: Vec<MemoryResult>,
     #[serde(default)]
@@ -66,16 +65,9 @@ struct CreateNoteRequest {
     content: String,
 }
 
-/// Chat request.
-#[derive(Debug, Serialize)]
-pub struct ChatRequest {
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session_id: Option<String>,
-}
-
 /// Session info.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Used by list_sessions/delete_session (not yet wired to CLI)
 pub struct SessionInfo {
     pub id: String,
     pub created_at: String,
@@ -84,12 +76,14 @@ pub struct SessionInfo {
 
 /// Session list response.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Used by list_sessions (not yet wired to CLI)
 pub struct SessionListResponse {
     pub sessions: Vec<SessionInfo>,
 }
 
 /// Notes list response.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Pagination fields used by serde deserialization
 pub struct NotesResponse {
     pub notes: Vec<Note>,
     #[serde(default)]
@@ -107,6 +101,7 @@ pub struct NotesResponse {
 /// Messages sent to the server via WebSocket.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)] // Variants serialized by serde
 enum WsClientMessage {
     Auth {
         token: String,
@@ -121,6 +116,7 @@ enum WsClientMessage {
 /// Messages received from the server via WebSocket.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(dead_code)] // Fields matched via destructuring; exist for serde protocol fidelity
 pub enum WsServerMessage {
     AuthResult {
         success: bool,
@@ -157,6 +153,7 @@ pub enum WsServerMessage {
 
 /// Events from streaming chat responses.
 #[derive(Debug)]
+#[allow(dead_code)] // Fields consumed via pattern matching in ChatStream
 pub enum ChatEvent {
     /// Text chunk from the response.
     Text(String),
@@ -176,7 +173,8 @@ pub struct ChatStream {
 }
 
 impl ChatStream {
-    /// Get the next event from the stream.
+    /// Get the next event from the stream (simplified text-only).
+    #[allow(dead_code)] // Public API not yet called; next_event() used instead
     pub async fn next(&mut self) -> Option<Result<String>> {
         match self.receiver.next().await {
             Some(Ok(ChatEvent::Text(text))) => Some(Ok(text)),
@@ -221,17 +219,6 @@ impl Client {
             base_url,
             http: reqwest::Client::new(),
             token,
-        })
-    }
-
-    /// Create a client with a specific token.
-    pub fn with_token(base_url: &str, token: String) -> Result<Self> {
-        let base_url = Url::parse(base_url)?;
-
-        Ok(Self {
-            base_url,
-            http: reqwest::Client::new(),
-            token: Some(token),
         })
     }
 
@@ -353,36 +340,6 @@ impl Client {
         Ok(ChatStream {
             receiver: Box::pin(stream),
         })
-    }
-
-    /// Send a chat message via HTTP (non-streaming).
-    pub async fn chat(&self, message: &str, session_id: Option<&str>) -> Result<String> {
-        let url = self.base_url.join("/api/v1/chat")?;
-
-        let mut request = self.http.post(url).json(&ChatRequest {
-            message: message.to_string(),
-            session_id: session_id.map(String::from),
-        });
-
-        if let Some(ref token) = self.token {
-            request = request.bearer_auth(token);
-        }
-
-        let response = request.send().await?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response.text().await.unwrap_or_default();
-            anyhow::bail!("Server returned error {}: {}", status, body);
-        }
-
-        #[derive(Deserialize)]
-        struct ChatResponse {
-            response: String,
-        }
-
-        let chat_response: ChatResponse = response.json().await?;
-        Ok(chat_response.response)
     }
 
     /// Search memories.
@@ -532,6 +489,7 @@ impl Client {
     }
 
     /// List sessions.
+    #[allow(dead_code)] // Not yet wired to CLI command
     pub async fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
         let url = self.base_url.join("/api/v1/sessions")?;
 
@@ -552,6 +510,7 @@ impl Client {
     }
 
     /// Delete a session.
+    #[allow(dead_code)] // Not yet wired to CLI command
     pub async fn delete_session(&self, session_id: &str) -> Result<()> {
         let url = self
             .base_url
@@ -585,12 +544,6 @@ mod tests {
     fn test_client_creation() {
         let client = Client::new("http://localhost:8080").unwrap();
         assert!(client.token.is_none());
-    }
-
-    #[test]
-    fn test_client_with_token() {
-        let client = Client::with_token("http://localhost:8080", "test-token".to_string()).unwrap();
-        assert_eq!(client.token, Some("test-token".to_string()));
     }
 
     #[test]

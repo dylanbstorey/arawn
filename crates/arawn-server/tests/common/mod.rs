@@ -101,16 +101,6 @@ impl TestServer {
         })
     }
 
-    /// Start a test server with memory store.
-    /// Note: Currently uses the same setup as start() since Agent doesn't
-    /// expose memory_store configuration through the builder API yet.
-    #[allow(dead_code)]
-    pub async fn start_with_memory() -> Result<Self> {
-        // For now, just delegate to start() - memory integration
-        // will be added when Agent exposes memory_store in builder
-        Self::start().await
-    }
-
     /// Get the base URL for the server.
     pub fn base_url(&self) -> String {
         format!("http://{}", self.addr)
@@ -131,7 +121,6 @@ impl TestServer {
     }
 
     /// Get an authenticated DELETE request builder.
-    #[allow(dead_code)]
     pub fn delete(&self, path: &str) -> reqwest::RequestBuilder {
         self.client
             .delete(format!("{}{}", self.base_url(), path))

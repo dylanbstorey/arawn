@@ -10,6 +10,8 @@ description = "LLM client abstraction for Arawn with multi-provider support"
 default = []
 # Enable local embeddings via ONNX Runtime
 local-embeddings = ["ort", "tokenizers", "ndarray"]
+# Expose mock types for use in downstream test code
+testing = []
 
 [dependencies]
 arawn-types = { workspace = true }

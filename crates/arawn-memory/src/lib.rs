@@ -64,7 +64,9 @@ pub mod validation;
 pub mod vector;
 
 // Re-export backend traits
-pub use backend::{MemoryBackend, MemoryBackendExt, MockMemoryBackend};
+#[cfg(test)]
+pub use backend::MockMemoryBackend;
+pub use backend::{MemoryBackend, MemoryBackendExt};
 
 // Re-export error types
 pub use error::{MemoryError, Result};

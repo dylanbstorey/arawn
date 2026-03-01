@@ -254,8 +254,6 @@ struct ApiResponse {
     id: String,
     #[serde(rename = "type")]
     response_type: String,
-    #[allow(dead_code)]
-    role: String,
     content: Vec<ApiContentBlock>,
     model: String,
     stop_reason: Option<String>,
@@ -334,9 +332,6 @@ struct ApiError {
 
 #[derive(Debug, serde::Deserialize)]
 struct ApiErrorDetail {
-    #[serde(rename = "type")]
-    #[allow(dead_code)]
-    error_type: String,
     message: String,
 }
 
@@ -579,9 +574,6 @@ struct StreamErrorEvent {
 
 #[derive(Debug, serde::Deserialize)]
 struct StreamErrorDetail {
-    #[serde(rename = "type")]
-    #[allow(dead_code)]
-    error_type: String,
     message: String,
 }
 
@@ -631,7 +623,6 @@ mod tests {
         let api_response = ApiResponse {
             id: "msg_123".to_string(),
             response_type: "message".to_string(),
-            role: "assistant".to_string(),
             content: vec![ApiContentBlock::Text {
                 text: "Hello!".to_string(),
             }],
@@ -658,7 +649,6 @@ mod tests {
         let api_response = ApiResponse {
             id: "msg_456".to_string(),
             response_type: "message".to_string(),
-            role: "assistant".to_string(),
             content: vec![
                 ApiContentBlock::Text {
                     text: "Let me check.".to_string(),

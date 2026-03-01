@@ -43,5 +43,6 @@ tokio = { workspace = true }
 arawn-llm = { workspace = true }
 
 [dev-dependencies]
+arawn-llm = { workspace = true, features = ["testing"] }
 tempfile = "3"
 proptest = "1.4"

@@ -33,9 +33,9 @@ pub mod types;
 pub mod anthropic;
 pub mod openai;
 
-pub use backend::{
-    ContentDelta, LlmBackend, MockBackend, MockResponse, ResponseStream, SharedBackend, StreamEvent,
-};
+pub use backend::{ContentDelta, LlmBackend, ResponseStream, SharedBackend, StreamEvent};
+#[cfg(any(test, feature = "testing"))]
+pub use backend::{MockBackend, MockResponse};
 pub use error::{LlmError, ResponseValidationError, Result};
 pub use types::{
     CacheControl, CompletionRequest, CompletionResponse, Content, ContentBlock, Message, Role,

@@ -320,7 +320,7 @@ When to think:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MockTool;
+    use crate::tool::MockTool;
 
     #[test]
     fn test_builder_default_empty() {

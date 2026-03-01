@@ -26,4 +26,5 @@ notify-debouncer-mini = "0.5"
 regex = "1"
 
 [dev-dependencies]
+arawn-llm = { workspace = true, features = ["testing"] }
 tempfile = "3.10"

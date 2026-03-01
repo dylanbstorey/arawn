@@ -35,7 +35,9 @@ pub use session_loader::{
     ReconstructedSession, ReconstructedToolCall, ReconstructedToolResult, ReconstructedTurn,
     SessionLoader, ToolResultMetadata, ToolUseMetadata,
 };
-pub use storage::{MessageStorage, MockMessageStorage, MockWorkstreamStorage, WorkstreamStorage};
+pub use storage::{MessageStorage, WorkstreamStorage};
+#[cfg(test)]
+pub use storage::{MockMessageStorage, MockWorkstreamStorage};
 pub use store::WorkstreamStore;
 pub use types::{MessageRole, WorkstreamMessage};
 pub use watcher::{
