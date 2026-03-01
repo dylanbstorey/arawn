@@ -119,7 +119,7 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "arawn"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "arawn-agent",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-agent"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-config",
  "arawn-llm",
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-client"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "eventsource-stream",
  "futures",
@@ -213,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-config"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-types",
  "dirs 6.0.0",
@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-domain"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-agent",
  "arawn-llm",
@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-llm"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-types",
  "async-trait",
@@ -267,7 +267,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-mcp"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-memory"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-types",
  "chrono",
@@ -302,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-oauth"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -325,7 +325,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-pipeline"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "arawn-config",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-plugin"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-agent",
  "arawn-config",
@@ -375,7 +375,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-sandbox"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "dirs 6.0.0",
  "sandbox-runtime",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-script-sdk"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "regex",
  "serde",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-server"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "arawn-agent",
@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-session"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "lru",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-tui"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "arawn-client",
@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-types"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "serde",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "arawn-workstream"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "arawn-llm",
  "chrono",

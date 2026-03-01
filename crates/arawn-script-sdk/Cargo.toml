@@ -1,6 +1,6 @@
 [package]
 name = "arawn-script-sdk"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 license = "MIT"
 description = "Pre-compiled SDK for agent-generated Rust scripts running in the Arawn WASM sandbox"
