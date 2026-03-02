@@ -98,13 +98,18 @@ impl ChatService {
     /// 2. Returns the response
     ///
     /// Note: Session persistence is handled separately via the workstream manager.
-    pub async fn turn(&self, session: &mut Session, message: &str) -> Result<ChatResponse> {
+    pub async fn turn(
+        &self,
+        session: &mut Session,
+        message: &str,
+        workstream_id: Option<&str>,
+    ) -> Result<ChatResponse> {
         let session_id = session.id;
 
         debug!(session_id = %session_id, message_len = message.len(), "Executing chat turn");
 
         // Execute the agent turn
-        let response = self.agent.turn(session, message).await?;
+        let response = self.agent.turn(session, message, workstream_id).await?;
 
         // Build response
         let chat_response = self.build_response(session_id, &response);
@@ -236,7 +241,7 @@ mod tests {
         let chat = ChatService::new(agent, None, None, None);
 
         let mut session = Session::new();
-        let response = chat.turn(&mut session, "Hello").await.unwrap();
+        let response = chat.turn(&mut session, "Hello", None).await.unwrap();
 
         assert_eq!(response.session_id, session.id);
         assert!(!response.response.is_empty());

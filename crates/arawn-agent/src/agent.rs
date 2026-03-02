@@ -12,7 +12,7 @@ use arawn_llm::{
     interaction_log::{InteractionLogger, InteractionRecord},
 };
 use arawn_memory::store::{MemoryStore, RecallQuery};
-use arawn_types::{HookOutcome, SharedHookDispatcher};
+use arawn_types::{FsGateResolver, HookOutcome, SharedHookDispatcher, SharedSecretResolver};
 use tokio_util::sync::CancellationToken;
 
 use crate::stream::{AgentStream, create_turn_stream};
@@ -72,6 +72,10 @@ pub struct Agent {
     recall_config: RecallConfig,
     /// Optional hook dispatcher for plugin lifecycle events.
     hook_dispatcher: Option<SharedHookDispatcher>,
+    /// Optional resolver for filesystem access gates.
+    fs_gate_resolver: Option<FsGateResolver>,
+    /// Optional secret resolver for `${{secrets.*}}` handle resolution.
+    secret_resolver: Option<SharedSecretResolver>,
 }
 
 impl Agent {
@@ -86,6 +90,8 @@ impl Agent {
             embedder: None,
             recall_config: RecallConfig::default(),
             hook_dispatcher: None,
+            fs_gate_resolver: None,
+            secret_resolver: None,
         }
     }
 
@@ -113,7 +119,12 @@ impl Agent {
     ///
     /// Takes a user message, potentially executes multiple tool calls,
     /// and returns the final response.
-    pub async fn turn(&self, session: &mut Session, user_message: &str) -> Result<AgentResponse> {
+    pub async fn turn(
+        &self,
+        session: &mut Session,
+        user_message: &str,
+        workstream_id: Option<&str>,
+    ) -> Result<AgentResponse> {
         // Start a new turn
         let turn = session.start_turn(user_message);
         let turn_id = turn.id;
@@ -283,8 +294,9 @@ impl Agent {
                 );
 
                 // Execute tools
-                let (tool_calls, tool_results) =
-                    self.execute_tools(&response, session_id, turn_id).await?;
+                let (tool_calls, tool_results) = self
+                    .execute_tools(&response, session_id, turn_id, workstream_id)
+                    .await?;
 
                 // Record tool calls and results
                 all_tool_calls.extend(tool_calls.clone());
@@ -369,11 +381,18 @@ impl Agent {
         session: &mut Session,
         user_message: &str,
         cancellation: CancellationToken,
+        workstream_id: Option<&str>,
     ) -> AgentStream {
         // Start a new turn
         let turn = session.start_turn(user_message);
         let turn_id = turn.id;
         let session_id = session.id;
+
+        // Resolve filesystem gate for workstream sandbox enforcement
+        let fs_gate = match (&self.fs_gate_resolver, workstream_id) {
+            (Some(resolver), Some(ws_id)) => resolver(&session_id.to_string(), ws_id),
+            _ => None,
+        };
 
         // Build initial messages from session history
         let messages = self.build_messages(session);
@@ -386,6 +405,8 @@ impl Agent {
             session_id,
             turn_id,
             cancellation,
+            fs_gate,
+            self.secret_resolver.clone(),
         )
     }
 
@@ -547,11 +568,24 @@ impl Agent {
         response: &CompletionResponse,
         session_id: crate::types::SessionId,
         turn_id: crate::types::TurnId,
+        workstream_id: Option<&str>,
     ) -> Result<(Vec<ToolCall>, Vec<ToolResultRecord>)> {
         let mut tool_calls = Vec::new();
         let mut tool_results = Vec::new();
 
-        let ctx = ToolContext::new(session_id, turn_id);
+        let mut ctx = ToolContext::new(session_id, turn_id);
+
+        // Resolve filesystem gate for workstream sandbox enforcement
+        if let (Some(resolver), Some(ws_id)) = (&self.fs_gate_resolver, workstream_id)
+            && let Some(gate) = resolver(&session_id.to_string(), ws_id)
+        {
+            ctx.fs_gate = Some(gate);
+        }
+
+        // Attach secret resolver for ${{secrets.*}} handle resolution
+        if let Some(ref resolver) = self.secret_resolver {
+            ctx.secret_resolver = Some(Arc::clone(resolver));
+        }
 
         for tool_use in response.tool_uses() {
             let tool_call = ToolCall {
@@ -745,6 +779,8 @@ pub struct AgentBuilder {
     recall_config: RecallConfig,
     plugin_prompts: Vec<(String, String)>,
     hook_dispatcher: Option<SharedHookDispatcher>,
+    fs_gate_resolver: Option<FsGateResolver>,
+    secret_resolver: Option<SharedSecretResolver>,
 }
 
 impl AgentBuilder {
@@ -762,6 +798,8 @@ impl AgentBuilder {
             recall_config: RecallConfig::default(),
             plugin_prompts: Vec::new(),
             hook_dispatcher: None,
+            fs_gate_resolver: None,
+            secret_resolver: None,
         }
     }
 
@@ -1024,7 +1062,21 @@ impl AgentBuilder {
         agent.embedder = self.embedder;
         agent.recall_config = self.recall_config;
         agent.hook_dispatcher = self.hook_dispatcher;
+        agent.fs_gate_resolver = self.fs_gate_resolver;
+        agent.secret_resolver = self.secret_resolver;
         Ok(agent)
+    }
+
+    /// Set the filesystem gate resolver for workstream sandbox enforcement.
+    pub fn with_fs_gate_resolver(mut self, resolver: FsGateResolver) -> Self {
+        self.fs_gate_resolver = Some(resolver);
+        self
+    }
+
+    /// Set the secret resolver for `${{secrets.*}}` handle resolution in tool params.
+    pub fn with_secret_resolver(mut self, resolver: SharedSecretResolver) -> Self {
+        self.secret_resolver = Some(resolver);
+        self
     }
 }
 
@@ -1105,7 +1157,7 @@ mod tests {
         let agent = Agent::builder().with_backend(backend).build().unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Hi there").await.unwrap();
+        let response = agent.turn(&mut session, "Hi there", None).await.unwrap();
 
         assert_eq!(response.text, "Hello! How can I help?");
         assert!(response.tool_calls.is_empty());
@@ -1133,7 +1185,10 @@ mod tests {
             .unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Use the tool").await.unwrap();
+        let response = agent
+            .turn(&mut session, "Use the tool", None)
+            .await
+            .unwrap();
 
         assert_eq!(response.text, "Done! I used the tool.");
         assert_eq!(response.tool_calls.len(), 1);
@@ -1165,7 +1220,10 @@ mod tests {
             .unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Keep using tools").await.unwrap();
+        let response = agent
+            .turn(&mut session, "Keep using tools", None)
+            .await
+            .unwrap();
 
         assert!(response.truncated);
         assert_eq!(response.iterations, 6); // 5 + 1 that exceeded
@@ -1194,7 +1252,7 @@ mod tests {
             .unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Use tools").await.unwrap();
+        let response = agent.turn(&mut session, "Use tools", None).await.unwrap();
 
         assert!(response.truncated);
         // Budget exceeded on iteration 2 (60 tokens > 50 budget)
@@ -1212,7 +1270,7 @@ mod tests {
         assert!(agent.config().max_total_tokens.is_none());
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Hi").await.unwrap();
+        let response = agent.turn(&mut session, "Hi", None).await.unwrap();
 
         assert!(!response.truncated);
         assert_eq!(response.text, "Hello!");
@@ -1240,7 +1298,7 @@ mod tests {
 
         let mut session = Session::new();
         let response = agent
-            .turn(&mut session, "Try the failing tool")
+            .turn(&mut session, "Try the failing tool", None)
             .await
             .unwrap();
 
@@ -1264,7 +1322,10 @@ mod tests {
         let agent = Agent::builder().with_backend(backend).build().unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Use unknown tool").await.unwrap();
+        let response = agent
+            .turn(&mut session, "Use unknown tool", None)
+            .await
+            .unwrap();
 
         assert!(!response.tool_results[0].success);
         assert!(response.tool_results[0].content.contains("not found"));
@@ -1286,7 +1347,10 @@ mod tests {
         let agent = Agent::builder().with_backend(backend).build().unwrap();
 
         let mut session = Session::new();
-        let response = agent.turn(&mut session, "Read the file").await.unwrap();
+        let response = agent
+            .turn(&mut session, "Read the file", None)
+            .await
+            .unwrap();
 
         // Should succeed after retry
         assert_eq!(response.text, "I'll use the correct tool name.");
@@ -1311,7 +1375,10 @@ mod tests {
             .unwrap();
 
         let mut session = Session::new();
-        let result = agent.turn(&mut session, "Keep failing").await.unwrap();
+        let result = agent
+            .turn(&mut session, "Keep failing", None)
+            .await
+            .unwrap();
 
         // Should hit max iterations and return truncated response
         assert!(result.text.contains("truncated") || result.text.contains("max iterations"));
@@ -1328,11 +1395,14 @@ mod tests {
 
         let mut session = Session::new();
 
-        let r1 = agent.turn(&mut session, "Hi").await.unwrap();
+        let r1 = agent.turn(&mut session, "Hi", None).await.unwrap();
         assert_eq!(r1.text, "Hello!");
         assert_eq!(session.turn_count(), 1);
 
-        let r2 = agent.turn(&mut session, "How are you?").await.unwrap();
+        let r2 = agent
+            .turn(&mut session, "How are you?", None)
+            .await
+            .unwrap();
         assert_eq!(r2.text, "I'm doing great, thanks for asking!");
         assert_eq!(session.turn_count(), 2);
     }
@@ -1629,7 +1699,7 @@ mod tests {
 
             let mut session = Session::new();
             let response = agent
-                .turn(&mut session, "Tell me about Rust")
+                .turn(&mut session, "Tell me about Rust", None)
                 .await
                 .unwrap();
 
@@ -1659,7 +1729,7 @@ mod tests {
                 .unwrap();
 
             let mut session = Session::new();
-            let response = agent.turn(&mut session, "Hello").await.unwrap();
+            let response = agent.turn(&mut session, "Hello", None).await.unwrap();
             assert_eq!(response.text, "No memories found.");
         }
 
@@ -1677,7 +1747,7 @@ mod tests {
                 .unwrap();
 
             let mut session = Session::new();
-            let response = agent.turn(&mut session, "Hello").await.unwrap();
+            let response = agent.turn(&mut session, "Hello", None).await.unwrap();
             assert_eq!(response.text, "Recall disabled.");
         }
 
@@ -1696,7 +1766,7 @@ mod tests {
                 .unwrap();
 
             let mut session = Session::new();
-            let response = agent.turn(&mut session, "Hello").await.unwrap();
+            let response = agent.turn(&mut session, "Hello", None).await.unwrap();
             assert_eq!(response.text, "No embedder.");
         }
     }

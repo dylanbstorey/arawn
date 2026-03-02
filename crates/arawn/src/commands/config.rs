@@ -226,15 +226,15 @@ async fn cmd_set_secret(backend_str: &str) -> Result<()> {
         return Ok(());
     }
 
-    match arawn_config::secrets::store_in_keyring(&backend, api_key) {
+    match arawn_config::secrets::store_secret(&backend, api_key) {
         Ok(()) => {
             println!(
-                "✓ API key stored in system keyring for {}",
+                "API key stored in encrypted secret store for {}.",
                 backend.display_name()
             );
         }
         Err(e) => {
-            eprintln!("Failed to store in keyring: {}", e);
+            eprintln!("Failed to store secret: {}", e);
             eprintln!(
                 "Fallback: set the {} environment variable instead.",
                 backend.env_var()
@@ -248,15 +248,15 @@ async fn cmd_set_secret(backend_str: &str) -> Result<()> {
 async fn cmd_delete_secret(backend_str: &str) -> Result<()> {
     let backend = parse_backend(backend_str)?;
 
-    match arawn_config::secrets::delete_from_keyring(&backend) {
+    match arawn_config::secrets::delete_secret(&backend) {
         Ok(()) => {
             println!(
-                "✓ API key removed from keyring for {}",
+                "API key removed from encrypted secret store for {}.",
                 backend.display_name()
             );
         }
         Err(e) => {
-            eprintln!("Failed to delete from keyring: {}", e);
+            eprintln!("Failed to delete secret: {}", e);
         }
     }
 

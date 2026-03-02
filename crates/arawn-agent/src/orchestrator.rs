@@ -173,7 +173,10 @@ impl CompactionOrchestrator {
 
         loop {
             // Run a turn
-            let response = self.agent.turn(&mut session, &effective_query).await?;
+            let response = self
+                .agent
+                .turn(&mut session, &effective_query, None)
+                .await?;
 
             // Accumulate stats
             cumulative_input_tokens += response.usage.input_tokens;

@@ -478,7 +478,7 @@ impl SubagentSpawner for PluginSubagentSpawner {
         // Execute the agent turn
         let start = Instant::now();
 
-        match agent.turn(&mut session, task).await {
+        match agent.turn(&mut session, task, None).await {
             Ok(response) => {
                 let duration_ms = start.elapsed().as_millis() as u64;
                 let response_text = &response.text;
@@ -610,7 +610,7 @@ impl SubagentSpawner for PluginSubagentSpawner {
                 session.set_context_preamble(preamble);
             }
 
-            let result = agent.turn(&mut session, &task_owned).await;
+            let result = agent.turn(&mut session, &task_owned, None).await;
             let duration_ms = start.elapsed().as_millis() as u64;
 
             match result {

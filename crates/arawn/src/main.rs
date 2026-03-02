@@ -8,7 +8,9 @@ use clap::{Parser, Subcommand};
 mod client;
 mod commands;
 
-use commands::{agent, ask, auth, chat, config, mcp, memory, notes, plugin, start, status, tui};
+use commands::{
+    agent, ask, auth, chat, config, mcp, memory, notes, plugin, secrets, start, status, tui,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CLI Structure
@@ -74,6 +76,9 @@ pub enum Commands {
 
     /// MCP server management
     Mcp(mcp::McpArgs),
+
+    /// Manage encrypted secret store
+    Secrets(secrets::SecretsArgs),
 
     /// Launch Terminal UI
     Tui(tui::TuiArgs),
@@ -193,6 +198,7 @@ async fn main() -> Result<()> {
         Commands::Plugin(args) => plugin::run(args, &ctx).await,
         Commands::Agent(args) => agent::run(args, &ctx).await,
         Commands::Mcp(args) => mcp::run(args, &ctx).await,
+        Commands::Secrets(args) => secrets::run(args).await,
         Commands::Tui(args) => tui::run(args, &ctx).await,
     }
 }

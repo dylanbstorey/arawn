@@ -8,6 +8,7 @@ pub mod compression;
 pub mod context;
 pub mod directory;
 pub mod error;
+pub mod fs_gate;
 pub mod manager;
 pub mod message_store;
 pub mod path_validator;
@@ -26,6 +27,7 @@ pub use directory::{
     ManualCleanupResult, PromoteResult, SCRATCH_WORKSTREAM, SessionUsage, UsageStats,
 };
 pub use error::{Result, WorkstreamError};
+pub use fs_gate::WorkstreamFsGate;
 pub use manager::{WorkstreamConfig, WorkstreamManager};
 pub use message_store::MessageStore;
 pub use path_validator::{PathError, PathResult, PathValidator};

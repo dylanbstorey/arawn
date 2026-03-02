@@ -13,6 +13,8 @@ use arawn_llm::{
     CompletionRequest, ContentDelta, Message, SharedBackend, StreamEvent, ToolResultBlock,
 };
 
+use arawn_types::{SharedFsGate, SharedSecretResolver};
+
 use crate::tool::{ToolContext, ToolRegistry, ToolResult};
 use crate::types::{AgentConfig, SessionId, ToolCall, ToolResultRecord, TurnId};
 
@@ -129,12 +131,15 @@ struct StreamState {
     iterations: u32,
     tool_calls: Vec<ToolCall>,
     tool_results: Vec<ToolResultRecord>,
+    fs_gate: Option<SharedFsGate>,
+    secret_resolver: Option<SharedSecretResolver>,
 }
 
 /// Create a streaming response for an agent turn.
 ///
 /// This returns a stream that yields chunks as the agent processes the request,
 /// including text deltas, tool executions, and completion events.
+#[allow(clippy::too_many_arguments)]
 pub fn create_turn_stream(
     backend: SharedBackend,
     tools: Arc<ToolRegistry>,
@@ -143,6 +148,8 @@ pub fn create_turn_stream(
     session_id: SessionId,
     turn_id: TurnId,
     cancellation: CancellationToken,
+    fs_gate: Option<SharedFsGate>,
+    secret_resolver: Option<SharedSecretResolver>,
 ) -> AgentStream {
     let state = StreamState {
         backend,
@@ -155,6 +162,8 @@ pub fn create_turn_stream(
         iterations: 0,
         tool_calls: Vec::new(),
         tool_results: Vec::new(),
+        fs_gate,
+        secret_resolver,
     };
 
     Box::pin(async_stream::stream! {
@@ -258,11 +267,17 @@ pub fn create_turn_stream(
 
             // Check for tool use
             if response.has_tool_use() {
-                let ctx = ToolContext::with_cancellation(
+                let mut ctx = ToolContext::with_cancellation(
                     state.session_id,
                     state.turn_id,
                     state.cancellation.clone(),
                 );
+                if let Some(ref gate) = state.fs_gate {
+                    ctx.fs_gate = Some(Arc::clone(gate));
+                }
+                if let Some(ref resolver) = state.secret_resolver {
+                    ctx.secret_resolver = Some(Arc::clone(resolver));
+                }
 
                 // Execute tools
                 for tool_use in response.tool_uses() {

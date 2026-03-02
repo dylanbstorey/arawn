@@ -10,6 +10,7 @@ pub mod memory;
 pub mod notes;
 pub mod plugin;
 pub mod repl;
+pub mod secrets;
 pub mod start;
 pub mod status;
 pub mod tui;

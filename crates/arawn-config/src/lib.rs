@@ -4,7 +4,7 @@
 //! - Named LLM configurations (`[llm]`, `[llm.claude]`, `[llm.fast]`, etc.)
 //! - Cascading agent-to-LLM binding with fallback defaults
 //! - Config file layering (XDG user config + project-local overrides)
-//! - API key resolution (keyring → env var → config file)
+//! - API key resolution (age store → env var → config file)
 //!
 //! Client configuration (kubeconfig-style):
 //! - Named connection contexts (server + auth)
@@ -13,11 +13,13 @@
 //!
 //! See ADR ARAWN-A-0001 for architectural decisions.
 
+pub mod age_crypto;
 pub mod client;
 pub mod discovery;
 pub mod error;
 pub mod paths;
 pub mod resolver;
+pub mod secret_store;
 pub mod secrets;
 pub mod types;
 
@@ -34,4 +36,5 @@ pub use paths::{
     CleanupConfig as PathCleanupConfig, MonitoringConfig, PathConfig, UsageThresholds,
 };
 pub use resolver::{ResolvedFrom, ResolvedLlm, resolve_all_profiles, resolve_for_agent};
+pub use secret_store::{AgeSecretStore, SecretStoreError};
 pub use types::*;

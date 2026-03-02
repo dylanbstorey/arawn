@@ -147,7 +147,7 @@ pub async fn chat_handler(
     // Execute turn
     let response = state
         .agent()
-        .turn(&mut session, &request.message)
+        .turn(&mut session, &request.message, None)
         .await
         .map_err(ServerError::Agent)?;
 
@@ -264,7 +264,7 @@ pub async fn chat_stream_handler(
     let cancellation = CancellationToken::new();
     let stream = state
         .agent()
-        .turn_stream(&mut session, &request.message, cancellation);
+        .turn_stream(&mut session, &request.message, cancellation, None);
 
     // Note: Session state is updated as streaming progresses internally.
     // The session object is owned by the stream now.

@@ -1103,6 +1103,19 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         builder = builder.with_prompt_file(file);
     }
 
+    // Wire age-encrypted secret resolver for ${{secrets.*}} handle resolution
+    match arawn_config::AgeSecretStore::open_default() {
+        Ok(store) => {
+            builder = builder.with_secret_resolver(std::sync::Arc::new(store));
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to open secret store (handles will not resolve): {}",
+                e
+            );
+        }
+    }
+
     let agent = builder.build()?;
 
     // ── Session indexer ──────────────────────────────────────────────────

@@ -38,6 +38,13 @@ parking_lot = { workspace = true }
 
 # Async
 tokio = { workspace = true }
+async-trait = "0.1"
+
+# Shared types (FsGate trait)
+arawn-types = { workspace = true }
+
+# Sandbox (for shell command containment)
+arawn-sandbox = { workspace = true }
 
 # LLM (for compression)
 arawn-llm = { workspace = true }

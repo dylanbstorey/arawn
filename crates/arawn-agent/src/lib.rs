@@ -42,6 +42,11 @@ pub mod tool;
 pub mod tools;
 pub mod types;
 
+// Re-export filesystem gate (defined in arawn-types)
+pub use arawn_types::{
+    FsGate, FsGateError, FsGateResolver, GATED_TOOLS, SandboxOutput, SharedFsGate, is_gated_tool,
+};
+
 // Re-export core types
 pub use error::{AgentError, Result};
 pub use types::{
