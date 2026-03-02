@@ -262,14 +262,14 @@ impl Client {
             write.send(Message::Text(json.into())).await?;
 
             // Wait for auth response
-            if let Some(Ok(msg)) = read.next().await {
-                if let Message::Text(text) = msg {
-                    let response: WsServerMessage = serde_json::from_str(&text)?;
-                    if let WsServerMessage::AuthResult { success, error } = response {
-                        if !success {
-                            anyhow::bail!("Authentication failed: {}", error.unwrap_or_default());
-                        }
-                    }
+            if let Some(Ok(msg)) = read.next().await
+                && let Message::Text(text) = msg
+            {
+                let response: WsServerMessage = serde_json::from_str(&text)?;
+                if let WsServerMessage::AuthResult { success, error } = response
+                    && !success
+                {
+                    anyhow::bail!("Authentication failed: {}", error.unwrap_or_default());
                 }
             }
         }

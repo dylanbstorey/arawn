@@ -261,12 +261,11 @@ impl CatalogTool {
         }
 
         // Delete the .wasm file
-        if let Some(wasm_path) = catalog.resolve_path(name) {
-            if wasm_path.exists() {
-                if let Err(e) = std::fs::remove_file(&wasm_path) {
-                    return ToolResult::error(format!("Failed to delete WASM file: {e}"));
-                }
-            }
+        if let Some(wasm_path) = catalog.resolve_path(name)
+            && wasm_path.exists()
+            && let Err(e) = std::fs::remove_file(&wasm_path)
+        {
+            return ToolResult::error(format!("Failed to delete WASM file: {e}"));
         }
 
         match catalog.remove(name) {

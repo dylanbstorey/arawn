@@ -261,13 +261,14 @@ impl PipelineEngine {
     pub async fn new(db_path: &Path, config: PipelineConfig) -> Result<Self, PipelineError> {
         let db_url = format!("sqlite://{}", db_path.display());
 
-        let mut runner_config = DefaultRunnerConfig::default();
-        runner_config.max_concurrent_tasks = config.max_concurrent_tasks;
-        runner_config.task_timeout = std::time::Duration::from_secs(config.task_timeout_secs);
-        runner_config.pipeline_timeout =
-            Some(std::time::Duration::from_secs(config.pipeline_timeout_secs));
-        runner_config.enable_cron_scheduling = config.cron_enabled;
-        runner_config.enable_trigger_scheduling = config.triggers_enabled;
+        let runner_config = DefaultRunnerConfig {
+            max_concurrent_tasks: config.max_concurrent_tasks,
+            task_timeout: std::time::Duration::from_secs(config.task_timeout_secs),
+            pipeline_timeout: Some(std::time::Duration::from_secs(config.pipeline_timeout_secs)),
+            enable_cron_scheduling: config.cron_enabled,
+            enable_trigger_scheduling: config.triggers_enabled,
+            ..DefaultRunnerConfig::default()
+        };
 
         let runner = DefaultRunner::with_config(&db_url, runner_config)
             .await

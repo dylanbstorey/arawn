@@ -48,17 +48,16 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
     let token_manager = arawn_oauth::token_manager::create_token_manager(&data_dir);
 
     // Check if already authenticated
-    if token_manager.has_tokens() {
-        if let Ok(Some(info)) = token_manager.get_token_info().await {
-            if !info.is_expired {
-                println!(
-                    "Already authenticated (expires in {})",
-                    info.expires_in_display()
-                );
-                println!("Run 'arawn auth logout' first to re-authenticate.");
-                return Ok(());
-            }
-        }
+    if token_manager.has_tokens()
+        && let Ok(Some(info)) = token_manager.get_token_info().await
+        && !info.is_expired
+    {
+        println!(
+            "Already authenticated (expires in {})",
+            info.expires_in_display()
+        );
+        println!("Run 'arawn auth logout' first to re-authenticate.");
+        return Ok(());
     }
 
     // Start PKCE OAuth flow

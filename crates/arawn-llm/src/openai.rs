@@ -565,13 +565,13 @@ impl From<OpenAiChatResponse> for CompletionResponse {
             let mut blocks = Vec::new();
 
             // Add text content if present
-            if let Some(text) = c.message.content {
-                if !text.is_empty() {
-                    blocks.push(ContentBlock::Text {
-                        text,
-                        cache_control: None,
-                    });
-                }
+            if let Some(text) = c.message.content
+                && !text.is_empty()
+            {
+                blocks.push(ContentBlock::Text {
+                    text,
+                    cache_control: None,
+                });
             }
 
             // Add tool calls if present
@@ -706,33 +706,31 @@ fn parse_openai_sse_stream(
                             if let Some(choice) = chunk.choices.into_iter().next() {
                                 if let Some(delta) = choice.delta {
                                     // Text content
-                                    if let Some(content) = delta.content {
-                                        if !content.is_empty() {
-                                            return Some((
-                                                Ok(StreamEvent::ContentBlockDelta {
-                                                    index: 0,
-                                                    delta: ContentDelta::TextDelta(content),
-                                                }),
-                                                state,
-                                            ));
-                                        }
+                                    if let Some(content) = delta.content
+                                        && !content.is_empty()
+                                    {
+                                        return Some((
+                                            Ok(StreamEvent::ContentBlockDelta {
+                                                index: 0,
+                                                delta: ContentDelta::TextDelta(content),
+                                            }),
+                                            state,
+                                        ));
                                     }
 
                                     // Tool calls (streamed as partial JSON)
                                     if let Some(tool_calls) = delta.tool_calls {
                                         for tc in tool_calls {
-                                            if let Some(func) = tc.function {
-                                                if let Some(args) = func.arguments {
-                                                    return Some((
-                                                        Ok(StreamEvent::ContentBlockDelta {
-                                                            index: tc.index.unwrap_or(0),
-                                                            delta: ContentDelta::InputJsonDelta(
-                                                                args,
-                                                            ),
-                                                        }),
-                                                        state,
-                                                    ));
-                                                }
+                                            if let Some(func) = tc.function
+                                                && let Some(args) = func.arguments
+                                            {
+                                                return Some((
+                                                    Ok(StreamEvent::ContentBlockDelta {
+                                                        index: tc.index.unwrap_or(0),
+                                                        delta: ContentDelta::InputJsonDelta(args),
+                                                    }),
+                                                    state,
+                                                ));
                                             }
                                         }
                                     }

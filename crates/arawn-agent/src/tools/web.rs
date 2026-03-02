@@ -113,13 +113,11 @@ impl WebFetchTool {
         }
 
         // Fall back to body if no content areas found
-        if !found_content {
-            if let Ok(body_selector) = Selector::parse("body") {
-                for element in document.select(&body_selector) {
-                    // Skip script, style, nav, footer elements
-                    let text = element.text().collect::<Vec<_>>().join(" ");
-                    text_parts.push(text);
-                }
+        if !found_content && let Ok(body_selector) = Selector::parse("body") {
+            for element in document.select(&body_selector) {
+                // Skip script, style, nav, footer elements
+                let text = element.text().collect::<Vec<_>>().join(" ");
+                text_parts.push(text);
             }
         }
 
@@ -355,15 +353,14 @@ impl Tool for WebFetchTool {
             let path = Path::new(path_str);
 
             // Create parent directories if needed
-            if let Some(parent) = path.parent() {
-                if !parent.as_os_str().is_empty() {
-                    if let Err(e) = tokio::fs::create_dir_all(parent).await {
-                        return Ok(ToolResult::error(format!(
-                            "Failed to create directory: {}",
-                            e
-                        )));
-                    }
-                }
+            if let Some(parent) = path.parent()
+                && !parent.as_os_str().is_empty()
+                && let Err(e) = tokio::fs::create_dir_all(parent).await
+            {
+                return Ok(ToolResult::error(format!(
+                    "Failed to create directory: {}",
+                    e
+                )));
             }
 
             // Stream response body to file
@@ -465,13 +462,13 @@ impl Tool for WebFetchTool {
         // If we need to auto-download due to size, stream to temp file
         if let Some(temp_path) = auto_download_path {
             // Create parent directories
-            if let Some(parent) = temp_path.parent() {
-                if let Err(e) = tokio::fs::create_dir_all(parent).await {
-                    return Ok(ToolResult::error(format!(
-                        "Failed to create temp directory: {}",
-                        e
-                    )));
-                }
+            if let Some(parent) = temp_path.parent()
+                && let Err(e) = tokio::fs::create_dir_all(parent).await
+            {
+                return Ok(ToolResult::error(format!(
+                    "Failed to create temp directory: {}",
+                    e
+                )));
             }
 
             let mut file = match tokio::fs::File::create(&temp_path).await {
@@ -919,14 +916,14 @@ impl WebSearchTool {
         let mut results = Vec::new();
 
         // Add abstract if available
-        if let Some(abstract_text) = data["AbstractText"].as_str() {
-            if !abstract_text.is_empty() {
-                results.push(SearchResult {
-                    title: data["Heading"].as_str().unwrap_or("Result").to_string(),
-                    url: data["AbstractURL"].as_str().unwrap_or("").to_string(),
-                    snippet: abstract_text.to_string(),
-                });
-            }
+        if let Some(abstract_text) = data["AbstractText"].as_str()
+            && !abstract_text.is_empty()
+        {
+            results.push(SearchResult {
+                title: data["Heading"].as_str().unwrap_or("Result").to_string(),
+                url: data["AbstractURL"].as_str().unwrap_or("").to_string(),
+                snippet: abstract_text.to_string(),
+            });
         }
 
         // Add related topics

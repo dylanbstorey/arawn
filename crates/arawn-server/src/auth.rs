@@ -182,18 +182,18 @@ fn validate_request(request: &Request<Body>, state: &AppState) -> Result<Identit
     }
 
     // Try Tailscale header if configured
-    if let Some(allowed_users) = &state.config().tailscale_users {
-        if let Some(ts_header) = request.headers().get(TAILSCALE_USER_HEADER) {
-            let ts_user = ts_header.to_str().map_err(|_| AuthError::InvalidFormat)?;
+    if let Some(allowed_users) = &state.config().tailscale_users
+        && let Some(ts_header) = request.headers().get(TAILSCALE_USER_HEADER)
+    {
+        let ts_user = ts_header.to_str().map_err(|_| AuthError::InvalidFormat)?;
 
-            if allowed_users.iter().any(|u| u == ts_user) {
-                return Ok(Identity::Tailscale {
-                    user: ts_user.to_string(),
-                });
-            }
-
-            return Err(AuthError::TailscaleNotAllowed);
+        if allowed_users.iter().any(|u| u == ts_user) {
+            return Ok(Identity::Tailscale {
+                user: ts_user.to_string(),
+            });
         }
+
+        return Err(AuthError::TailscaleNotAllowed);
     }
 
     Err(AuthError::MissingToken)

@@ -113,10 +113,10 @@ pub fn resolve_for_agent(config: &ArawnConfig, agent_name: &str) -> Result<Resol
 pub fn resolve_all_profiles(config: &ArawnConfig) -> Vec<(String, Backend, String)> {
     let mut profiles = Vec::new();
 
-    if let Some(ref llm) = config.llm {
-        if let (Some(backend), Some(model)) = (llm.backend, &llm.model) {
-            profiles.push(("default".to_string(), backend, model.clone()));
-        }
+    if let Some(ref llm) = config.llm
+        && let (Some(backend), Some(model)) = (llm.backend, &llm.model)
+    {
+        profiles.push(("default".to_string(), backend, model.clone()));
     }
 
     for (name, llm) in &config.llm_profiles {
@@ -135,40 +135,44 @@ fn resolve_llm_config<'a>(
     agent_name: &str,
 ) -> Result<(&'a LlmConfig, ResolvedFrom)> {
     // 1. Agent-specific
-    if let Some(agent_cfg) = config.agent.get(agent_name) {
-        if let Some(ref llm_name) = agent_cfg.llm {
-            let llm = config.llm_profiles.get(llm_name.as_str()).ok_or_else(|| {
-                ConfigError::LlmNotFound {
+    if let Some(agent_cfg) = config.agent.get(agent_name)
+        && let Some(ref llm_name) = agent_cfg.llm
+    {
+        let llm =
+            config
+                .llm_profiles
+                .get(llm_name.as_str())
+                .ok_or_else(|| ConfigError::LlmNotFound {
                     name: llm_name.clone(),
                     context: format!("agent.{}", agent_name),
-                }
-            })?;
-            return Ok((
-                llm,
-                ResolvedFrom::AgentSpecific {
-                    agent: agent_name.to_string(),
-                    profile: llm_name.clone(),
-                },
-            ));
-        }
+                })?;
+        return Ok((
+            llm,
+            ResolvedFrom::AgentSpecific {
+                agent: agent_name.to_string(),
+                profile: llm_name.clone(),
+            },
+        ));
     }
 
     // 2. Agent default
-    if let Some(default_cfg) = config.agent.get("default") {
-        if let Some(ref llm_name) = default_cfg.llm {
-            let llm = config.llm_profiles.get(llm_name.as_str()).ok_or_else(|| {
-                ConfigError::LlmNotFound {
+    if let Some(default_cfg) = config.agent.get("default")
+        && let Some(ref llm_name) = default_cfg.llm
+    {
+        let llm =
+            config
+                .llm_profiles
+                .get(llm_name.as_str())
+                .ok_or_else(|| ConfigError::LlmNotFound {
                     name: llm_name.clone(),
                     context: "agent.default".to_string(),
-                }
-            })?;
-            return Ok((
-                llm,
-                ResolvedFrom::AgentDefault {
-                    profile: llm_name.clone(),
-                },
-            ));
-        }
+                })?;
+        return Ok((
+            llm,
+            ResolvedFrom::AgentDefault {
+                profile: llm_name.clone(),
+            },
+        ));
     }
 
     // 3. Global default

@@ -87,13 +87,11 @@ impl BootstrapContext {
                     Ok(content) => {
                         let (content, truncated) = truncate_content(&content, max_chars);
 
-                        if truncated {
-                            if let Some(ref mut warn) = warn_fn {
-                                warn(&format!(
-                                    "Bootstrap file '{}' exceeded {} chars and was truncated",
-                                    filename, max_chars
-                                ));
-                            }
+                        if truncated && let Some(ref mut warn) = warn_fn {
+                            warn(&format!(
+                                "Bootstrap file '{}' exceeded {} chars and was truncated",
+                                filename, max_chars
+                            ));
                         }
 
                         files.push(BootstrapFile {

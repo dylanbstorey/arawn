@@ -279,21 +279,17 @@ pub fn count_discovered_items(
 
         if full_path.is_file() {
             count += 1;
-        } else if full_path.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&full_path) {
-                for entry in entries.flatten() {
-                    let entry_path = entry.path();
-                    if pattern == "dir" && entry_path.is_dir() {
-                        count += 1;
-                    } else if pattern == "md"
-                        && entry_path.extension().map(|e| e == "md").unwrap_or(false)
-                    {
-                        count += 1;
-                    } else if pattern == "json"
-                        && entry_path.extension().map(|e| e == "json").unwrap_or(false)
-                    {
-                        count += 1;
-                    }
+        } else if full_path.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&full_path)
+        {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                let matches = match pattern {
+                    "dir" => entry_path.is_dir(),
+                    ext => entry_path.extension().map(|e| e == ext).unwrap_or(false),
+                };
+                if matches {
+                    count += 1;
                 }
             }
         }

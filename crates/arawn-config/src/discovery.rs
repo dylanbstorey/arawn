@@ -153,10 +153,10 @@ pub fn xdg_config_path() -> Option<PathBuf> {
 ///
 /// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to platform default.
 pub fn xdg_config_dir() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var(CONFIG_DIR_ENV) {
-        if !dir.is_empty() {
-            return Some(PathBuf::from(dir));
-        }
+    if let Ok(dir) = std::env::var(CONFIG_DIR_ENV)
+        && !dir.is_empty()
+    {
+        return Some(PathBuf::from(dir));
     }
     dirs::config_dir().map(|d| d.join(APP_NAME))
 }
@@ -194,15 +194,15 @@ fn load_layer(
 
 /// Check for plaintext API keys in the config and emit warnings.
 fn check_plaintext_keys(config: &ArawnConfig, warnings: &mut Vec<String>) {
-    if let Some(ref llm) = config.llm {
-        if llm.has_plaintext_api_key() {
-            warnings.push(
-                "Default [llm] config contains a plaintext API key. \
+    if let Some(ref llm) = config.llm
+        && llm.has_plaintext_api_key()
+    {
+        warnings.push(
+            "Default [llm] config contains a plaintext API key. \
                  Consider using the system keyring (arawn config set-secret) \
                  or an environment variable instead."
-                    .to_string(),
-            );
-        }
+                .to_string(),
+        );
     }
 
     for (name, llm) in &config.llm_profiles {

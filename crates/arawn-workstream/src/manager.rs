@@ -95,14 +95,14 @@ impl WorkstreamManager {
         std::fs::create_dir_all(self.message_store.workstream_dir(&ws.id))?;
 
         // Create production/work directories if directory manager is configured
-        if let Some(dm) = &self.directory_manager {
-            if let Err(e) = dm.create_workstream(&ws.id) {
-                tracing::warn!(
-                    workstream_id = %ws.id,
-                    error = %e,
-                    "Failed to create workstream directories (non-fatal)"
-                );
-            }
+        if let Some(dm) = &self.directory_manager
+            && let Err(e) = dm.create_workstream(&ws.id)
+        {
+            tracing::warn!(
+                workstream_id = %ws.id,
+                error = %e,
+                "Failed to create workstream directories (non-fatal)"
+            );
         }
 
         Ok(ws)

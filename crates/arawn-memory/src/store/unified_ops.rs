@@ -128,10 +128,10 @@ impl MemoryStore {
     /// Returns `true` if the memory was found and deleted.
     pub fn delete_cascade(&self, id: MemoryId) -> Result<bool> {
         // 1. Delete from graph if initialized
-        if let Some(graph) = &self.graph {
-            if let Err(e) = graph.delete_entity(&id.to_string()) {
-                debug!("Graph delete for {} failed (may not exist): {}", id, e);
-            }
+        if let Some(graph) = &self.graph
+            && let Err(e) = graph.delete_entity(&id.to_string())
+        {
+            debug!("Graph delete for {} failed (may not exist): {}", id, e);
         }
 
         // 2. Delete embedding if vectors initialized
@@ -157,37 +157,36 @@ impl MemoryStore {
         self.update_memory(memory)?;
 
         // 2. Update embedding if provided
-        if let Some(embedding) = &options.embedding {
-            if self.has_vectors() {
-                let conn = self.conn.lock().unwrap();
-                crate::vector::store_embedding(&conn, memory.id, embedding)?;
-            }
+        if let Some(embedding) = &options.embedding
+            && self.has_vectors()
+        {
+            let conn = self.conn.lock().unwrap();
+            crate::vector::store_embedding(&conn, memory.id, embedding)?;
         }
 
         // 3. Update graph if entities provided
-        if !options.entities.is_empty() {
-            if let Some(graph) = &self.graph {
-                let _ = graph.delete_entity(&memory.id.to_string());
+        if !options.entities.is_empty()
+            && let Some(graph) = &self.graph
+        {
+            let _ = graph.delete_entity(&memory.id.to_string());
 
-                let memory_node = GraphNode::new(memory.id.to_string(), "Memory")
-                    .with_property("content_type", memory.content_type.as_str());
-                graph.add_entity(&memory_node)?;
+            let memory_node = GraphNode::new(memory.id.to_string(), "Memory")
+                .with_property("content_type", memory.content_type.as_str());
+            graph.add_entity(&memory_node)?;
 
-                for entity_link in &options.entities {
-                    let mut entity_node =
-                        GraphNode::new(&entity_link.entity_id, &entity_link.label);
-                    for (key, value) in &entity_link.properties {
-                        entity_node = entity_node.with_property(key, value);
-                    }
-                    graph.add_entity(&entity_node)?;
-
-                    let rel = GraphRelationship::new(
-                        memory.id.to_string(),
-                        &entity_link.entity_id,
-                        entity_link.relationship,
-                    );
-                    graph.add_relationship(&rel)?;
+            for entity_link in &options.entities {
+                let mut entity_node = GraphNode::new(&entity_link.entity_id, &entity_link.label);
+                for (key, value) in &entity_link.properties {
+                    entity_node = entity_node.with_property(key, value);
                 }
+                graph.add_entity(&entity_node)?;
+
+                let rel = GraphRelationship::new(
+                    memory.id.to_string(),
+                    &entity_link.entity_id,
+                    entity_link.relationship,
+                );
+                graph.add_relationship(&rel)?;
             }
         }
 

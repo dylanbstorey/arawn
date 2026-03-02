@@ -93,9 +93,9 @@ impl Embedder for MockEmbedder {
 
         // Fill embedding with pseudo-random values based on hash
         let mut state = hash;
-        for i in 0..self.dimensions {
+        for item in embedding.iter_mut().take(self.dimensions) {
             state = state.wrapping_mul(1103515245).wrapping_add(12345);
-            embedding[i] = ((state >> 16) as f32 / 32768.0) - 1.0;
+            *item = ((state >> 16) as f32 / 32768.0) - 1.0;
         }
 
         // Normalize to unit length
@@ -683,6 +683,7 @@ pub async fn build_embedder(spec: &EmbedderSpec) -> Result<SharedEmbedder> {
 }
 
 /// Default directory for local embedding model files.
+#[allow(dead_code)]
 fn default_local_model_dir() -> Option<std::path::PathBuf> {
     dirs::data_dir().map(|d| d.join("arawn").join("models").join("embeddings"))
 }

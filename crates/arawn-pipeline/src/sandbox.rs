@@ -428,12 +428,11 @@ impl ScriptExecutor {
         // Grant filesystem capabilities
         for dir_path in &capabilities.filesystem {
             let path = Path::new(dir_path);
-            if path.is_dir() {
-                if let Err(e) =
+            if path.is_dir()
+                && let Err(e) =
                     wasi_builder.preopened_dir(path, dir_path, DirPerms::all(), FilePerms::all())
-                {
-                    warn!(path = %dir_path, error = %e, "Could not open preopened directory, skipping");
-                }
+            {
+                warn!(path = %dir_path, error = %e, "Could not open preopened directory, skipping");
             }
         }
 

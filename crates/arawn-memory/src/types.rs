@@ -84,7 +84,7 @@ impl ContentType {
     }
 
     /// Parse from database string.
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "user_message" => Some(Self::UserMessage),
             "assistant_message" => Some(Self::AssistantMessage),
@@ -850,7 +850,7 @@ mod tests {
             ContentType::Summary,
         ] {
             let s = ct.as_str();
-            let parsed = ContentType::from_str(s).unwrap();
+            let parsed = ContentType::parse(s).unwrap();
             assert_eq!(ct, parsed);
         }
     }

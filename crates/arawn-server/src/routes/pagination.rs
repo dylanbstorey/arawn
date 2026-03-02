@@ -35,7 +35,7 @@ impl Default for PaginationParams {
 impl PaginationParams {
     /// Get the effective limit, clamped to MAX_PAGE_SIZE.
     pub fn effective_limit(&self) -> usize {
-        self.limit.min(MAX_PAGE_SIZE).max(1)
+        self.limit.clamp(1, MAX_PAGE_SIZE)
     }
 
     /// Apply pagination to a slice, returning (paginated_items, total).

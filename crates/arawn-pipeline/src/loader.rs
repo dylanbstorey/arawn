@@ -29,6 +29,7 @@ pub enum WorkflowEvent {
 
 /// In-memory cache of loaded workflow definitions.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct LoadedWorkflow {
     definition: crate::definition::WorkflowDefinition,
     path: PathBuf,
@@ -177,6 +178,7 @@ impl WorkflowLoader {
     }
 
     /// Handle a file being removed.
+    #[allow(dead_code)]
     async fn remove_file(&self, path: &Path) -> Option<WorkflowEvent> {
         let path = self.normalize_path(path);
         let mut path_to_name = self.path_to_name.write().await;
@@ -300,10 +302,10 @@ impl WorkflowLoader {
                                 };
                                 loader.remove_file(&path).await
                             });
-                            if let Some(evt) = maybe_event {
-                                if let Err(e) = event_tx.blocking_send(evt) {
-                                    tracing::warn!("Failed to send workflow removal event: {e}");
-                                }
+                            if let Some(evt) = maybe_event
+                                && let Err(e) = event_tx.blocking_send(evt)
+                            {
+                                tracing::warn!("Failed to send workflow removal event: {e}");
                             }
                         }
                     }

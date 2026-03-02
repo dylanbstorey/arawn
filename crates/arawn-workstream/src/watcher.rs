@@ -345,10 +345,10 @@ fn find_workstream_for_path(
     // Fallback: extract workstream from path
     if let Ok(relative) = path.strip_prefix(workstreams_root) {
         let components: Vec<_> = relative.components().collect();
-        if !components.is_empty() {
-            if let Some(ws) = components[0].as_os_str().to_str() {
-                return Some(ws.to_string());
-            }
+        if !components.is_empty()
+            && let Some(ws) = components[0].as_os_str().to_str()
+        {
+            return Some(ws.to_string());
         }
     }
 

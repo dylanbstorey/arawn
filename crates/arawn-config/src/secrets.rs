@@ -56,13 +56,13 @@ pub fn resolve_api_key(backend: &Backend, config_value: Option<&str>) -> Option<
 
     // 2. Environment variable
     let env_var = backend.env_var();
-    if let Ok(value) = std::env::var(env_var) {
-        if !value.is_empty() {
-            return Some(ResolvedSecret {
-                value,
-                source: SecretSource::EnvVar(env_var.to_string()),
-            });
-        }
+    if let Ok(value) = std::env::var(env_var)
+        && !value.is_empty()
+    {
+        return Some(ResolvedSecret {
+            value,
+            source: SecretSource::EnvVar(env_var.to_string()),
+        });
     }
 
     // 3. Config file

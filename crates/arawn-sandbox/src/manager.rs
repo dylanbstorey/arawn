@@ -225,7 +225,6 @@ impl SandboxManager {
                 .map(|p| p.to_string_lossy().to_string())
                 .collect(),
             allow_git_config: Some(config.allow_git),
-            ..Default::default()
         };
 
         // Build network config
@@ -274,13 +273,13 @@ impl SandboxManager {
         }
 
         // Validate working directory exists
-        if let Some(ref dir) = config.working_dir {
-            if !dir.exists() {
-                return Err(SandboxError::ConfigError(format!(
-                    "Working directory does not exist: {}",
-                    dir.display()
-                )));
-            }
+        if let Some(ref dir) = config.working_dir
+            && !dir.exists()
+        {
+            return Err(SandboxError::ConfigError(format!(
+                "Working directory does not exist: {}",
+                dir.display()
+            )));
         }
 
         Ok(())

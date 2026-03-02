@@ -138,12 +138,12 @@ impl MemoryStore {
         let path = path.as_ref();
 
         // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                std::fs::create_dir_all(parent).map_err(|_| {
-                    MemoryError::Database(rusqlite::Error::InvalidPath(path.to_path_buf()))
-                })?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent).map_err(|_| {
+                MemoryError::Database(rusqlite::Error::InvalidPath(path.to_path_buf()))
+            })?;
         }
 
         let conn = Connection::open_with_flags(

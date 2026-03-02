@@ -259,7 +259,7 @@ impl MemoryStore {
         let citation_json: Option<String> = row.get(14)?;
 
         let id = MemoryId::parse(&id_str)?;
-        let content_type = ContentType::from_str(&content_type_str).ok_or_else(|| {
+        let content_type = ContentType::parse(&content_type_str).ok_or_else(|| {
             MemoryError::InvalidData(format!("Unknown content type: {}", content_type_str))
         })?;
         let metadata: Metadata = serde_json::from_str(&metadata_json)?;

@@ -294,35 +294,32 @@ impl PluginManifest {
         let mut errors = Vec::new();
 
         // Check skills paths
-        if let Some(ref skills) = self.skills {
-            if let Err(e) = validation::validate_paths_exist("skills", &skills.to_vec(), plugin_dir)
-            {
-                errors.push(e);
-            }
+        if let Some(ref skills) = self.skills
+            && let Err(e) = validation::validate_paths_exist("skills", &skills.to_vec(), plugin_dir)
+        {
+            errors.push(e);
         }
 
         // Check agents paths
-        if let Some(ref agents) = self.agents {
-            if let Err(e) = validation::validate_paths_exist("agents", &agents.to_vec(), plugin_dir)
-            {
-                errors.push(e);
-            }
+        if let Some(ref agents) = self.agents
+            && let Err(e) = validation::validate_paths_exist("agents", &agents.to_vec(), plugin_dir)
+        {
+            errors.push(e);
         }
 
         // Check hooks paths
-        if let Some(ref hooks) = self.hooks {
-            if let Err(e) = validation::validate_paths_exist("hooks", &hooks.to_vec(), plugin_dir) {
-                errors.push(e);
-            }
+        if let Some(ref hooks) = self.hooks
+            && let Err(e) = validation::validate_paths_exist("hooks", &hooks.to_vec(), plugin_dir)
+        {
+            errors.push(e);
         }
 
         // Check commands paths
-        if let Some(ref commands) = self.commands {
-            if let Err(e) =
+        if let Some(ref commands) = self.commands
+            && let Err(e) =
                 validation::validate_paths_exist("commands", &commands.to_vec(), plugin_dir)
-            {
-                errors.push(e);
-            }
+        {
+            errors.push(e);
         }
 
         errors

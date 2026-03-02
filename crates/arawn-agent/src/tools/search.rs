@@ -282,10 +282,10 @@ impl GrepTool {
     /// Check if a file should be searched.
     fn should_search_file(&self, path: &Path) -> bool {
         // Skip hidden files/directories
-        if let Some(name) = path.file_name() {
-            if name.to_string_lossy().starts_with('.') {
-                return false;
-            }
+        if let Some(name) = path.file_name()
+            && name.to_string_lossy().starts_with('.')
+        {
+            return false;
         }
 
         // Skip binary files (common extensions)
@@ -303,10 +303,10 @@ impl GrepTool {
         }
 
         // Skip files that are too large
-        if let Ok(metadata) = path.metadata() {
-            if metadata.len() > self.max_file_size {
-                return false;
-            }
+        if let Ok(metadata) = path.metadata()
+            && metadata.len() > self.max_file_size
+        {
+            return false;
         }
 
         true
@@ -451,12 +451,11 @@ impl Tool for GrepTool {
             }
 
             // Check file pattern
-            if let Some(ref glob) = file_glob {
-                if let Some(name) = path.file_name() {
-                    if !glob.matches(&name.to_string_lossy()) {
-                        continue;
-                    }
-                }
+            if let Some(ref glob) = file_glob
+                && let Some(name) = path.file_name()
+                && !glob.matches(&name.to_string_lossy())
+            {
+                continue;
             }
 
             // Check if file should be searched

@@ -230,16 +230,16 @@ impl Passthrough {
                 Ok(format!("Bearer {}", token))
             }
             AuthMode::OAuthWithFallback => {
-                if let Some(manager) = &self.token_manager {
-                    if manager.has_tokens() {
-                        match manager.get_valid_access_token().await {
-                            Ok(token) => return Ok(format!("Bearer {}", token)),
-                            Err(e) => {
-                                tracing::warn!(
-                                    "OAuth token refresh failed, trying API key fallback: {}",
-                                    e
-                                );
-                            }
+                if let Some(manager) = &self.token_manager
+                    && manager.has_tokens()
+                {
+                    match manager.get_valid_access_token().await {
+                        Ok(token) => return Ok(format!("Bearer {}", token)),
+                        Err(e) => {
+                            tracing::warn!(
+                                "OAuth token refresh failed, trying API key fallback: {}",
+                                e
+                            );
                         }
                     }
                 }
@@ -345,28 +345,26 @@ pub fn extract_api_key(
     headers: &axum::http::HeaderMap,
     config: &PassthroughConfig,
 ) -> Option<String> {
-    if let Some(value) = headers.get(&config.auth_header) {
-        if let Ok(s) = value.to_str() {
-            let key = s.strip_prefix("Bearer ").unwrap_or(s);
-            return Some(key.to_string());
-        }
+    if let Some(value) = headers.get(&config.auth_header)
+        && let Ok(s) = value.to_str()
+    {
+        let key = s.strip_prefix("Bearer ").unwrap_or(s);
+        return Some(key.to_string());
     }
 
-    if config.auth_header != "x-api-key" {
-        if let Some(value) = headers.get("x-api-key") {
-            if let Ok(s) = value.to_str() {
-                return Some(s.to_string());
-            }
-        }
+    if config.auth_header != "x-api-key"
+        && let Some(value) = headers.get("x-api-key")
+        && let Ok(s) = value.to_str()
+    {
+        return Some(s.to_string());
     }
 
-    if config.auth_header != "Authorization" {
-        if let Some(value) = headers.get("Authorization") {
-            if let Ok(s) = value.to_str() {
-                let key = s.strip_prefix("Bearer ").unwrap_or(s);
-                return Some(key.to_string());
-            }
-        }
+    if config.auth_header != "Authorization"
+        && let Some(value) = headers.get("Authorization")
+        && let Ok(s) = value.to_str()
+    {
+        let key = s.strip_prefix("Bearer ").unwrap_or(s);
+        return Some(key.to_string());
     }
 
     None

@@ -237,10 +237,10 @@ impl AgentSpawner {
         }
 
         // Agent-specific override takes precedence
-        if let Some(ref constraints) = config.agent.constraints {
-            if let Some(max_iter) = constraints.max_iterations {
-                agent_config.max_iterations = max_iter as u32;
-            }
+        if let Some(ref constraints) = config.agent.constraints
+            && let Some(max_iter) = constraints.max_iterations
+        {
+            agent_config.max_iterations = max_iter as u32;
         }
 
         // Note: model override is stored in config.agent.model but actual
@@ -452,10 +452,10 @@ impl SubagentSpawner for PluginSubagentSpawner {
 
         // Spawn the agent with max_turns override if specified
         let mut agent_config = config.clone();
-        if let Some(max) = max_turns {
-            if let Some(ref mut constraints) = agent_config.agent.constraints {
-                constraints.max_iterations = Some(max);
-            }
+        if let Some(max) = max_turns
+            && let Some(ref mut constraints) = agent_config.agent.constraints
+        {
+            constraints.max_iterations = Some(max);
         }
 
         let agent = match self.spawner.spawn(&agent_config) {

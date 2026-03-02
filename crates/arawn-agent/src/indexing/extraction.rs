@@ -161,10 +161,10 @@ pub fn parse_extraction(raw: &str) -> ExtractionResult {
     }
 
     // Try to find and parse a JSON object within the text
-    if let Some(json_str) = extract_json_object(cleaned) {
-        if let Ok(result) = serde_json::from_str::<ExtractionResult>(json_str) {
-            return result;
-        }
+    if let Some(json_str) = extract_json_object(cleaned)
+        && let Ok(result) = serde_json::from_str::<ExtractionResult>(json_str)
+    {
+        return result;
     }
 
     warn!("Failed to parse extraction result, returning empty");
@@ -176,15 +176,15 @@ fn strip_code_fences(s: &str) -> &str {
     let s = s.trim();
 
     // Strip ```json ... ``` or ``` ... ```
-    if let Some(rest) = s.strip_prefix("```json") {
-        if let Some(inner) = rest.strip_suffix("```") {
-            return inner.trim();
-        }
+    if let Some(rest) = s.strip_prefix("```json")
+        && let Some(inner) = rest.strip_suffix("```")
+    {
+        return inner.trim();
     }
-    if let Some(rest) = s.strip_prefix("```") {
-        if let Some(inner) = rest.strip_suffix("```") {
-            return inner.trim();
-        }
+    if let Some(rest) = s.strip_prefix("```")
+        && let Some(inner) = rest.strip_suffix("```")
+    {
+        return inner.trim();
     }
 
     s

@@ -99,20 +99,19 @@ async fn handle_subscribe(
             app_state.cleanup_expired_pending_reconnects().await;
 
             // Try to reclaim with token first
-            if let Some(token) = reconnect_token {
-                if let Some(new_token) = app_state
+            if let Some(token) = reconnect_token
+                && let Some(new_token) = app_state
                     .try_reclaim_with_token(sid, &token, conn_state.id)
                     .await
-                {
-                    // Successfully reclaimed ownership
-                    return MessageResponse::Single(ServerMessage::subscribe_ack(
-                        &session_id,
-                        true,
-                        Some(new_token),
-                    ));
-                }
-                // Token invalid or expired - fall through to normal subscription
+            {
+                // Successfully reclaimed ownership
+                return MessageResponse::Single(ServerMessage::subscribe_ack(
+                    &session_id,
+                    true,
+                    Some(new_token),
+                ));
             }
+            // Token invalid or expired - fall through to normal subscription
 
             // Check if session has a pending reconnect (someone else is expected to reconnect)
             if app_state.has_pending_reconnect(sid).await {
@@ -284,15 +283,15 @@ fn inject_session_context(
     }
 
     // If args is an object and doesn't have session_id, try to inject from subscriptions
-    if let Some(obj) = args.as_object_mut() {
-        if !obj.contains_key("session_id") {
-            // Use the first subscribed session if available
-            if let Some(session_id) = conn_state.subscriptions.iter().next() {
-                obj.insert(
-                    "session_id".to_string(),
-                    serde_json::Value::String(session_id.to_string()),
-                );
-            }
+    if let Some(obj) = args.as_object_mut()
+        && !obj.contains_key("session_id")
+    {
+        // Use the first subscribed session if available
+        if let Some(session_id) = conn_state.subscriptions.iter().next() {
+            obj.insert(
+                "session_id".to_string(),
+                serde_json::Value::String(session_id.to_string()),
+            );
         }
     }
 

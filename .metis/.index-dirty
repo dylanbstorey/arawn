@@ -1,0 +1,15 @@
+/Users/dstorey/Desktop/arawn/crates/arawn-sandbox/src/manager.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-llm/src/embeddings.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-memory/src/store/session_ops.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-memory/src/types.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-server/src/routes/memory.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-memory/src/store/memory_ops.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-memory/src/vector.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-pipeline/src/engine.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-pipeline/src/loader.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-workstream/src/directory.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-agent/src/prompt/builder.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-server/src/routes/pagination.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-server/src/routes/ws/mod.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-plugin/src/validation.rs
+/Users/dstorey/Desktop/arawn/crates/arawn-plugin/src/watcher.rs

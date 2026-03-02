@@ -61,17 +61,17 @@ impl MemoryStore {
             };
 
             // Apply session filter
-            if let Some(ref sid) = query.session_id {
-                if memory.session_id.as_deref() != Some(sid.as_str()) {
-                    continue;
-                }
+            if let Some(ref sid) = query.session_id
+                && memory.session_id.as_deref() != Some(sid.as_str())
+            {
+                continue;
             }
 
             // Apply time filter
-            if let Some(cutoff) = time_cutoff {
-                if memory.created_at < cutoff {
-                    continue;
-                }
+            if let Some(cutoff) = time_cutoff
+                && memory.created_at < cutoff
+            {
+                continue;
             }
 
             // Skip superseded memories

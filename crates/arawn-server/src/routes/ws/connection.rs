@@ -193,22 +193,22 @@ pub async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr)
     for session_id in &conn_state.subscriptions {
         if let Some(indexer) = state.indexer() {
             let session_opt = state.session_cache().get(session_id).await;
-            if let Some(session) = session_opt {
-                if !session.is_empty() {
-                    let indexer = Arc::clone(indexer);
-                    let messages = crate::state::session_to_messages(&session);
-                    let sid = session_id.to_string();
-                    tokio::spawn(async move {
-                        let report = indexer
-                            .index_session(&sid, &crate::state::messages_as_refs(&messages))
-                            .await;
-                        tracing::info!(
-                            session_id = %sid,
-                            report = %report,
-                            "WebSocket close: background session indexing complete"
-                        );
-                    });
-                }
+            if let Some(session) = session_opt
+                && !session.is_empty()
+            {
+                let indexer = Arc::clone(indexer);
+                let messages = crate::state::session_to_messages(&session);
+                let sid = session_id.to_string();
+                tokio::spawn(async move {
+                    let report = indexer
+                        .index_session(&sid, &crate::state::messages_as_refs(&messages))
+                        .await;
+                    tracing::info!(
+                        session_id = %sid,
+                        report = %report,
+                        "WebSocket close: background session indexing complete"
+                    );
+                });
             }
         }
     }

@@ -141,10 +141,10 @@ impl ShellTool {
     /// Get the working directory for a session.
     fn get_working_dir(&self, session_id: &str) -> Option<PathBuf> {
         // First check session-specific working directory
-        if let Ok(dirs) = self.working_dirs.lock() {
-            if let Some(dir) = dirs.get(session_id) {
-                return Some(dir.clone());
-            }
+        if let Ok(dirs) = self.working_dirs.lock()
+            && let Some(dir) = dirs.get(session_id)
+        {
+            return Some(dir.clone());
         }
         // Fall back to config working directory
         self.config.working_dir.as_ref().map(PathBuf::from)

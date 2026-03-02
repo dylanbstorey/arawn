@@ -461,14 +461,14 @@ impl TryFrom<serde_json::Value> for MemoryStoreParams {
 
         // Validate importance if provided
         let importance = params.get("importance").and_then(|v| v.as_f64());
-        if let Some(imp) = importance {
-            if !(0.0..=1.0).contains(&imp) {
-                return Err(ParameterValidationError::out_of_range(
-                    "importance",
-                    imp,
-                    "must be between 0.0 and 1.0",
-                ));
-            }
+        if let Some(imp) = importance
+            && !(0.0..=1.0).contains(&imp)
+        {
+            return Err(ParameterValidationError::out_of_range(
+                "importance",
+                imp,
+                "must be between 0.0 and 1.0",
+            ));
         }
 
         Ok(Self {
@@ -983,10 +983,10 @@ impl ToolResult {
             },
             Self::Json { content } => {
                 // Validate JSON structure if configured
-                if config.validate_json {
-                    if let Err(e) = validate_json_output(&content) {
-                        return Self::error(format!("JSON validation failed: {}", e));
-                    }
+                if config.validate_json
+                    && let Err(e) = validate_json_output(&content)
+                {
+                    return Self::error(format!("JSON validation failed: {}", e));
                 }
 
                 // For JSON, we serialize to string to check size and content

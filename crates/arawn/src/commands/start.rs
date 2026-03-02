@@ -473,10 +473,10 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
                 .nth(2)
                 .map(|p| p.join("runtimes"));
 
-            if let Some(ref src_dir) = runtimes_src_dir {
-                if src_dir.is_dir() {
-                    register_builtin_runtimes(src_dir, &executor, &catalog, ctx.verbose).await;
-                }
+            if let Some(ref src_dir) = runtimes_src_dir
+                && src_dir.is_dir()
+            {
+                register_builtin_runtimes(src_dir, &executor, &catalog, ctx.verbose).await;
             }
 
             tool_registry.register(tools::CatalogTool::new(catalog.clone(), executor.clone()));
@@ -1304,36 +1304,36 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         .workstream
         .as_ref()
         .and_then(|ws| ws.compression.as_ref())
+        && compression_cfg.enabled
+        && app_state.workstreams().is_some()
     {
-        if compression_cfg.enabled && app_state.workstreams().is_some() {
-            let compression_backend = backends
-                .get(&compression_cfg.backend)
-                .or_else(|| backends.get("default"))
-                .cloned();
+        let compression_backend = backends
+            .get(&compression_cfg.backend)
+            .or_else(|| backends.get("default"))
+            .cloned();
 
-            match compression_backend {
-                Some(cb) => {
-                    let compressor_config = arawn_workstream::CompressorConfig {
-                        model: compression_cfg.model.clone(),
-                        max_summary_tokens: compression_cfg.max_summary_tokens,
-                        token_threshold_chars: compression_cfg.token_threshold_chars,
-                    };
-                    let compressor = arawn_workstream::Compressor::new(cb, compressor_config);
-                    app_state = app_state.with_compressor(compressor);
+        match compression_backend {
+            Some(cb) => {
+                let compressor_config = arawn_workstream::CompressorConfig {
+                    model: compression_cfg.model.clone(),
+                    max_summary_tokens: compression_cfg.max_summary_tokens,
+                    token_threshold_chars: compression_cfg.token_threshold_chars,
+                };
+                let compressor = arawn_workstream::Compressor::new(cb, compressor_config);
+                app_state = app_state.with_compressor(compressor);
 
-                    if ctx.verbose {
-                        println!(
-                            "Session compression: enabled (backend={}, model={})",
-                            compression_cfg.backend, compression_cfg.model,
-                        );
-                    }
-                }
-                None => {
-                    eprintln!(
-                        "warning: compression backend '{}' not found, compression disabled",
-                        compression_cfg.backend
+                if ctx.verbose {
+                    println!(
+                        "Session compression: enabled (backend={}, model={})",
+                        compression_cfg.backend, compression_cfg.model,
                     );
                 }
+            }
+            None => {
+                eprintln!(
+                    "warning: compression backend '{}' not found, compression disabled",
+                    compression_cfg.backend
+                );
             }
         }
     }
@@ -1347,12 +1347,11 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     // ── Graceful shutdown ──────────────────────────────────────────────
 
-    if let Some(engine) = pipeline_engine {
-        if let Ok(engine) = Arc::try_unwrap(engine) {
-            if let Err(e) = engine.shutdown().await {
-                eprintln!("warning: pipeline shutdown error: {}", e);
-            }
-        }
+    if let Some(engine) = pipeline_engine
+        && let Ok(engine) = Arc::try_unwrap(engine)
+        && let Err(e) = engine.shutdown().await
+    {
+        eprintln!("warning: pipeline shutdown error: {}", e);
     }
 
     // Shutdown MCP servers
@@ -1794,10 +1793,10 @@ fn seed_test_data(manager: &WorkstreamManager, verbose: bool) {
         match manager.create_workstream(title, None, &[]) {
             Ok(ws) => {
                 // Update with summary
-                if let Err(e) = manager.update_workstream(&ws.id, None, Some(summary), None) {
-                    if verbose {
-                        eprintln!("  Seed: failed to set summary for '{}': {}", title, e);
-                    }
+                if let Err(e) = manager.update_workstream(&ws.id, None, Some(summary), None)
+                    && verbose
+                {
+                    eprintln!("  Seed: failed to set summary for '{}': {}", title, e);
                 }
 
                 // Add some test messages (sessions are created automatically)
@@ -1838,10 +1837,9 @@ fn seed_test_data(manager: &WorkstreamManager, verbose: bool) {
                         MessageRole::Assistant,
                         assistant_msg,
                         None,
-                    ) {
-                        if verbose {
-                            eprintln!("  Seed: failed to add assistant message: {}", e);
-                        }
+                    ) && verbose
+                    {
+                        eprintln!("  Seed: failed to add assistant message: {}", e);
                     }
                 }
 

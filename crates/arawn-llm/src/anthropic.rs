@@ -373,13 +373,13 @@ fn parse_sse_stream(
                                 state.current_event = Some(value.to_string());
                             }
                             "data" => {
-                                if let Some(event_type) = &state.current_event {
-                                    if let Some(event) = parse_stream_event(event_type, value) {
-                                        if matches!(event, StreamEvent::MessageStop) {
-                                            state.done = true;
-                                        }
-                                        return Some((Ok(event), state));
+                                if let Some(event_type) = &state.current_event
+                                    && let Some(event) = parse_stream_event(event_type, value)
+                                {
+                                    if matches!(event, StreamEvent::MessageStop) {
+                                        state.done = true;
                                     }
+                                    return Some((Ok(event), state));
                                 }
                             }
                             _ => {}

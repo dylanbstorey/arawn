@@ -444,10 +444,10 @@ impl DirectoryManager {
         let mut sessions = Vec::new();
         for entry in fs::read_dir(&sessions_dir)? {
             let entry = entry?;
-            if entry.file_type()?.is_dir() {
-                if let Some(name) = entry.file_name().to_str() {
-                    sessions.push(name.to_string());
-                }
+            if entry.file_type()?.is_dir()
+                && let Some(name) = entry.file_name().to_str()
+            {
+                sessions.push(name.to_string());
             }
         }
 
@@ -465,12 +465,12 @@ impl DirectoryManager {
         let mut workstreams = Vec::new();
         for entry in fs::read_dir(&workstreams_dir)? {
             let entry = entry?;
-            if entry.file_type()?.is_dir() {
-                if let Some(name) = entry.file_name().to_str() {
-                    // Skip scratch
-                    if name != SCRATCH_WORKSTREAM {
-                        workstreams.push(name.to_string());
-                    }
+            if entry.file_type()?.is_dir()
+                && let Some(name) = entry.file_name().to_str()
+            {
+                // Skip scratch
+                if name != SCRATCH_WORKSTREAM {
+                    workstreams.push(name.to_string());
                 }
             }
         }
@@ -699,10 +699,10 @@ impl DirectoryManager {
         };
 
         // Create destination directory if needed
-        if let Some(parent) = dest_full.parent() {
-            if !parent.as_os_str().is_empty() {
-                fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = dest_full.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
         }
 
         // Copy file (preserving source)
@@ -1281,12 +1281,11 @@ impl DirectoryManager {
                 };
 
                 // Check age filter
-                if let Some(cutoff_time) = cutoff {
-                    if let Ok(modified) = metadata.modified() {
-                        if modified > cutoff_time {
-                            continue; // File is too new, skip
-                        }
-                    }
+                if let Some(cutoff_time) = cutoff
+                    && let Ok(modified) = metadata.modified()
+                    && modified > cutoff_time
+                {
+                    continue; // File is too new, skip
                 }
 
                 files_to_delete.push((path, metadata.len()));
@@ -1370,7 +1369,7 @@ impl DirectoryManager {
             .collect();
 
         // Sort by depth descending (deepest first)
-        dirs.sort_by(|a, b| b.components().count().cmp(&a.components().count()));
+        dirs.sort_by_key(|b| std::cmp::Reverse(b.components().count()));
 
         for dir in dirs {
             // Try to remove - will fail if not empty, which is fine

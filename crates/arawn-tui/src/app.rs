@@ -752,11 +752,12 @@ impl App {
                     self.waiting = false;
                 } else if !chunk.is_empty() {
                     // Append to last message or create new one
-                    if let Some(last) = self.messages.last_mut() {
-                        if !last.is_user && last.streaming {
-                            last.content.push_str(&chunk);
-                            return;
-                        }
+                    if let Some(last) = self.messages.last_mut()
+                        && !last.is_user
+                        && last.streaming
+                    {
+                        last.content.push_str(&chunk);
+                        return;
                     }
                     // Create new assistant message
                     self.push_message(ChatMessage {
@@ -982,10 +983,10 @@ impl App {
                     // Cancel current operation or quit if nothing running
                     if self.waiting {
                         // Send cancel to server if we have a session
-                        if let Some(ref session_id) = self.session_id {
-                            if let Err(e) = self.ws_client.cancel(session_id.clone()) {
-                                tracing::warn!(error = %e, "Failed to send cancel to server");
-                            }
+                        if let Some(ref session_id) = self.session_id
+                            && let Err(e) = self.ws_client.cancel(session_id.clone())
+                        {
+                            tracing::warn!(error = %e, "Failed to send cancel to server");
                         }
                         self.waiting = false;
                         self.status_message = Some("Cancelled".to_string());
@@ -1879,11 +1880,11 @@ impl App {
                     }
                     SidebarSection::Sessions => {
                         // First, ensure we're in the selected workstream
-                        if let Some(ws) = self.sidebar.selected_workstream() {
-                            if !ws.is_current {
-                                let ws_name = ws.name.clone();
-                                self.switch_to_workstream(&ws_name);
-                            }
+                        if let Some(ws) = self.sidebar.selected_workstream()
+                            && !ws.is_current
+                        {
+                            let ws_name = ws.name.clone();
+                            self.switch_to_workstream(&ws_name);
                         }
 
                         if self.sidebar.is_new_session_selected() {
@@ -1916,11 +1917,11 @@ impl App {
                     }
                     SidebarSection::Sessions => {
                         // Switch to selected workstream if different
-                        if let Some(ws) = self.sidebar.selected_workstream() {
-                            if !ws.is_current {
-                                let ws_name = ws.name.clone();
-                                self.switch_to_workstream(&ws_name);
-                            }
+                        if let Some(ws) = self.sidebar.selected_workstream()
+                            && !ws.is_current
+                        {
+                            let ws_name = ws.name.clone();
+                            self.switch_to_workstream(&ws_name);
                         }
                         // Create new session in the (now current) workstream
                         self.create_new_session();
@@ -1962,15 +1963,15 @@ impl App {
                     SidebarSection::Workstreams => {
                         if let Some(ws) = self.sidebar.selected_workstream() {
                             // Check if this is a confirmation (second 'd' press)
-                            if let Some((pending_id, _)) = &self.pending_delete_workstream {
-                                if pending_id == &ws.id {
-                                    // Confirmed - execute delete
-                                    let id = ws.id.clone();
-                                    self.pending_actions
-                                        .push(PendingAction::DeleteWorkstream(id));
-                                    self.clear_pending_deletes();
-                                    return;
-                                }
+                            if let Some((pending_id, _)) = &self.pending_delete_workstream
+                                && pending_id == &ws.id
+                            {
+                                // Confirmed - execute delete
+                                let id = ws.id.clone();
+                                self.pending_actions
+                                    .push(PendingAction::DeleteWorkstream(id));
+                                self.clear_pending_deletes();
+                                return;
                             }
 
                             // First 'd' press - check if deletable and show confirmation
@@ -1995,14 +1996,14 @@ impl App {
                     SidebarSection::Sessions => {
                         if let Some(session) = self.sidebar.selected_session() {
                             // Check if this is a confirmation (second 'd' press)
-                            if let Some(pending_id) = &self.pending_delete_session {
-                                if pending_id == &session.id {
-                                    // Confirmed - execute delete
-                                    let id = session.id.clone();
-                                    self.pending_actions.push(PendingAction::DeleteSession(id));
-                                    self.clear_pending_deletes();
-                                    return;
-                                }
+                            if let Some(pending_id) = &self.pending_delete_session
+                                && pending_id == &session.id
+                            {
+                                // Confirmed - execute delete
+                                let id = session.id.clone();
+                                self.pending_actions.push(PendingAction::DeleteSession(id));
+                                self.clear_pending_deletes();
+                                return;
                             }
 
                             // First 'd' press - check if deletable and show confirmation

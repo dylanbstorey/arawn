@@ -158,13 +158,12 @@ impl PluginWatcher {
 
         // Watch each plugin directory recursively
         for dir in self.manager.plugin_dirs() {
-            if dir.exists() {
-                if let Err(e) = debouncer
+            if dir.exists()
+                && let Err(e) = debouncer
                     .watcher()
                     .watch(dir, notify::RecursiveMode::Recursive)
-                {
-                    tracing::warn!(dir = %dir.display(), error = %e, "failed to watch directory");
-                }
+            {
+                tracing::warn!(dir = %dir.display(), error = %e, "failed to watch directory");
             }
         }
 
@@ -215,10 +214,10 @@ impl PluginWatcher {
                                 }
                             })
                         });
-                        if let Some(evt) = evt {
-                            if let Err(e) = event_tx.blocking_send(evt) {
-                                tracing::warn!("failed to send plugin removal event: {e}");
-                            }
+                        if let Some(evt) = evt
+                            && let Err(e) = event_tx.blocking_send(evt)
+                        {
+                            tracing::warn!("failed to send plugin removal event: {e}");
                         }
                     }
                 }
@@ -237,16 +236,12 @@ fn find_plugin_dir(path: &Path, plugin_dirs: &[PathBuf]) -> Option<PathBuf> {
     for search_dir in plugin_dirs {
         // Walk up from the changed path to find the plugin root
         let mut candidate = path;
-        loop {
-            if let Some(parent) = candidate.parent() {
-                if parent == search_dir.as_path() {
-                    // `candidate` is a direct child of a search directory
-                    return Some(candidate.to_path_buf());
-                }
-                candidate = parent;
-            } else {
-                break;
+        while let Some(parent) = candidate.parent() {
+            if parent == search_dir.as_path() {
+                // `candidate` is a direct child of a search directory
+                return Some(candidate.to_path_buf());
             }
+            candidate = parent;
         }
     }
     None

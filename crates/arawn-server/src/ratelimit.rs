@@ -78,24 +78,23 @@ pub fn create_rate_limiter(requests_per_minute: u32) -> SharedRateLimiter {
 /// 4. Falls back to 127.0.0.1 if nothing found
 fn extract_client_ip(request: &Request<Body>) -> IpAddr {
     // Check X-Forwarded-For first (common with reverse proxies)
-    if let Some(forwarded_for) = request.headers().get("x-forwarded-for") {
-        if let Ok(value) = forwarded_for.to_str() {
-            // Take the first IP (original client) if multiple are present
-            if let Some(first_ip) = value.split(',').next() {
-                if let Ok(ip) = first_ip.trim().parse::<IpAddr>() {
-                    return ip;
-                }
-            }
+    if let Some(forwarded_for) = request.headers().get("x-forwarded-for")
+        && let Ok(value) = forwarded_for.to_str()
+    {
+        // Take the first IP (original client) if multiple are present
+        if let Some(first_ip) = value.split(',').next()
+            && let Ok(ip) = first_ip.trim().parse::<IpAddr>()
+        {
+            return ip;
         }
     }
 
     // Check X-Real-IP header
-    if let Some(real_ip) = request.headers().get("x-real-ip") {
-        if let Ok(value) = real_ip.to_str() {
-            if let Ok(ip) = value.trim().parse::<IpAddr>() {
-                return ip;
-            }
-        }
+    if let Some(real_ip) = request.headers().get("x-real-ip")
+        && let Ok(value) = real_ip.to_str()
+        && let Ok(ip) = value.trim().parse::<IpAddr>()
+    {
+        return ip;
     }
 
     // Try to get from ConnectInfo extension (set by axum when using into_make_service_with_connect_info)

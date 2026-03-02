@@ -328,15 +328,14 @@ impl WorkflowDefinition {
 
         // Validate action-specific constraints
         for task in &self.tasks {
-            if let Some(ref action) = task.action {
-                if let ActionDefinition::Script { language, .. } = action {
-                    if language != "rust" {
-                        return Err(PipelineError::InvalidWorkflow(format!(
-                            "Unsupported script language '{}' in task '{}'. Only 'rust' is supported.",
-                            language, task.id
-                        )));
-                    }
-                }
+            if let Some(ref action) = task.action
+                && let ActionDefinition::Script { language, .. } = action
+                && language != "rust"
+            {
+                return Err(PipelineError::InvalidWorkflow(format!(
+                    "Unsupported script language '{}' in task '{}'. Only 'rust' is supported.",
+                    language, task.id
+                )));
             }
         }
 

@@ -376,13 +376,13 @@ impl ContextBuilder {
         }
 
         // Add final text response if present
-        if let Some(ref response) = turn.assistant_response {
-            if !response.is_empty() {
-                assistant_blocks.push(ContentBlock::Text {
-                    text: response.clone(),
-                    cache_control: None,
-                });
-            }
+        if let Some(ref response) = turn.assistant_response
+            && !response.is_empty()
+        {
+            assistant_blocks.push(ContentBlock::Text {
+                text: response.clone(),
+                cache_control: None,
+            });
         }
 
         if !assistant_blocks.is_empty() {

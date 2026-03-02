@@ -74,10 +74,10 @@ pub fn clean_summary(raw: &str) -> String {
     }
 
     // Strip code fences
-    if let Some(rest) = s.strip_prefix("```") {
-        if let Some(inner) = rest.strip_suffix("```") {
-            s = inner.trim();
-        }
+    if let Some(rest) = s.strip_prefix("```")
+        && let Some(inner) = rest.strip_suffix("```")
+    {
+        s = inner.trim();
     }
 
     s.to_string()

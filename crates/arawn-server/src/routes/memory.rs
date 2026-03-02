@@ -469,10 +469,10 @@ pub async fn memory_search_handler(
         Ok(memories) => {
             for memory in memories {
                 // Apply session filter if provided
-                if let Some(ref sid) = query.session_id {
-                    if memory.session_id.as_deref() != Some(sid.as_str()) {
-                        continue;
-                    }
+                if let Some(ref sid) = query.session_id
+                    && memory.session_id.as_deref() != Some(sid.as_str())
+                {
+                    continue;
                 }
                 let citation = memory
                     .citation
@@ -497,19 +497,19 @@ pub async fn memory_search_handler(
 
     // Supplement with matching notes
     let remaining = query.limit.saturating_sub(results.len());
-    if remaining > 0 {
-        if let Ok(notes) = store.search_notes(&query.q, remaining) {
-            for note in notes {
-                results.push(MemorySearchResult {
-                    id: note.id.to_string(),
-                    content_type: "note".to_string(),
-                    content: note.content,
-                    session_id: None,
-                    score: 1.0,
-                    source: "notes".to_string(),
-                    citation: None,
-                });
-            }
+    if remaining > 0
+        && let Ok(notes) = store.search_notes(&query.q, remaining)
+    {
+        for note in notes {
+            results.push(MemorySearchResult {
+                id: note.id.to_string(),
+                content_type: "note".to_string(),
+                content: note.content,
+                session_id: None,
+                score: 1.0,
+                source: "notes".to_string(),
+                citation: None,
+            });
         }
     }
 
@@ -551,7 +551,7 @@ pub async fn store_memory_handler(
     let store = require_memory_store(&state)?;
 
     // Parse content type (default to Fact if invalid)
-    let content_type = arawn_memory::types::ContentType::from_str(&request.content_type)
+    let content_type = arawn_memory::types::ContentType::parse(&request.content_type)
         .unwrap_or(arawn_memory::types::ContentType::Fact);
     let mut memory = arawn_memory::types::Memory::new(content_type, &request.content);
 

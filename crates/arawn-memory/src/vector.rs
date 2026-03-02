@@ -30,6 +30,7 @@ pub fn init_vector_extension() {
     use sqlite_vec::sqlite3_vec_init;
 
     unsafe {
+        #[allow(clippy::missing_transmute_annotations)]
         sqlite3_auto_extension(Some(std::mem::transmute(sqlite3_vec_init as *const ())));
     }
 }

@@ -232,10 +232,10 @@ impl GraphStore {
                 match v {
                     graphqlite::Value::Object(obj) => {
                         // Extract properties.id
-                        if let Some(graphqlite::Value::Object(props)) = obj.get("properties") {
-                            if let Some(graphqlite::Value::String(node_id)) = props.get("id") {
-                                return Some(node_id.clone());
-                            }
+                        if let Some(graphqlite::Value::Object(props)) = obj.get("properties")
+                            && let Some(graphqlite::Value::String(node_id)) = props.get("id")
+                        {
+                            return Some(node_id.clone());
                         }
                         None
                     }

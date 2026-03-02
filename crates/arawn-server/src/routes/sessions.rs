@@ -252,28 +252,28 @@ pub async fn list_sessions_handler(
     }
 
     // Also include sessions from workstream storage (for historical sessions)
-    if let Some(workstreams) = state.workstreams() {
-        if let Ok(ws_list) = workstreams.list_workstreams() {
-            for ws in ws_list {
-                if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
-                    for ws_session in ws_sessions {
-                        // Skip if we already have this session from cache
-                        if seen_ids.contains(&ws_session.id) {
-                            continue;
-                        }
-                        seen_ids.insert(ws_session.id.clone());
-
-                        summaries.push(SessionSummary {
-                            id: ws_session.id.clone(),
-                            title: ws_session.summary.clone(),
-                            turn_count: ws_session.turn_count.unwrap_or(0) as usize,
-                            created_at: ws_session.started_at.to_rfc3339(),
-                            updated_at: ws_session
-                                .ended_at
-                                .unwrap_or(ws_session.started_at)
-                                .to_rfc3339(),
-                        });
+    if let Some(workstreams) = state.workstreams()
+        && let Ok(ws_list) = workstreams.list_workstreams()
+    {
+        for ws in ws_list {
+            if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
+                for ws_session in ws_sessions {
+                    // Skip if we already have this session from cache
+                    if seen_ids.contains(&ws_session.id) {
+                        continue;
                     }
+                    seen_ids.insert(ws_session.id.clone());
+
+                    summaries.push(SessionSummary {
+                        id: ws_session.id.clone(),
+                        title: ws_session.summary.clone(),
+                        turn_count: ws_session.turn_count.unwrap_or(0) as usize,
+                        created_at: ws_session.started_at.to_rfc3339(),
+                        updated_at: ws_session
+                            .ended_at
+                            .unwrap_or(ws_session.started_at)
+                            .to_rfc3339(),
+                    });
                 }
             }
         }
@@ -340,20 +340,18 @@ pub async fn get_session_handler(
         // First, find which workstream this session belongs to
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
-                if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
-                    if ws_sessions.iter().any(|s| s.id == session_id) {
-                        // Found the workstream, try to load the session
-                        if let Ok((session, _)) =
-                            state.session_cache().get_or_load(id, &ws.id).await
-                        {
-                            let allowed_paths = get_allowed_paths(&ws.id, &session_id);
-                            return Ok(Json(session_to_detail_with_migration(
-                                &session,
-                                Some(ws.id),
-                                None,
-                                allowed_paths,
-                            )));
-                        }
+                if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id)
+                    && ws_sessions.iter().any(|s| s.id == session_id)
+                {
+                    // Found the workstream, try to load the session
+                    if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await {
+                        let allowed_paths = get_allowed_paths(&ws.id, &session_id);
+                        return Ok(Json(session_to_detail_with_migration(
+                            &session,
+                            Some(ws.id),
+                            None,
+                            allowed_paths,
+                        )));
                     }
                 }
             }
@@ -459,37 +457,35 @@ pub async fn update_session_handler(
 
                     // Check if we're moving from scratch to a named workstream
                     // and if directory manager is configured
-                    if let Some(ref old_ws) = current_workstream_id {
-                        if old_ws == "scratch" && new_workstream_id != "scratch" {
-                            if let Some(dir_mgr) = workstreams.directory_manager() {
-                                match dir_mgr.attach_session(&session_id, new_workstream_id) {
-                                    Ok(result) => {
-                                        tracing::info!(
-                                            session_id = %session_id,
-                                            files_migrated = result.files_migrated,
-                                            new_work_path = %result.new_work_path.display(),
-                                            "Migrated session files from scratch"
-                                        );
-                                        migration_result = Some(result);
-                                    }
-                                    Err(arawn_workstream::DirectoryError::SessionWorkNotFound(
-                                        _,
-                                    )) => {
-                                        // No files to migrate, that's fine
-                                        tracing::debug!(
-                                            session_id = %session_id,
-                                            "No scratch session work directory to migrate"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        // Log but don't fail - file migration is best-effort
-                                        tracing::warn!(
-                                            session_id = %session_id,
-                                            error = %e,
-                                            "Failed to migrate session files from scratch (non-fatal)"
-                                        );
-                                    }
-                                }
+                    if let Some(ref old_ws) = current_workstream_id
+                        && old_ws == "scratch"
+                        && new_workstream_id != "scratch"
+                        && let Some(dir_mgr) = workstreams.directory_manager()
+                    {
+                        match dir_mgr.attach_session(&session_id, new_workstream_id) {
+                            Ok(result) => {
+                                tracing::info!(
+                                    session_id = %session_id,
+                                    files_migrated = result.files_migrated,
+                                    new_work_path = %result.new_work_path.display(),
+                                    "Migrated session files from scratch"
+                                );
+                                migration_result = Some(result);
+                            }
+                            Err(arawn_workstream::DirectoryError::SessionWorkNotFound(_)) => {
+                                // No files to migrate, that's fine
+                                tracing::debug!(
+                                    session_id = %session_id,
+                                    "No scratch session work directory to migrate"
+                                );
+                            }
+                            Err(e) => {
+                                // Log but don't fail - file migration is best-effort
+                                tracing::warn!(
+                                    session_id = %session_id,
+                                    error = %e,
+                                    "Failed to migrate session files from scratch (non-fatal)"
+                                );
                             }
                         }
                     }
@@ -644,15 +640,13 @@ pub async fn get_session_messages_handler(
         let mut found_session = None;
         if let Ok(ws_list) = workstreams.list_workstreams() {
             for ws in ws_list {
-                if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id) {
-                    if ws_sessions.iter().any(|s| s.id == session_id) {
-                        // Found the workstream, try to load the session
-                        if let Ok((session, _)) =
-                            state.session_cache().get_or_load(id, &ws.id).await
-                        {
-                            found_session = Some(session);
-                            break;
-                        }
+                if let Ok(ws_sessions) = workstreams.list_sessions(&ws.id)
+                    && ws_sessions.iter().any(|s| s.id == session_id)
+                {
+                    // Found the workstream, try to load the session
+                    if let Ok((session, _)) = state.session_cache().get_or_load(id, &ws.id).await {
+                        found_session = Some(session);
+                        break;
                     }
                 }
             }

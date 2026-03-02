@@ -58,12 +58,12 @@ impl<'a> SessionManager<'a> {
         let mut timed_out = 0;
 
         for ws in &workstreams {
-            if let Some(active) = self.store.get_active_session(&ws.id)? {
-                if self.is_timed_out(&active) {
-                    let turn_count = self.count_session_messages(&active)?;
-                    self.store.end_session(&active.id, turn_count)?;
-                    timed_out += 1;
-                }
+            if let Some(active) = self.store.get_active_session(&ws.id)?
+                && self.is_timed_out(&active)
+            {
+                let turn_count = self.count_session_messages(&active)?;
+                self.store.end_session(&active.id, turn_count)?;
+                timed_out += 1;
             }
         }
 

@@ -303,10 +303,10 @@ impl AuthConfig {
                         return Ok(Some(key));
                     }
                 }
-                if let Some(var) = key_env {
-                    if let Ok(key) = std::env::var(var) {
-                        return Ok(Some(key));
-                    }
+                if let Some(var) = key_env
+                    && let Ok(key) = std::env::var(var)
+                {
+                    return Ok(Some(key));
                 }
                 Ok(None)
             }
@@ -328,10 +328,10 @@ impl AuthConfig {
                         return Ok(Some(token));
                     }
                 }
-                if let Some(var) = token_env {
-                    if let Ok(token) = std::env::var(var) {
-                        return Ok(Some(token));
-                    }
+                if let Some(var) = token_env
+                    && let Ok(token) = std::env::var(var)
+                {
+                    return Ok(Some(token));
                 }
                 Ok(None)
             }
@@ -434,12 +434,11 @@ pub fn save_client_config_to(config: &ClientConfig, path: &Path) -> Result<()> {
 
 /// Expand ~ to home directory in paths.
 fn expand_path(path: &Path) -> PathBuf {
-    if let Some(s) = path.to_str() {
-        if let Some(rest) = s.strip_prefix("~/") {
-            if let Some(home) = dirs::home_dir() {
-                return home.join(rest);
-            }
-        }
+    if let Some(s) = path.to_str()
+        && let Some(rest) = s.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(rest);
     }
     path.to_path_buf()
 }

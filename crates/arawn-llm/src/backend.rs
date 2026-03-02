@@ -305,19 +305,18 @@ pub fn default_format_tool_definitions(tools: &[ToolDefinition]) -> String {
         output.push_str(&format!("{}\n", tool.description));
 
         // Format input schema if it has properties
-        if let Some(properties) = tool.input_schema.get("properties") {
-            if let Some(props) = properties.as_object() {
-                if !props.is_empty() {
-                    output.push_str("\nParameters:\n");
-                    for (name, schema) in props {
-                        let type_str = schema.get("type").and_then(|t| t.as_str()).unwrap_or("any");
-                        let desc = schema
-                            .get("description")
-                            .and_then(|d| d.as_str())
-                            .unwrap_or("");
-                        output.push_str(&format!("- `{}` ({}): {}\n", name, type_str, desc));
-                    }
-                }
+        if let Some(properties) = tool.input_schema.get("properties")
+            && let Some(props) = properties.as_object()
+            && !props.is_empty()
+        {
+            output.push_str("\nParameters:\n");
+            for (name, schema) in props {
+                let type_str = schema.get("type").and_then(|t| t.as_str()).unwrap_or("any");
+                let desc = schema
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .unwrap_or("");
+                output.push_str(&format!("- `{}` ({}): {}\n", name, type_str, desc));
             }
         }
         output.push('\n');

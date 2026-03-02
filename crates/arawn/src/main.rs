@@ -101,21 +101,21 @@ fn resolve_server_url(server_flag: Option<&str>, context_flag: Option<&str>) -> 
     let config = arawn_config::load_client_config().ok();
 
     // 2. Explicit --context flag
-    if let Some(ctx_name) = context_flag {
-        if let Some(config) = &config {
-            if let Some(ctx) = config.get_context(ctx_name) {
-                return ctx.server.clone();
-            }
-            // Context not found — fall through to default
-            tracing::warn!("Context '{}' not found, using default", ctx_name);
+    if let Some(ctx_name) = context_flag
+        && let Some(config) = &config
+    {
+        if let Some(ctx) = config.get_context(ctx_name) {
+            return ctx.server.clone();
         }
+        // Context not found — fall through to default
+        tracing::warn!("Context '{}' not found, using default", ctx_name);
     }
 
     // 3. Current context from config
-    if let Some(config) = &config {
-        if let Some(url) = config.current_server_url() {
-            return url;
-        }
+    if let Some(config) = &config
+        && let Some(url) = config.current_server_url()
+    {
+        return url;
     }
 
     // 4. Default

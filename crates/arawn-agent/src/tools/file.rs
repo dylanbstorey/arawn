@@ -189,24 +189,24 @@ impl FileWriteTool {
 
             // For write, we can't canonicalize if the file doesn't exist yet
             // So we canonicalize the parent directory instead
-            if let Some(parent) = full_path.parent() {
-                if parent.exists() {
-                    let canonical_parent = parent.canonicalize().map_err(|e| {
-                        crate::error::AgentError::Tool(format!("Cannot resolve parent path: {}", e))
-                    })?;
+            if let Some(parent) = full_path.parent()
+                && parent.exists()
+            {
+                let canonical_parent = parent.canonicalize().map_err(|e| {
+                    crate::error::AgentError::Tool(format!("Cannot resolve parent path: {}", e))
+                })?;
 
-                    if !canonical_parent.starts_with(&base_path) {
-                        return Err(crate::error::AgentError::Tool(
-                            "Path is outside allowed directory".to_string(),
-                        ));
-                    }
-
-                    let file_name = full_path.file_name().ok_or_else(|| {
-                        crate::error::AgentError::Tool("Invalid file path".to_string())
-                    })?;
-
-                    return Ok(canonical_parent.join(file_name));
+                if !canonical_parent.starts_with(&base_path) {
+                    return Err(crate::error::AgentError::Tool(
+                        "Path is outside allowed directory".to_string(),
+                    ));
                 }
+
+                let file_name = full_path.file_name().ok_or_else(|| {
+                    crate::error::AgentError::Tool("Invalid file path".to_string())
+                })?;
+
+                return Ok(canonical_parent.join(file_name));
             }
 
             // If parent doesn't exist, just ensure the path would be under base
@@ -287,15 +287,14 @@ impl Tool for FileWriteTool {
         }
 
         // Create parent directories if needed
-        if let Some(parent) = resolved_path.parent() {
-            if !parent.exists() {
-                if let Err(e) = fs::create_dir_all(parent).await {
-                    return Ok(ToolResult::error(format!(
-                        "Failed to create directories: {}",
-                        e
-                    )));
-                }
-            }
+        if let Some(parent) = resolved_path.parent()
+            && !parent.exists()
+            && let Err(e) = fs::create_dir_all(parent).await
+        {
+            return Ok(ToolResult::error(format!(
+                "Failed to create directories: {}",
+                e
+            )));
         }
 
         // Write the file

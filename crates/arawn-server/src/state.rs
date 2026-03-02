@@ -814,12 +814,11 @@ impl AppState {
 
         // Create scratch session directory for new sessions
         if is_new {
-            if workstream_id == arawn_workstream::SCRATCH_ID {
-                if let Some(ref dm) = self.services.directory_manager {
-                    if let Err(e) = dm.create_scratch_session(&id.to_string()) {
-                        warn!(session_id = %id, error = %e, "Failed to create scratch session directory");
-                    }
-                }
+            if workstream_id == arawn_workstream::SCRATCH_ID
+                && let Some(ref dm) = self.services.directory_manager
+                && let Err(e) = dm.create_scratch_session(&id.to_string())
+            {
+                warn!(session_id = %id, error = %e, "Failed to create scratch session directory");
             }
 
             // Fire SessionStart hook for new sessions
@@ -860,30 +859,30 @@ impl AppState {
         }
 
         // Spawn background indexing if indexer is configured and session has turns
-        if let Some(indexer) = &self.services.indexer {
-            if !session.is_empty() {
-                let indexer = Arc::clone(indexer);
-                let messages = session_to_messages(&session);
-                let sid = session_id.to_string();
+        if let Some(indexer) = &self.services.indexer
+            && !session.is_empty()
+        {
+            let indexer = Arc::clone(indexer);
+            let messages = session_to_messages(&session);
+            let sid = session_id.to_string();
 
-                tokio::spawn(async move {
-                    let report = indexer
-                        .index_session(&sid, &messages_as_refs(&messages))
-                        .await;
-                    info!(
+            tokio::spawn(async move {
+                let report = indexer
+                    .index_session(&sid, &messages_as_refs(&messages))
+                    .await;
+                info!(
+                    session_id = %sid,
+                    report = %report,
+                    "Background session indexing complete"
+                );
+                if report.has_errors() {
+                    warn!(
                         session_id = %sid,
-                        report = %report,
-                        "Background session indexing complete"
+                        errors = ?report.errors,
+                        "Session indexing completed with errors"
                     );
-                    if report.has_errors() {
-                        warn!(
-                            session_id = %sid,
-                            errors = ?report.errors,
-                            "Session indexing completed with errors"
-                        );
-                    }
-                });
-            }
+                }
+            });
         }
 
         // Spawn background compression if compressor is configured and session has turns
@@ -891,61 +890,60 @@ impl AppState {
             &self.services.compressor,
             &self.services.workstreams,
             &workstream_id,
-        ) {
-            if !session.is_empty() {
-                let compressor = Arc::clone(compressor);
-                let manager = Arc::clone(manager);
-                let sid = session_id.to_string();
-                let ws_id = ws_id.clone();
+        ) && !session.is_empty()
+        {
+            let compressor = Arc::clone(compressor);
+            let manager = Arc::clone(manager);
+            let sid = session_id.to_string();
+            let ws_id = ws_id.clone();
 
-                tokio::spawn(async move {
-                    // End the workstream session (marks it in SQLite)
-                    if let Err(e) = manager.end_session(&sid) {
+            tokio::spawn(async move {
+                // End the workstream session (marks it in SQLite)
+                if let Err(e) = manager.end_session(&sid) {
+                    warn!(
+                        session_id = %sid,
+                        error = %e,
+                        "Failed to end workstream session for compression"
+                    );
+                    return;
+                }
+
+                // Compress the session
+                match compressor.compress_session(&manager, &sid).await {
+                    Ok(summary) => {
+                        info!(
+                            session_id = %sid,
+                            summary_len = summary.len(),
+                            "Background session compression complete"
+                        );
+
+                        // Update the workstream summary (reduce step)
+                        match compressor.compress_workstream(&manager, &ws_id).await {
+                            Ok(ws_summary) => {
+                                info!(
+                                    workstream_id = %ws_id,
+                                    summary_len = ws_summary.len(),
+                                    "Background workstream compression complete"
+                                );
+                            }
+                            Err(e) => {
+                                warn!(
+                                    workstream_id = %ws_id,
+                                    error = %e,
+                                    "Workstream compression failed"
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
                         warn!(
                             session_id = %sid,
                             error = %e,
-                            "Failed to end workstream session for compression"
+                            "Session compression failed"
                         );
-                        return;
                     }
-
-                    // Compress the session
-                    match compressor.compress_session(&manager, &sid).await {
-                        Ok(summary) => {
-                            info!(
-                                session_id = %sid,
-                                summary_len = summary.len(),
-                                "Background session compression complete"
-                            );
-
-                            // Update the workstream summary (reduce step)
-                            match compressor.compress_workstream(&manager, &ws_id).await {
-                                Ok(ws_summary) => {
-                                    info!(
-                                        workstream_id = %ws_id,
-                                        summary_len = ws_summary.len(),
-                                        "Background workstream compression complete"
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        workstream_id = %ws_id,
-                                        error = %e,
-                                        "Workstream compression failed"
-                                    );
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            warn!(
-                                session_id = %sid,
-                                error = %e,
-                                "Session compression failed"
-                            );
-                        }
-                    }
-                });
-            }
+                }
+            });
         }
 
         true
@@ -990,11 +988,11 @@ impl AppState {
         // Check for pending reconnect first (ownership reserved for reconnection)
         {
             let pending = self.runtime.pending_reconnects.read().await;
-            if let Some(entry) = pending.get(&session_id) {
-                if !entry.is_expired() {
-                    debug!(session_id = %session_id, "Ownership claim rejected: pending reconnect exists");
-                    return false;
-                }
+            if let Some(entry) = pending.get(&session_id)
+                && !entry.is_expired()
+            {
+                debug!(session_id = %session_id, "Ownership claim rejected: pending reconnect exists");
+                return false;
             }
         }
 

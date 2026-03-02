@@ -140,8 +140,10 @@ impl MemoryStore {
 
         // Create memory with session reference
         let session_id_str = session_id.to_string();
-        let mut metadata = Metadata::default();
-        metadata.session_id = Some(session_id_str.clone());
+        let metadata = Metadata {
+            session_id: Some(session_id_str.clone()),
+            ..Metadata::default()
+        };
 
         let now = Utc::now();
         let memory = Memory {
@@ -191,8 +193,10 @@ impl MemoryStore {
 
         // Create memory with session reference
         let session_id_str = session_id.to_string();
-        let mut metadata = Metadata::default();
-        metadata.session_id = Some(session_id_str.clone());
+        let metadata = Metadata {
+            session_id: Some(session_id_str.clone()),
+            ..Metadata::default()
+        };
 
         let now = Utc::now();
         let memory = Memory {

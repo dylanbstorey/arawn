@@ -141,24 +141,24 @@ impl ChatService {
 
     /// Index a closed session for memory search.
     pub async fn index_session(&self, session_id: &str, session: &Session) {
-        if let Some(ref indexer) = self.indexer {
-            if !session.is_empty() {
-                let messages = session_to_messages(session);
-                let refs = messages_as_refs(&messages);
+        if let Some(ref indexer) = self.indexer
+            && !session.is_empty()
+        {
+            let messages = session_to_messages(session);
+            let refs = messages_as_refs(&messages);
 
-                let report = indexer.index_session(session_id, &refs).await;
-                info!(
+            let report = indexer.index_session(session_id, &refs).await;
+            info!(
+                session_id = session_id,
+                report = %report,
+                "Session indexed"
+            );
+            if report.has_errors() {
+                warn!(
                     session_id = session_id,
-                    report = %report,
-                    "Session indexed"
+                    errors = ?report.errors,
+                    "Session indexing completed with errors"
                 );
-                if report.has_errors() {
-                    warn!(
-                        session_id = session_id,
-                        errors = ?report.errors,
-                        "Session indexing completed with errors"
-                    );
-                }
             }
         }
     }

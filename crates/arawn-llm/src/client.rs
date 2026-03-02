@@ -197,10 +197,10 @@ impl LlmClientConfig {
         config.ollama = Some(ollama_config);
 
         // Set primary provider
-        if let Ok(primary) = std::env::var("LLM_PRIMARY") {
-            if let Some(provider) = Provider::from_name(&primary) {
-                config.primary = Some(provider);
-            }
+        if let Ok(primary) = std::env::var("LLM_PRIMARY")
+            && let Some(provider) = Provider::from_name(&primary)
+        {
+            config.primary = Some(provider);
         }
 
         // Set fallbacks

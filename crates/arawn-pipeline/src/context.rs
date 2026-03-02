@@ -186,13 +186,13 @@ impl std::fmt::Display for PathSegment {
 fn parse_path_segments(path: &str) -> Vec<PathSegment> {
     path.split('.')
         .map(|part| {
-            if let Some(bracket_start) = part.find('[') {
-                if let Some(bracket_end) = part.find(']') {
-                    let name = part[..bracket_start].to_string();
-                    let idx_str = &part[bracket_start + 1..bracket_end];
-                    let index = idx_str.parse::<usize>().ok();
-                    return PathSegment { name, index };
-                }
+            if let Some(bracket_start) = part.find('[')
+                && let Some(bracket_end) = part.find(']')
+            {
+                let name = part[..bracket_start].to_string();
+                let idx_str = &part[bracket_start + 1..bracket_end];
+                let index = idx_str.parse::<usize>().ok();
+                return PathSegment { name, index };
             }
             PathSegment {
                 name: part.to_string(),

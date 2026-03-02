@@ -78,10 +78,10 @@ impl ServerConfig {
                 }
                 "--slow-tool" => {
                     if i + 1 < args.len() {
-                        if let Some((tool, ms)) = args[i + 1].split_once(':') {
-                            if let Ok(ms) = ms.parse() {
-                                config.slow_tools.push((tool.to_string(), ms));
-                            }
+                        if let Some((tool, ms)) = args[i + 1].split_once(':')
+                            && let Ok(ms) = ms.parse()
+                        {
+                            config.slow_tools.push((tool.to_string(), ms));
                         }
                         i += 2;
                     } else {
@@ -234,10 +234,10 @@ fn handle_request(request: &JsonRpcRequest, config: &ServerConfig) -> JsonRpcRes
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
 
             // Check if we should crash on this tool
-            if let Some(ref crash_tool) = config.crash_on {
-                if crash_tool == tool_name {
-                    std::process::exit(1);
-                }
+            if let Some(ref crash_tool) = config.crash_on
+                && crash_tool == tool_name
+            {
+                std::process::exit(1);
             }
 
             // Apply tool-specific delay

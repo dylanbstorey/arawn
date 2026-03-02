@@ -132,7 +132,7 @@ impl SystemPromptBuilder {
     ///
     /// # Arguments
     /// * `timezone` - Optional timezone string (e.g., "America/New_York").
-    ///                If None, uses local time.
+    ///   If None, uses local time.
     pub fn with_datetime(mut self, timezone: Option<&str>) -> Self {
         self.datetime_enabled = true;
         self.timezone = timezone.map(|s| s.to_string());
@@ -182,17 +182,18 @@ impl SystemPromptBuilder {
         }
 
         // Workspace section
-        if self.mode.include_workspace() {
-            if let Some(workspace) = self.build_workspace_section() {
-                sections.push(workspace);
-            }
+        if self.mode.include_workspace()
+            && let Some(workspace) = self.build_workspace_section()
+        {
+            sections.push(workspace);
         }
 
         // DateTime section
-        if self.mode.include_datetime() && self.datetime_enabled {
-            if let Some(datetime) = self.build_datetime_section() {
-                sections.push(datetime);
-            }
+        if self.mode.include_datetime()
+            && self.datetime_enabled
+            && let Some(datetime) = self.build_datetime_section()
+        {
+            sections.push(datetime);
         }
 
         // Memory hints section
@@ -206,10 +207,10 @@ impl SystemPromptBuilder {
         }
 
         // Bootstrap context section
-        if self.mode.include_bootstrap() {
-            if let Some(bootstrap) = self.build_bootstrap_section() {
-                sections.push(bootstrap);
-            }
+        if self.mode.include_bootstrap()
+            && let Some(bootstrap) = self.build_bootstrap_section()
+        {
+            sections.push(bootstrap);
         }
 
         // Plugin prompt fragments

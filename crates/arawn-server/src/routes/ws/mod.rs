@@ -61,10 +61,10 @@ pub async fn ws_handler(
     }
 
     // Check WebSocket connection rate limit
-    if config.rate_limiting {
-        if let Err(response) = state.check_ws_connection_rate(addr.ip()).await {
-            return response;
-        }
+    if config.rate_limiting
+        && let Err(response) = state.check_ws_connection_rate(addr.ip()).await
+    {
+        return response;
     }
 
     // Configure WebSocket with message size limit
@@ -76,6 +76,7 @@ pub async fn ws_handler(
 /// Validate the Origin header against allowed origins.
 ///
 /// Returns `Ok(())` if the origin is allowed, or an error response if not.
+#[allow(clippy::result_large_err)]
 fn validate_origin(headers: &HeaderMap, allowed_origins: &[String]) -> Result<(), Response> {
     // Get the Origin header
     let origin = match headers.get("Origin") {

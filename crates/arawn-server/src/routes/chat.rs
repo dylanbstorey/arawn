@@ -158,16 +158,14 @@ pub async fn chat_handler(
     state.update_session(session_id, session).await;
 
     // Persist the turn to workstream storage
-    if let Some(turn) = completed_turn {
-        if let Some(workstream_id) = state.session_cache().get_workstream_id(&session_id).await {
-            if let Err(e) = state
-                .session_cache()
-                .save_turn(session_id, &turn, &workstream_id)
-                .await
-            {
-                tracing::warn!("Failed to persist turn to workstream: {}", e);
-            }
-        }
+    if let Some(turn) = completed_turn
+        && let Some(workstream_id) = state.session_cache().get_workstream_id(&session_id).await
+        && let Err(e) = state
+            .session_cache()
+            .save_turn(session_id, &turn, &workstream_id)
+            .await
+    {
+        tracing::warn!("Failed to persist turn to workstream: {}", e);
     }
 
     // Build response - warn if tool calls/results don't match

@@ -48,12 +48,11 @@ impl EventHandler {
                                     CrosstermEvent::Resize(w, h) => Some(Event::Resize(w, h)),
                                     _ => None,
                                 };
-                                if let Some(e) = event {
-                                    if tx.send(e).is_err() {
+                                if let Some(e) = event
+                                    && tx.send(e).is_err() {
                                         tracing::debug!("Event channel closed, receiver dropped");
                                         break;
                                     }
-                                }
                             }
                             Some(Err(e)) => {
                                 tracing::warn!(error = %e, "Error reading terminal event, stopping event loop");

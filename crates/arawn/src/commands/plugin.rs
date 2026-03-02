@@ -466,10 +466,8 @@ fn print_list_table(
                 status
             );
 
-            if verbose {
-                if let Some(p) = path {
-                    println!("  Path: {}", p.display());
-                }
+            if verbose && let Some(p) = path {
+                println!("  Path: {}", p.display());
             }
         }
 

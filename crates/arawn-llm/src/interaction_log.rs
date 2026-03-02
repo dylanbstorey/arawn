@@ -252,13 +252,11 @@ fn cleanup_old_files(dir: &Path, retention_days: u32) -> std::io::Result<()> {
         if let Some(date_str) = name
             .strip_prefix("interactions-")
             .and_then(|s| s.strip_suffix(".jsonl"))
+            && let Ok(file_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+            && file_date < cutoff
         {
-            if let Ok(file_date) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                if file_date < cutoff {
-                    fs::remove_file(entry.path())?;
-                    tracing::info!(file = %name, "removed expired interaction log");
-                }
-            }
+            fs::remove_file(entry.path())?;
+            tracing::info!(file = %name, "removed expired interaction log");
         }
     }
 

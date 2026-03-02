@@ -127,10 +127,10 @@ impl Tool for MemorySearchTool {
         let mut results: Vec<Value> = Vec::new();
 
         for memory in &memories {
-            if let Some(ref filter) = content_type_filter {
-                if !filter.contains(&memory.content_type) {
-                    continue;
-                }
+            if let Some(ref filter) = content_type_filter
+                && !filter.contains(&memory.content_type)
+            {
+                continue;
             }
             if results.len() >= limit {
                 break;
@@ -148,18 +148,18 @@ impl Tool for MemorySearchTool {
 
         // Supplement with notes if we have room
         let remaining = limit.saturating_sub(results.len());
-        if remaining > 0 {
-            if let Ok(notes) = store.search_notes(query, remaining) {
-                for note in &notes {
-                    results.push(json!({
-                        "id": note.id.to_string(),
-                        "content_type": "note",
-                        "content": note.content,
-                        "score": 1.0,
-                        "created_at": note.created_at.to_rfc3339(),
-                        "title": note.title,
-                    }));
-                }
+        if remaining > 0
+            && let Ok(notes) = store.search_notes(query, remaining)
+        {
+            for note in &notes {
+                results.push(json!({
+                    "id": note.id.to_string(),
+                    "content_type": "note",
+                    "content": note.content,
+                    "score": 1.0,
+                    "created_at": note.created_at.to_rfc3339(),
+                    "title": note.title,
+                }));
             }
         }
 

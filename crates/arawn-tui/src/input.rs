@@ -287,11 +287,11 @@ impl InputState {
             }
         }
 
-        if let Some(idx) = self.history_index {
-            if let Some(entry) = self.history.get(idx) {
-                self.content = entry.clone();
-                self.cursor = self.content.len();
-            }
+        if let Some(idx) = self.history_index
+            && let Some(entry) = self.history.get(idx)
+        {
+            self.content = entry.clone();
+            self.cursor = self.content.len();
         }
 
         true

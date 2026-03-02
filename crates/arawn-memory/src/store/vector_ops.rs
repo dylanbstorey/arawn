@@ -31,19 +31,18 @@ impl MemoryStore {
             )
             .ok();
 
-        if let Some(ref stored) = stored_dims {
-            if let Ok(old_dims) = stored.parse::<usize>() {
-                if old_dims != dims {
-                    warn!(
-                        "Embedding dimension mismatch: stored={}, configured={}. \
+        if let Some(ref stored) = stored_dims
+            && let Ok(old_dims) = stored.parse::<usize>()
+            && old_dims != dims
+        {
+            warn!(
+                "Embedding dimension mismatch: stored={}, configured={}. \
                          Vector search disabled until reindex. Run `arawn memory reindex`.",
-                        old_dims, dims
-                    );
-                    *self.vectors_stale.lock().unwrap() = true;
-                    *self.vectors_initialized.lock().unwrap() = true;
-                    return Ok(());
-                }
-            }
+                old_dims, dims
+            );
+            *self.vectors_stale.lock().unwrap() = true;
+            *self.vectors_initialized.lock().unwrap() = true;
+            return Ok(());
         }
 
         crate::vector::create_vector_table(&conn, dims)?;

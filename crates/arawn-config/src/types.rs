@@ -172,17 +172,17 @@ impl ArawnConfig {
     /// 3. `[llm]` (global default)
     pub fn resolve_llm(&self, agent_name: &str) -> crate::Result<&LlmConfig> {
         // 1. Agent-specific
-        if let Some(agent_cfg) = self.agent.get(agent_name) {
-            if let Some(ref llm_name) = agent_cfg.llm {
-                return self.lookup_llm(llm_name, &format!("agent.{}", agent_name));
-            }
+        if let Some(agent_cfg) = self.agent.get(agent_name)
+            && let Some(ref llm_name) = agent_cfg.llm
+        {
+            return self.lookup_llm(llm_name, &format!("agent.{}", agent_name));
         }
 
         // 2. Agent default
-        if let Some(default_cfg) = self.agent.get("default") {
-            if let Some(ref llm_name) = default_cfg.llm {
-                return self.lookup_llm(llm_name, "agent.default");
-            }
+        if let Some(default_cfg) = self.agent.get("default")
+            && let Some(ref llm_name) = default_cfg.llm
+        {
+            return self.lookup_llm(llm_name, "agent.default");
         }
 
         // 3. Global default

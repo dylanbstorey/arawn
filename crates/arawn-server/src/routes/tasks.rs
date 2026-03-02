@@ -167,16 +167,16 @@ pub async fn list_tasks_handler(
         .values()
         .filter(|t| {
             // Filter by status if specified
-            if let Some(ref status) = status_filter {
-                if &t.status != status {
-                    return false;
-                }
+            if let Some(ref status) = status_filter
+                && &t.status != status
+            {
+                return false;
             }
             // Filter by session_id if specified
-            if let Some(ref sid) = query.session_id {
-                if t.session_id.as_ref() != Some(sid) {
-                    return false;
-                }
+            if let Some(ref sid) = query.session_id
+                && t.session_id.as_ref() != Some(sid)
+            {
+                return false;
             }
             true
         })

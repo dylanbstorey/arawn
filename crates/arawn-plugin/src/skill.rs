@@ -266,12 +266,12 @@ impl SkillRegistry {
         }
 
         // Try simple name lookup
-        if let Some(qualified_names) = self.by_simple_name.get(name) {
-            if qualified_names.len() == 1 {
-                return self.skills.get(&qualified_names[0]);
-            }
-            // Ambiguous - multiple plugins have this skill
+        if let Some(qualified_names) = self.by_simple_name.get(name)
+            && qualified_names.len() == 1
+        {
+            return self.skills.get(&qualified_names[0]);
         }
+        // Ambiguous - multiple plugins have this skill
 
         None
     }
