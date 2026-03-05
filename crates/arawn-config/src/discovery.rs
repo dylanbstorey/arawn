@@ -152,8 +152,8 @@ const CONFIG_DIR_ENV: &str = "ARAWN_CONFIG_DIR";
 
 /// Get the XDG config directory path for arawn.
 ///
-/// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to platform default
-/// (`~/.config/arawn/config.toml` on Linux, `~/Library/Application Support/arawn/config.toml` on macOS).
+/// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to
+/// `~/.config/arawn/config.toml` on all platforms.
 ///
 /// # Examples
 ///
@@ -166,16 +166,17 @@ pub fn xdg_config_path() -> Option<PathBuf> {
     xdg_config_dir().map(|d| d.join(USER_CONFIG_FILE))
 }
 
-/// Get the XDG config directory for arawn.
+/// Get the config directory for arawn.
 ///
-/// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to platform default.
+/// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to `~/.config/arawn`
+/// on all platforms for consistency.
 pub fn xdg_config_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var(CONFIG_DIR_ENV)
         && !dir.is_empty()
     {
         return Some(PathBuf::from(dir));
     }
-    dirs::config_dir().map(|d| d.join(APP_NAME))
+    dirs::home_dir().map(|d| d.join(".config").join(APP_NAME))
 }
 
 /// Try to load a config file and merge it into the existing config.
