@@ -397,7 +397,7 @@ print_next_steps() {
     # Config
     printf "  ${YELLOW}${BOLD}${NEXT_STEP}. Edit the config file${RESET}\n\n"
     printf "     Uncomment and set your backend and model:\n\n"
-    printf "     ${DIM}\${EDITOR:-vim} %s${RESET}\n\n" "${CONFIG_FILE}"
+    printf "     ${DIM}%s %s${RESET}\n\n" "${EDITOR:-vim}" "${CONFIG_FILE}"
     printf "     Example for Groq:\n\n"
     printf "     ${DIM}[llm]${RESET}\n"
     printf "     ${DIM}backend = \"groq\"${RESET}\n"
