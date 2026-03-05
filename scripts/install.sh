@@ -408,7 +408,7 @@ print_next_steps() {
     printf "  ${YELLOW}${BOLD}${NEXT_STEP}. Set your API key${RESET}\n\n"
     printf "     Pick one method:\n\n"
     printf "     ${DIM}# Encrypted store (recommended)${RESET}\n"
-    printf "     arawn secret store groq\n\n"
+    printf "     arawn secrets set groq\n\n"
     printf "     ${DIM}# Or set in the service env file${RESET}\n"
     printf "     echo 'GROQ_API_KEY=gsk_...' >> %s\n\n" "${ENV_FILE}"
     printf "     ${DIM}# Or export directly${RESET}\n"
