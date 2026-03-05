@@ -5,10 +5,18 @@ use clap::{Args, Subcommand};
 use console::{Style, style};
 
 use super::Context;
+use super::output;
 use crate::client::Client;
 
 /// Arguments for the memory command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn memory search \"Rust ownership\"
+  arawn memory search \"API design\" -l 5
+  arawn memory recent
+  arawn memory stats
+  arawn memory export -o memories.json
+  arawn memory reindex --dry-run")]
 pub struct MemoryArgs {
     #[command(subcommand)]
     pub command: MemoryCommand,
@@ -71,10 +79,7 @@ async fn cmd_search(query: &str, limit: usize, ctx: &Context) -> Result<()> {
     let dim = Style::new().dim();
 
     if ctx.verbose {
-        println!(
-            "{}",
-            dim.apply_to(format!("Searching: \"{}\" (limit: {})", query, limit))
-        );
+        output::hint(format!("Searching: \"{}\" (limit: {})", query, limit));
         println!();
     }
 
@@ -83,23 +88,24 @@ async fn cmd_search(query: &str, limit: usize, ctx: &Context) -> Result<()> {
             if ctx.json_output {
                 println!("{}", serde_json::to_string_pretty(&results)?);
             } else if results.is_empty() {
-                println!("{}", dim.apply_to("No results found"));
+                output::hint("No results found");
             } else {
-                println!("{}", style("Memory Search Results").bold());
-                println!("{}", dim.apply_to("─".repeat(50)));
-                println!();
+                output::header("Memory Search Results");
 
                 for (i, result) in results.iter().enumerate() {
                     let score_str = format!("(score: {:.3})", result.score);
-                    println!("{}. {}", style(i + 1).cyan(), truncate(&result.content, 70));
+                    println!(
+                        "{}. {}",
+                        style(i + 1).cyan(),
+                        output::truncate(&result.content, 70)
+                    );
                     println!("   {}", dim.apply_to(score_str));
                     println!();
                 }
             }
         }
         Err(e) => {
-            let red = Style::new().red();
-            eprintln!("{} {}", red.apply_to("Error:"), e);
+            super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
         }
     }
 
@@ -115,12 +121,10 @@ async fn cmd_recent(limit: usize, ctx: &Context) -> Result<()> {
     if ctx.json_output {
         println!("{}", serde_json::to_string_pretty(&memories)?);
     } else {
-        println!("{}", style("Recent Memories").bold());
-        println!("{}", dim.apply_to("─".repeat(50)));
-        println!();
+        output::header("Recent Memories");
 
         if memories.is_empty() {
-            println!("{}", dim.apply_to("No memories found"));
+            output::hint("No memories found");
         } else {
             for memory in &memories {
                 let type_label = memory.content_type.as_str();
@@ -128,19 +132,16 @@ async fn cmd_recent(limit: usize, ctx: &Context) -> Result<()> {
                 println!(
                     "{} {} {}",
                     dim.apply_to(format!("[{}]", type_label)),
-                    truncate(&memory.content, 60),
+                    output::truncate(&memory.content, 60),
                     dim.apply_to(format!("({})", time)),
                 );
             }
             println!();
-            println!(
-                "{}",
-                dim.apply_to(format!(
-                    "{} memor{}",
-                    memories.len(),
-                    if memories.len() == 1 { "y" } else { "ies" }
-                ))
-            );
+            output::hint(format!(
+                "{} memor{}",
+                memories.len(),
+                if memories.len() == 1 { "y" } else { "ies" }
+            ));
         }
     }
 
@@ -148,14 +149,10 @@ async fn cmd_recent(limit: usize, ctx: &Context) -> Result<()> {
 }
 
 async fn cmd_stats(_ctx: &Context) -> Result<()> {
-    let dim = Style::new().dim();
     let store = open_memory_store()?;
-
     let stats = store.stats()?;
 
-    println!("{}", style("Memory Statistics").bold());
-    println!("{}", dim.apply_to("─".repeat(50)));
-    println!();
+    output::header("Memory Statistics");
     println!("  Memories:    {}", style(stats.memory_count).cyan());
     println!("  Sessions:    {}", style(stats.session_count).cyan());
     println!("  Notes:       {}", style(stats.note_count).cyan());
@@ -163,16 +160,14 @@ async fn cmd_stats(_ctx: &Context) -> Result<()> {
     println!("  Schema:      v{}", stats.schema_version);
     println!();
 
-    println!("{}", style("Embedding Configuration").bold());
-    println!("{}", dim.apply_to("─".repeat(50)));
-    println!();
+    output::header("Embedding Configuration");
     match &stats.embedding_provider {
         Some(provider) => println!("  Provider:    {}", style(provider).cyan()),
-        None => println!("  Provider:    {}", dim.apply_to("(not configured)")),
+        None => output::hint("  Provider:    (not configured)"),
     }
     match stats.embedding_dimensions {
         Some(dims) => println!("  Dimensions:  {}", style(dims).cyan()),
-        None => println!("  Dimensions:  {}", dim.apply_to("(not configured)")),
+        None => output::hint("  Dimensions:  (not configured)"),
     }
     if stats.vectors_stale {
         println!(
@@ -190,14 +185,11 @@ async fn cmd_stats(_ctx: &Context) -> Result<()> {
 }
 
 async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
-    let dim = Style::new().dim();
     let store = open_memory_store()?;
 
     if dry_run {
         let dry = store.reindex_dry_run()?;
-        println!("{}", style("Reindex Dry Run").bold());
-        println!("{}", dim.apply_to("─".repeat(50)));
-        println!();
+        output::header("Reindex Dry Run");
         println!("  Memories to embed:  {}", style(dry.memory_count).cyan());
         println!(
             "  Estimated tokens:   {}",
@@ -222,9 +214,7 @@ async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
 
     // Show what we're about to do
     let dry = store.reindex_dry_run()?;
-    println!("{}", style("Memory Reindex").bold());
-    println!("{}", dim.apply_to("─".repeat(50)));
-    println!();
+    output::header("Memory Reindex");
     println!("  Provider:     {}", style(&new_provider).cyan());
     println!("  Dimensions:   {}", style(new_dims).cyan());
     println!("  Memories:     {}", style(dry.memory_count).cyan());
@@ -235,7 +225,7 @@ async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
     println!();
 
     if dry.memory_count == 0 {
-        println!("{}", dim.apply_to("No memories to embed."));
+        output::hint("No memories to embed.");
         return Ok(());
     }
 
@@ -245,7 +235,7 @@ async fn cmd_reindex(dry_run: bool, yes: bool, _ctx: &Context) -> Result<()> {
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if !input.trim().eq_ignore_ascii_case("y") {
-            println!("{}", dim.apply_to("Aborted."));
+            output::hint("Aborted.");
             return Ok(());
         }
     }
@@ -303,15 +293,12 @@ async fn cmd_export(output: Option<String>, ctx: &Context) -> Result<()> {
         Some(path) => {
             std::fs::write(&path, &json)?;
             if !ctx.json_output {
-                let green = Style::new().green();
-                let dim = Style::new().dim();
-                println!(
-                    "{} Exported {} memories and {} notes to {}",
-                    green.apply_to("✓"),
+                super::output::success(format!(
+                    "Exported {} memories and {} notes to {}",
                     memories.len(),
                     notes.len(),
-                    dim.apply_to(&path),
-                );
+                    Style::new().dim().apply_to(&path),
+                ));
             }
         }
         None => {
@@ -359,14 +346,5 @@ fn build_embedder_spec(config: &arawn_config::EmbeddingConfig) -> arawn_llm::Emb
         dimensions: config.dimensions,
         local_model_url: local_config.and_then(|c| c.model_url.clone()),
         local_tokenizer_url: local_config.and_then(|c| c.tokenizer_url.clone()),
-    }
-}
-
-fn truncate(s: &str, max_len: usize) -> String {
-    let s = s.replace('\n', " ");
-    if s.len() <= max_len {
-        s
-    } else {
-        format!("{}...", &s[..max_len - 3])
     }
 }

@@ -42,7 +42,7 @@ pub enum ServerError {
 
     /// Agent error (may wrap LLM rate limits).
     #[error("Agent error: {0}")]
-    Agent(#[from] arawn_agent::AgentError),
+    Agent(#[from] arawn_domain::AgentError),
 
     /// Serialization error.
     #[error("Serialization error: {0}")]
@@ -121,38 +121,38 @@ impl ServerError {
     }
 }
 
-impl From<arawn_workstream::WorkstreamError> for ServerError {
-    fn from(e: arawn_workstream::WorkstreamError) -> Self {
+impl From<arawn_domain::WorkstreamError> for ServerError {
+    fn from(e: arawn_domain::WorkstreamError) -> Self {
+        use arawn_domain::WorkstreamError;
         match e {
-            arawn_workstream::WorkstreamError::NotFound(msg) => ServerError::NotFound(msg),
-            arawn_workstream::WorkstreamError::Database(e) => ServerError::Storage(e.to_string()),
-            arawn_workstream::WorkstreamError::Io(e) => {
-                ServerError::Storage(format!("IO error: {}", e))
-            }
-            arawn_workstream::WorkstreamError::Serde(e) => ServerError::Serialization(e),
-            arawn_workstream::WorkstreamError::Migration(msg) => {
+            WorkstreamError::NotFound(msg) => ServerError::NotFound(msg),
+            WorkstreamError::Database(e) => ServerError::Storage(e.to_string()),
+            WorkstreamError::Io(e) => ServerError::Storage(format!("IO error: {}", e)),
+            WorkstreamError::Serde(e) => ServerError::Serialization(e),
+            WorkstreamError::Migration(msg) => {
                 ServerError::Internal(format!("Migration error: {}", msg))
             }
         }
     }
 }
 
-impl From<arawn_config::ConfigError> for ServerError {
-    fn from(e: arawn_config::ConfigError) -> Self {
+impl From<arawn_domain::ConfigError> for ServerError {
+    fn from(e: arawn_domain::ConfigError) -> Self {
+        use arawn_domain::ConfigError;
         match e {
-            arawn_config::ConfigError::ContextNotFound(ctx) => {
+            ConfigError::ContextNotFound(ctx) => {
                 ServerError::NotFound(format!("Context '{}' not found", ctx))
             }
-            arawn_config::ConfigError::LlmNotFound { name, .. } => {
+            ConfigError::LlmNotFound { name, .. } => {
                 ServerError::NotFound(format!("LLM config '{}' not found", name))
             }
-            arawn_config::ConfigError::NoDefaultLlm => {
+            ConfigError::NoDefaultLlm => {
                 ServerError::BadRequest("No default LLM configured".to_string())
             }
-            arawn_config::ConfigError::MissingField { field, context } => {
+            ConfigError::MissingField { field, context } => {
                 ServerError::BadRequest(format!("Missing field '{}' in {}", field, context))
             }
-            arawn_config::ConfigError::ApiKeyNotFound { backend, .. } => {
+            ConfigError::ApiKeyNotFound { backend, .. } => {
                 ServerError::Config(format!("API key not found for backend '{}'", backend))
             }
             _ => ServerError::Config(e.to_string()),

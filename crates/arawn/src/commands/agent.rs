@@ -13,9 +13,14 @@ use serde_json::json;
 use arawn_plugin::{PluginManager, SubscriptionManager};
 
 use super::Context;
+use super::output;
 
 /// Agent management commands.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn agent list                  List all available agents
+  arawn agent list --plugin mimir   Filter by plugin
+  arawn agent info researcher       Show details for an agent")]
 pub struct AgentArgs {
     #[command(subcommand)]
     pub command: AgentCommand,
@@ -200,7 +205,7 @@ fn print_list_table(agents: &[AgentInfo], verbose: bool) -> Result<()> {
         "  {:<20} {:<35} {:<30} PLUGIN",
         "NAME", "DESCRIPTION", "TOOLS"
     );
-    println!("  {}", "-".repeat(95));
+    println!("  {}", "─".repeat(95));
 
     for agent in agents {
         let tools_str = if agent.tools.is_empty() {
@@ -217,10 +222,10 @@ fn print_list_table(agents: &[AgentInfo], verbose: bool) -> Result<()> {
 
         println!(
             "  {:<20} {:<35} {:<30} ({})",
-            truncate(&agent.name, 20),
-            truncate(&agent.description, 35),
-            truncate(&tools_str, 30),
-            truncate(&agent.source_plugin, 15)
+            output::truncate(&agent.name, 20),
+            output::truncate(&agent.description, 35),
+            output::truncate(&tools_str, 30),
+            output::truncate(&agent.source_plugin, 15)
         );
 
         if verbose {
@@ -234,7 +239,7 @@ fn print_list_table(agents: &[AgentInfo], verbose: bool) -> Result<()> {
     }
 
     println!();
-    println!("Use 'arawn agent info <name>' for detailed information.");
+    output::hint("Use 'arawn agent info <name>' for detailed information.");
 
     Ok(())
 }
@@ -264,7 +269,7 @@ async fn run_info(args: InfoArgs, ctx: &Context) -> Result<()> {
         } else {
             println!("Agent '{}' not found.", args.name);
             println!();
-            println!("Use 'arawn agent list' to see available agents.");
+            output::hint("Use 'arawn agent list' to see available agents.");
         }
         return Ok(());
     }
@@ -320,17 +325,16 @@ fn print_info_json(agent: &AgentInfo) -> Result<()> {
 
 /// Print detailed agent info.
 fn print_info_detail(agent: &AgentInfo) -> Result<()> {
-    println!("Agent: {}", agent.name);
-    println!();
-    println!("Description: {}", agent.description);
-    println!("Plugin: {}", agent.source_plugin);
+    output::header(&format!("Agent: {}", agent.name));
+    output::kv("Description", &agent.description);
+    output::kv("Plugin", &agent.source_plugin);
 
     if let Some(model) = &agent.model {
-        println!("Model: {}", model);
+        output::kv("Model", model);
     }
 
     if let Some(max_iter) = agent.max_iterations {
-        println!("Max Iterations: {}", max_iter);
+        output::kv("Max Iters", max_iter);
     }
 
     println!();
@@ -346,30 +350,8 @@ fn print_info_detail(agent: &AgentInfo) -> Result<()> {
     if let Some(prompt) = &agent.system_prompt {
         println!();
         println!("System Prompt:");
-        println!("  {}", truncate_multiline(prompt, 500));
+        println!("  {}", output::truncate_multiline(prompt, 500));
     }
 
     Ok(())
-}
-
-/// Truncate a string to a maximum length.
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
-}
-
-/// Truncate a multiline string, showing first N characters.
-fn truncate_multiline(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.replace('\n', "\n  ")
-    } else {
-        format!(
-            "{}... (truncated, {} chars total)",
-            s[..max_len].replace('\n', "\n  "),
-            s.len()
-        )
-    }
 }

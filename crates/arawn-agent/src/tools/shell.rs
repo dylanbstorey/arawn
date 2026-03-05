@@ -16,7 +16,9 @@ use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::error::Result;
-use crate::tool::{ShellParams, Tool, ToolContext, ToolResult};
+use crate::tool::{
+    CommandValidation, CommandValidator, ShellParams, Tool, ToolContext, ToolResult,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shell Configuration
@@ -279,8 +281,17 @@ impl ShellTool {
     }
 
     /// Check if a command is allowed.
+    ///
+    /// Validates against the shared `CommandValidator` first (defense-in-depth
+    /// blocked patterns), then checks config-level allowlist/blocklist.
     fn is_command_allowed(&self, command: &str) -> bool {
-        // Check blocked commands first
+        // Shared validator catches dangerous patterns (normalized matching)
+        let validator = CommandValidator::default();
+        if let CommandValidation::Blocked(_) = validator.validate(command) {
+            return false;
+        }
+
+        // Config-level blocklist (legacy, uses contains matching)
         let cmd_lower = command.to_lowercase();
         for blocked in &self.config.blocked_commands {
             if cmd_lower.contains(&blocked.to_lowercase()) {
@@ -288,7 +299,7 @@ impl ShellTool {
             }
         }
 
-        // If we have an allowlist, check it
+        // Config-level allowlist
         if !self.config.allowed_commands.is_empty() {
             for allowed in &self.config.allowed_commands {
                 if cmd_lower.starts_with(&allowed.to_lowercase()) {

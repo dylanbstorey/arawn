@@ -18,6 +18,19 @@ pub struct SessionSummary {
 }
 
 /// State for the session list overlay.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_tui::sessions::{SessionList, SessionSummary};
+///
+/// let mut list = SessionList::new();
+/// list.set_items(vec![/* session summaries */]);
+/// list.filter_push('a'); // filter by 'a'
+/// if let Some(session) = list.selected_session() {
+///     println!("Selected: {}", session.title);
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct SessionList {
     /// All available sessions.
@@ -179,6 +192,13 @@ impl SessionList {
 }
 
 /// Simple fuzzy matching - checks if all filter characters appear in order.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// assert!(fuzzy_match("async/await explanation", "aw"));
+/// assert!(!fuzzy_match("hello", "olleh"));
+/// ```
 fn fuzzy_match(text: &str, filter: &str) -> bool {
     let text_lower = text.to_lowercase();
     let mut text_chars = text_lower.chars().peekable();

@@ -10,6 +10,10 @@ use crate::client::{ChatEvent, Client};
 
 /// Arguments for the ask command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn ask \"Explain ownership in Rust\"
+  arawn ask -s abc123 \"Follow up on that\"
+  arawn ask --no-memory \"What is 2+2?\"")]
 pub struct AskArgs {
     /// The question or prompt to send
     #[arg(required = true)]
@@ -41,9 +45,16 @@ pub async fn run(args: AskArgs, ctx: &Context) -> Result<()> {
     }
 
     // Send the chat request and stream the response
-    let mut stream = client
+    let mut stream = match client
         .chat_stream(&args.prompt, args.session.as_deref())
-        .await?;
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
+            return Err(e);
+        }
+    };
 
     // Track if we've printed anything (for final newline)
     let mut has_output = false;
@@ -73,10 +84,9 @@ pub async fn run(args: AskArgs, ctx: &Context) -> Result<()> {
                 }
             }
             ChatEvent::Error(e) => {
-                let red = Style::new().red();
-                eprintln!();
-                eprintln!("{} {}", red.apply_to("Error:"), e);
-                return Err(anyhow::anyhow!(e));
+                let err = anyhow::anyhow!(e);
+                super::print_cli_error(&err, &ctx.server_url, ctx.verbose);
+                return Err(err);
             }
         }
     }

@@ -15,9 +15,18 @@ use arawn_config::PluginSubscription;
 use arawn_plugin::{PluginManager, SubscriptionManager, SyncAction};
 
 use super::Context;
+use super::output;
 
 /// Plugin management commands.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn plugin add owner/repo       Subscribe to a GitHub plugin
+  arawn plugin add owner/repo --ref v1.0
+  arawn plugin add https://git.example.com/plugin.git
+  arawn plugin update                Update all plugins
+  arawn plugin update my-plugin      Update a specific plugin
+  arawn plugin remove my-plugin
+  arawn plugin list")]
 pub struct PluginArgs {
     #[command(subcommand)]
     pub command: PluginCommand,
@@ -438,7 +447,7 @@ fn print_list_table(
     if show_subscribed && !subscriptions.is_empty() {
         println!("Subscribed plugins:");
         println!("{:<30} {:<15} {:<40} STATUS", "ID", "REF", "SOURCE");
-        println!("{}", "-".repeat(95));
+        println!("{}", "─".repeat(95));
 
         for sub in subscriptions {
             let path = manager.plugin_dir_for(sub);
@@ -460,9 +469,9 @@ fn print_list_table(
 
             println!(
                 "{:<30} {:<15} {:<40} {}",
-                truncate(&sub.id(), 30),
-                truncate(sub.effective_ref(), 15),
-                truncate(&source, 40),
+                output::truncate(&sub.id(), 30),
+                output::truncate(sub.effective_ref(), 15),
+                output::truncate(&source, 40),
                 status
             );
 
@@ -482,15 +491,15 @@ fn print_list_table(
 
         println!("Local plugins:");
         println!("{:<30} {:<15} {:<40}", "NAME", "VERSION", "PATH");
-        println!("{}", "-".repeat(85));
+        println!("{}", "─".repeat(85));
 
         for plugin in local_plugins {
             let version = plugin.manifest.version.as_deref().unwrap_or("unknown");
             println!(
                 "{:<30} {:<15} {:<40}",
-                truncate(&plugin.manifest.name, 30),
-                truncate(version, 15),
-                truncate(&plugin.plugin_dir.display().to_string(), 40)
+                output::truncate(&plugin.manifest.name, 30),
+                output::truncate(version, 15),
+                output::truncate(&plugin.plugin_dir.display().to_string(), 40)
             );
         }
 
@@ -502,13 +511,4 @@ fn print_list_table(
     }
 
     Ok(())
-}
-
-/// Truncate a string to a maximum length.
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len - 3])
-    }
 }

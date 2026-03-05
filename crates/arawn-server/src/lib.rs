@@ -49,7 +49,7 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use arawn_agent::Agent;
+use arawn_domain::Agent;
 
 /// The Arawn HTTP/WebSocket server.
 pub struct Server {
@@ -270,7 +270,7 @@ impl Server {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
     use axum::{
         body::Body,

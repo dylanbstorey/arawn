@@ -33,6 +33,15 @@ pub const SECRET_HANDLE_SUFFIX: &str = "}}";
 ///
 /// Returns `Some("github_token")` for `${{secrets.github_token}}`,
 /// `None` for non-matching strings.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::extract_secret_name;
+///
+/// assert_eq!(extract_secret_name("${{secrets.api_key}}"), Some("api_key"));
+/// assert_eq!(extract_secret_name("plain text"), None);
+/// ```
 pub fn extract_secret_name(s: &str) -> Option<&str> {
     let rest = s.strip_prefix(SECRET_HANDLE_PREFIX)?;
     let name = rest.strip_suffix(SECRET_HANDLE_SUFFIX)?;
@@ -51,6 +60,18 @@ pub fn contains_secret_handle(s: &str) -> bool {
 ///
 /// Returns the string with all handles replaced by their values.
 /// Unresolved handles are left as-is (the tool will see them and can report an error).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::resolve_handles_in_string;
+///
+/// let resolved = resolve_handles_in_string(
+///     "Bearer ${{secrets.token}}",
+///     &my_resolver,
+/// );
+/// // If "token" resolves to "abc123": "Bearer abc123"
+/// ```
 pub fn resolve_handles_in_string(s: &str, resolver: &dyn SecretResolver) -> String {
     if !contains_secret_handle(s) {
         return s.to_string();

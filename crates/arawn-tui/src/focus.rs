@@ -69,6 +69,19 @@ const CYCLABLE_PANELS: &[FocusTarget] = &[
 /// - Overlay stack (command palette takes priority)
 /// - Focus cycling between main panels
 /// - Return-to-previous behavior for overlays
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_tui::focus::{FocusManager, FocusTarget};
+///
+/// let mut fm = FocusManager::new();
+/// fm.focus(FocusTarget::Sidebar);
+/// fm.push_overlay(FocusTarget::CommandPalette);
+/// assert!(fm.has_overlay());
+/// fm.pop_overlay(); // returns to Sidebar
+/// fm.cycle_next();  // Sidebar -> ToolPane
+/// ```
 #[derive(Debug, Clone)]
 pub struct FocusManager {
     /// Current focus target.

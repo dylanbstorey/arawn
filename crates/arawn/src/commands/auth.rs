@@ -4,9 +4,15 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 
 use super::Context;
+use super::output;
 
 /// Arguments for the auth command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn auth login                  Authenticate via OAuth
+  arawn auth status                 Show current auth state
+  arawn auth token --generate       Generate a new API token
+  arawn auth logout                 Clear stored tokens")]
 pub struct AuthArgs {
     #[command(subcommand)]
     pub command: AuthCommand,
@@ -45,7 +51,11 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
     let data_dir = arawn_config::xdg_config_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
-    let token_manager = arawn_oauth::token_manager::create_token_manager(&data_dir);
+    // Build OAuth config with any [oauth] overrides from arawn config
+    let config = build_oauth_config();
+
+    let token_manager =
+        arawn_oauth::token_manager::create_token_manager_with_config(&data_dir, config.clone());
 
     // Check if already authenticated
     if token_manager.has_tokens()
@@ -56,20 +66,15 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
             "Already authenticated (expires in {})",
             info.expires_in_display()
         );
-        println!("Run 'arawn auth logout' first to re-authenticate.");
+        output::hint("Run 'arawn auth logout' first to re-authenticate.");
         return Ok(());
     }
-
-    // Start PKCE OAuth flow
-    let config = arawn_oauth::OAuthConfig::default();
     let pkce = arawn_oauth::PkceChallenge::generate();
     let state = arawn_oauth::oauth::generate_state();
 
     let auth_url = arawn_oauth::oauth::build_authorization_url(&config, &pkce.challenge, &state);
 
-    println!("Claude MAX OAuth Authentication");
-    println!("================================");
-    println!();
+    output::header("Claude MAX OAuth Authentication");
     println!("Open this URL in your browser:");
     println!();
     println!("  {}", auth_url);
@@ -80,7 +85,7 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
 
     // Try to open the browser automatically
     if open_url(&auth_url).is_err() {
-        println!("(Could not open browser automatically)");
+        output::hint("(Could not open browser automatically)");
         println!();
     }
 
@@ -94,7 +99,7 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
     let input = input.trim();
 
     if input.is_empty() {
-        println!("No input provided, aborting.");
+        output::hint("No input provided, aborting.");
         return Ok(());
     }
 
@@ -107,7 +112,7 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
         ));
     }
 
-    println!("Exchanging code for tokens...");
+    output::hint("Exchanging code for tokens...");
 
     let tokens =
         arawn_oauth::oauth::exchange_code_for_tokens(&config, &code, &pkce.verifier, &state)
@@ -120,11 +125,11 @@ async fn cmd_login(_ctx: &Context) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to save tokens: {}", e))?;
 
     println!();
-    println!("Authentication successful!");
+    output::success("Authentication successful!");
     println!("Token expires in: {} seconds", tokens.expires_in);
     println!("Scope: {}", tokens.scope);
     println!();
-    println!("You can now use backend = \"claude-oauth\" in your config.");
+    output::hint("You can now use backend = \"claude-oauth\" in your config.");
 
     Ok(())
 }
@@ -135,30 +140,29 @@ async fn cmd_status(_ctx: &Context) -> Result<()> {
 
     let token_manager = arawn_oauth::token_manager::create_token_manager(&data_dir);
 
-    println!("Authentication Status");
-    println!("---------------------");
+    output::header("Authentication Status");
 
     // Check OAuth tokens
     if token_manager.has_tokens() {
         match token_manager.get_token_info().await {
             Ok(Some(info)) => {
-                println!("OAuth: authenticated");
-                println!("  Expires: {}", info.expires_in_display());
-                println!("  Scope: {}", info.scope);
+                output::kv("OAuth", "authenticated");
+                output::kv("Expires", info.expires_in_display());
+                output::kv("Scope", &info.scope);
                 if !info.created_at.is_empty() {
-                    println!("  Created: {}", info.created_at);
+                    output::kv("Created", &info.created_at);
                 }
             }
             Ok(None) => {
-                println!("OAuth: token file exists but could not be read");
+                output::kv("OAuth", "token file exists but could not be read");
             }
             Err(e) => {
-                println!("OAuth: error reading tokens: {}", e);
+                output::kv("OAuth", format!("error reading tokens: {}", e));
             }
         }
     } else {
-        println!("OAuth: not authenticated");
-        println!("  Run 'arawn auth login' to authenticate with Claude MAX");
+        output::kv("OAuth", "not authenticated");
+        output::hint("  Run 'arawn auth login' to authenticate with Claude MAX");
     }
 
     println!();
@@ -170,9 +174,9 @@ async fn cmd_status(_ctx: &Context) -> Result<()> {
         } else {
             "****".to_string()
         };
-        println!("Server token: {} (from environment)", masked);
+        output::kv("Token", format!("{} (from environment)", masked));
     } else {
-        println!("Server token: not set (ARAWN_API_TOKEN)");
+        output::kv("Token", "not set (ARAWN_API_TOKEN)");
     }
 
     Ok(())
@@ -189,9 +193,9 @@ async fn cmd_logout() -> Result<()> {
             .delete_tokens()
             .await
             .map_err(|e| anyhow::anyhow!("Failed to delete tokens: {}", e))?;
-        println!("OAuth tokens removed.");
+        output::success("OAuth tokens removed.");
     } else {
-        println!("No OAuth tokens found.");
+        output::hint("No OAuth tokens found.");
     }
 
     Ok(())
@@ -207,11 +211,31 @@ async fn cmd_token(generate: bool, _ctx: &Context) -> Result<()> {
     } else if let Ok(token) = std::env::var("ARAWN_API_TOKEN") {
         println!("{}", token);
     } else {
-        eprintln!("No token configured");
-        eprintln!("Use 'arawn auth token --generate' to create one");
+        output::error("No token configured");
+        output::hint("Use 'arawn auth token --generate' to create one");
     }
 
     Ok(())
+}
+
+/// Build an OAuthConfig applying any `[oauth]` overrides from arawn config.
+fn build_oauth_config() -> arawn_oauth::OAuthConfig {
+    let base = arawn_oauth::OAuthConfig::default();
+
+    let overrides = arawn_config::load_config(None)
+        .ok()
+        .and_then(|loaded| loaded.config.oauth);
+
+    match overrides {
+        Some(o) => base.with_overrides(
+            o.client_id.as_deref(),
+            o.authorize_url.as_deref(),
+            o.token_url.as_deref(),
+            o.redirect_uri.as_deref(),
+            o.scope.as_deref(),
+        ),
+        None => base,
+    }
 }
 
 /// Try to open a URL in the default browser.

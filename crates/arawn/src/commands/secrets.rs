@@ -3,8 +3,14 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 
+use super::output;
+
 /// Arguments for the secrets command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn secrets set github_token    Store a secret (prompts for value)
+  arawn secrets list                List stored secret names
+  arawn secrets delete github_token")]
 pub struct SecretsArgs {
     #[command(subcommand)]
     pub command: SecretsCommand,
@@ -38,27 +44,24 @@ pub async fn run(args: SecretsArgs) -> Result<()> {
 }
 
 async fn cmd_set(name: &str) -> Result<()> {
-    println!("Enter value for '{}':", name);
-
-    let mut value = String::new();
-    std::io::stdin().read_line(&mut value)?;
+    let value = rpassword::prompt_password(format!("Enter value for '{}' (input hidden): ", name))?;
     let value = value.trim();
 
     if value.is_empty() {
-        println!("No value provided, aborting.");
+        output::hint("No value provided, aborting.");
         return Ok(());
     }
 
     match arawn_config::secrets::store_named_secret(name, value) {
         Ok(()) => {
-            println!("Secret '{}' stored in encrypted store.", name);
-            println!(
+            output::success(format!("Secret '{}' stored in encrypted store.", name));
+            output::hint(format!(
                 "Use ${{{{secrets.{}}}}} in tool parameters to reference it.",
                 name
-            );
+            ));
         }
         Err(e) => {
-            eprintln!("Failed to store secret: {}", e);
+            output::error(format!("Failed to store secret: {}", e));
         }
     }
 
@@ -69,17 +72,18 @@ async fn cmd_list() -> Result<()> {
     match arawn_config::secrets::list_secrets() {
         Ok(names) => {
             if names.is_empty() {
-                println!("No secrets stored.");
+                output::hint("No secrets stored.");
             } else {
                 println!("Stored secrets:");
                 for name in &names {
                     println!("  {}", name);
                 }
-                println!("\n{} secret(s) total.", names.len());
+                println!();
+                output::hint(format!("{} secret(s) total.", names.len()));
             }
         }
         Err(e) => {
-            eprintln!("Failed to list secrets: {}", e);
+            output::error(format!("Failed to list secrets: {}", e));
         }
     }
 
@@ -89,10 +93,10 @@ async fn cmd_list() -> Result<()> {
 async fn cmd_delete(name: &str) -> Result<()> {
     match arawn_config::secrets::delete_named_secret(name) {
         Ok(()) => {
-            println!("Secret '{}' deleted.", name);
+            output::success(format!("Secret '{}' deleted.", name));
         }
         Err(e) => {
-            eprintln!("Failed to delete secret: {}", e);
+            output::error(format!("Failed to delete secret: {}", e));
         }
     }
 

@@ -3,7 +3,8 @@
 use futures::StreamExt;
 use uuid::Uuid;
 
-use arawn_agent::{SessionId, ToolCall, ToolResultRecord, Turn, TurnId};
+use arawn_domain::{SessionId, ToolCall, ToolResultRecord, Turn, TurnId};
+use subtle::ConstantTimeEq;
 
 use super::connection::ConnectionState;
 use super::protocol::{ClientMessage, ServerMessage};
@@ -62,7 +63,11 @@ fn handle_auth(
 ) -> MessageResponse {
     let authed = match &app_state.config().auth_token {
         None => true,
-        Some(expected) => token == *expected,
+        Some(expected) => {
+            let a = token.as_bytes();
+            let b = expected.as_bytes();
+            a.len() == b.len() && a.ct_eq(b).into()
+        }
     };
     if authed {
         conn_state.authenticated = true;
@@ -346,6 +351,17 @@ async fn handle_chat(
     // Resolve workstream ID (default to "scratch")
     let ws_id = workstream_id.as_deref().unwrap_or("scratch");
 
+    // Validate workstream ID to prevent path traversal
+    if !arawn_domain::DirectoryManager::is_valid_name(ws_id) {
+        return MessageResponse::Single(ServerMessage::error(
+            "invalid_workstream_id",
+            format!(
+                "Invalid workstream ID: '{}'. Must contain only alphanumeric characters, hyphens, and underscores.",
+                ws_id
+            ),
+        ));
+    }
+
     // Get or create session using the session cache
     let session_id = app_state
         .get_or_create_session_in_workstream(session_id, ws_id)
@@ -354,7 +370,7 @@ async fn handle_chat(
 
     // Store user message in workstream (if workstreams enabled)
     if let Some(ws_manager) = app_state.workstreams() {
-        use arawn_workstream::MessageRole;
+        use arawn_domain::MessageRole;
         if let Err(e) = ws_manager.send_message(
             workstream_id.as_deref(),
             Some(&session_id_str),
@@ -414,7 +430,7 @@ async fn handle_chat(
 
         let mut stream = std::pin::pin!(stream);
         while let Some(chunk) = stream.next().await {
-            use arawn_agent::StreamChunk;
+            use arawn_domain::StreamChunk;
 
             match chunk {
                 StreamChunk::Text { content } => {

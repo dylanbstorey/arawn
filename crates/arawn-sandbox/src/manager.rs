@@ -70,6 +70,17 @@ impl CommandOutput {
 /// Sandboxing is **required**. If the sandbox is unavailable (missing dependencies),
 /// commands will fail with a clear error message explaining how to install
 /// the required dependencies.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_sandbox::{SandboxManager, SandboxConfig};
+///
+/// let manager = SandboxManager::new().await?;
+/// let config = SandboxConfig::new().add_write_path("/tmp/work");
+/// let output = manager.execute("echo hello", &config).await?;
+/// assert!(output.success);
+/// ```
 pub struct SandboxManager {
     runtime: RuntimeSandboxManager,
     platform: Platform,

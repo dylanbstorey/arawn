@@ -9,17 +9,19 @@
 //! This makes workstream sessions the single source of truth while
 //! maintaining the in-memory performance needed for active sessions.
 //!
-//! The cache uses [`arawn_session::SessionCache`] with a
+//! The cache uses [`SessionCacheImpl`] with a
 //! [`WorkstreamPersistence`] hook that loads from and saves to
 //! workstream JSONL storage.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use arawn_agent::{Session, SessionId, ToolCall, ToolResultRecord, Turn};
-use arawn_session::{CacheConfig, PersistenceHook};
+use arawn_domain::{
+    CacheConfig, PersistenceHook, ReconstructedSession, Session, SessionCacheImpl, SessionId,
+    SessionLoader, SessionStoreError, SessionStoreResult, ToolCall, ToolResultRecord, Turn,
+    WorkstreamError, WorkstreamManager,
+};
 use arawn_types::HasSessionConfig;
-use arawn_workstream::{ReconstructedSession, SessionLoader, WorkstreamManager};
 use tracing::{debug, warn};
 
 /// Default maximum number of sessions to cache.
@@ -39,9 +41,9 @@ pub enum SessionCacheError {
     #[error("No workstream manager configured")]
     NoWorkstreamManager,
     #[error("Workstream error: {0}")]
-    Workstream(#[from] arawn_workstream::WorkstreamError),
+    Workstream(#[from] WorkstreamError),
     #[error("Cache error: {0}")]
-    Cache(#[from] arawn_session::Error),
+    Cache(#[from] SessionStoreError),
 }
 
 pub type Result<T> = std::result::Result<T, SessionCacheError>;
@@ -58,7 +60,7 @@ pub struct WorkstreamPersistence {
 impl PersistenceHook for WorkstreamPersistence {
     type Value = Session;
 
-    fn load(&self, session_id: &str, context_id: &str) -> arawn_session::Result<Option<Session>> {
+    fn load(&self, session_id: &str, context_id: &str) -> SessionStoreResult<Option<Session>> {
         let Some(ref manager) = self.workstreams else {
             // No workstream manager — return an empty session
             let sid = parse_session_id(session_id)?;
@@ -68,7 +70,7 @@ impl PersistenceHook for WorkstreamPersistence {
         let loader = SessionLoader::new(manager.message_store());
         match loader
             .load_session(context_id, session_id)
-            .map_err(|e| arawn_session::Error::Persistence(e.to_string()))?
+            .map_err(|e| SessionStoreError::Persistence(e.to_string()))?
         {
             Some(reconstructed) => {
                 let sid = parse_session_id(session_id)?;
@@ -88,22 +90,22 @@ impl PersistenceHook for WorkstreamPersistence {
         _session_id: &str,
         _context_id: &str,
         _value: &Session,
-    ) -> arawn_session::Result<()> {
+    ) -> SessionStoreResult<()> {
         // Turns are saved explicitly via save_turn(); no bulk save needed.
         Ok(())
     }
 
-    fn delete(&self, _session_id: &str, _context_id: &str) -> arawn_session::Result<()> {
+    fn delete(&self, _session_id: &str, _context_id: &str) -> SessionStoreResult<()> {
         // Session deletion from workstream storage is handled elsewhere.
         Ok(())
     }
 }
 
 /// Parse a session ID string into a `SessionId`.
-fn parse_session_id(session_id: &str) -> arawn_session::Result<SessionId> {
+fn parse_session_id(session_id: &str) -> SessionStoreResult<SessionId> {
     uuid::Uuid::parse_str(session_id)
         .map(SessionId::from_uuid)
-        .map_err(|e| arawn_session::Error::Persistence(format!("Invalid session ID: {e}")))
+        .map_err(|e| SessionStoreError::Persistence(format!("Invalid session ID: {e}")))
 }
 
 /// Session cache that loads from and persists to workstream storage.
@@ -112,12 +114,12 @@ fn parse_session_id(session_id: &str) -> arawn_session::Result<SessionId> {
 /// used sessions are evicted when the cache reaches capacity. Sessions
 /// can also expire based on TTL if configured.
 ///
-/// Backed by [`arawn_session::SessionCache`] with a [`WorkstreamPersistence`]
+/// Backed by [`SessionCacheImpl`] with a [`WorkstreamPersistence`]
 /// hook for workstream JSONL storage.
 #[derive(Clone)]
 pub struct SessionCache {
     /// Generic cache with workstream persistence.
-    inner: arawn_session::SessionCache<WorkstreamPersistence>,
+    inner: SessionCacheImpl<WorkstreamPersistence>,
     /// Workstream manager for turn persistence.
     workstreams: Option<Arc<WorkstreamManager>>,
 }
@@ -160,7 +162,7 @@ impl SessionCache {
         };
 
         Self {
-            inner: arawn_session::SessionCache::with_persistence(cache_config, persistence),
+            inner: SessionCacheImpl::with_persistence(cache_config, persistence),
             workstreams,
         }
     }

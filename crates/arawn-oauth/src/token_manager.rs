@@ -52,6 +52,19 @@ pub trait TokenManager: Send + Sync + std::fmt::Debug {
 // ============================================================================
 
 /// File-based token manager for production use.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_oauth::FileTokenManager;
+/// use std::path::Path;
+///
+/// let manager = FileTokenManager::new(Path::new("/home/user/.arawn"));
+/// if manager.has_tokens() {
+///     let token = manager.get_valid_access_token().await?;
+///     println!("Access token: {}...", &token[..10]);
+/// }
+/// ```
 #[derive(Debug)]
 pub struct FileTokenManager {
     token_path: PathBuf,
@@ -76,6 +89,12 @@ impl FileTokenManager {
             config: OAuthConfig::default(),
             cached_tokens: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Create with a custom OAuth config.
+    pub fn with_config(mut self, config: OAuthConfig) -> Self {
+        self.config = config;
+        self
     }
 
     /// Get the token file path.
@@ -356,6 +375,14 @@ pub type SharedTokenManager = Arc<dyn TokenManager>;
 /// Create a shared file-based token manager.
 pub fn create_token_manager(data_dir: &Path) -> SharedTokenManager {
     Arc::new(FileTokenManager::new(data_dir))
+}
+
+/// Create a shared file-based token manager with a custom OAuth config.
+pub fn create_token_manager_with_config(
+    data_dir: &Path,
+    config: OAuthConfig,
+) -> SharedTokenManager {
+    Arc::new(FileTokenManager::new(data_dir).with_config(config))
 }
 
 /// Create a shared in-memory token manager (for testing).

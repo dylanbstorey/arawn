@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 7 medium-priority server issues from the codebase audit.
 ## Objective
 
 Improve server code quality, error handling, and API consistency.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

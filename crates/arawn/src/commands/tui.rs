@@ -7,6 +7,9 @@ use super::Context;
 
 /// TUI command arguments.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn tui                         Launch TUI with default workstream
+  arawn tui -w my-project           Open a specific workstream")]
 pub struct TuiArgs {
     /// Workstream to open (default: from context or "default")
     #[arg(short, long)]

@@ -2,14 +2,19 @@
 
 use anyhow::Result;
 use clap::Args;
-use console::{Style, style};
+use console::Style;
 use serde::Serialize;
 
 use super::Context;
+use super::output;
 use crate::client::Client;
 
 /// Arguments for the status command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn status                      Check default server
+  arawn status --json               Machine-readable output
+  arawn status --server http://remote:8080")]
 pub struct StatusArgs {}
 
 /// Status response for JSON output.
@@ -34,20 +39,11 @@ pub async fn run(_args: StatusArgs, ctx: &Context) -> Result<()> {
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else {
-                let green = Style::new().green();
-                let dim = Style::new().dim();
-
                 println!();
-                println!("{}", style("Arawn Server Status").bold());
-                println!("{}", dim.apply_to("─".repeat(40)));
-                println!();
-                println!(
-                    "  {} {}",
-                    dim.apply_to("Status:"),
-                    green.apply_to("● running")
-                );
-                println!("  {} {}", dim.apply_to("Version:"), health.version);
-                println!("  {} {}", dim.apply_to("Server:"), ctx.server_url);
+                output::header("Arawn Server Status");
+                output::kv("Status", Style::new().green().apply_to("● running"));
+                output::kv("Version", &health.version);
+                output::kv("Server", &ctx.server_url);
                 println!();
             }
         }
@@ -60,27 +56,18 @@ pub async fn run(_args: StatusArgs, ctx: &Context) -> Result<()> {
                 };
                 println!("{}", serde_json::to_string_pretty(&output)?);
             } else {
-                let red = Style::new().red();
-                let dim = Style::new().dim();
-
                 println!();
-                println!("{}", style("Arawn Server Status").bold());
-                println!("{}", dim.apply_to("─".repeat(40)));
-                println!();
-                println!(
-                    "  {} {}",
-                    dim.apply_to("Status:"),
-                    red.apply_to("● not running")
-                );
-                println!("  {} {}", dim.apply_to("Server:"), ctx.server_url);
+                output::header("Arawn Server Status");
+                output::kv("Status", Style::new().red().apply_to("● not running"));
+                output::kv("Server", &ctx.server_url);
 
                 if ctx.verbose {
                     println!();
-                    println!("  {} {}", dim.apply_to("Error:"), e);
+                    output::kv("Error", &e);
                 }
 
                 println!();
-                println!("  {}", dim.apply_to("Start the server with: arawn start"));
+                output::hint("  Start the server with: arawn start");
                 println!();
             }
         }

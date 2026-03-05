@@ -55,3 +55,4 @@
 - [Identity Guidelines](reference/identity.md)
 - [Memory Guidelines](reference/memory-guidelines.md)
 - [API Versioning](reference/versioning.md)
+- [Glossary](reference/glossary.md)

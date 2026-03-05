@@ -23,6 +23,16 @@ use crate::types::{AgentConfig, SessionId, ToolCall, ToolResultRecord, TurnId};
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A chunk emitted during streaming response.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::stream::StreamChunk;
+///
+/// let text = StreamChunk::text("Hello ");
+/// let tool = StreamChunk::tool_start("call_1", "read_file");
+/// let done = StreamChunk::done(2);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamChunk {

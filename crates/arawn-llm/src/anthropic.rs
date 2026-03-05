@@ -35,6 +35,18 @@ const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Configuration for the Anthropic backend.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::AnthropicConfig;
+/// use std::time::Duration;
+///
+/// let config = AnthropicConfig::new("sk-ant-api-key")
+///     .with_base_url("https://custom-proxy.example.com")
+///     .with_timeout(Duration::from_secs(60))
+///     .with_max_retries(5);
+/// ```
 #[derive(Debug, Clone)]
 pub struct AnthropicConfig {
     /// API key for authentication.

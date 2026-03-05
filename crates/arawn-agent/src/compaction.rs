@@ -58,6 +58,21 @@ impl Default for CompactorConfig {
 }
 
 /// Result of a compaction operation.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::compaction::CompactionResult;
+///
+/// let result = CompactionResult {
+///     turns_compacted: 5,
+///     tokens_before: 8000,
+///     tokens_after: 1200,
+///     summary: "User discussed Rust ownership...".into(),
+/// };
+/// assert_eq!(result.tokens_freed(), 6800);
+/// assert!(result.compression_ratio() < 0.2);
+/// ```
 #[derive(Debug, Clone)]
 pub struct CompactionResult {
     /// Number of turns that were compacted into the summary.
@@ -144,6 +159,19 @@ impl CancellationToken {
 /// 3. Returns the summary and statistics
 ///
 /// The caller is responsible for applying the compaction to the session.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::compaction::{SessionCompactor, CompactorConfig};
+///
+/// let compactor = SessionCompactor::new(backend, CompactorConfig {
+///     model: "claude-sonnet-4-20250514".into(),
+///     preserve_recent: 3,
+///     ..Default::default()
+/// });
+/// let result = compactor.compact(&session).await?;
+/// ```
 pub struct SessionCompactor {
     backend: SharedBackend,
     config: CompactorConfig,

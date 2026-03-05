@@ -11,9 +11,8 @@ use tokio::time::timeout;
 
 use std::sync::Arc;
 
-use arawn_agent::{Agent, ToolRegistry};
+use arawn_domain::{Agent, MemoryStore, ToolRegistry};
 use arawn_llm::{CompletionResponse, ContentBlock, MockBackend, StopReason, Usage};
-use arawn_memory::MemoryStore;
 use arawn_server::{AppState, Server, ServerConfig};
 
 /// A test server that runs in the background.

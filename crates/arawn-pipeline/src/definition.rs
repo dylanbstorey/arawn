@@ -50,6 +50,22 @@ pub struct WorkflowFile {
 }
 
 /// A complete declarative workflow definition.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_pipeline::WorkflowFile;
+///
+/// let toml = r#"
+/// [workflow]
+/// name = "indexing"
+/// [[workflow.tasks]]
+/// id = "extract"
+/// action = { type = "tool", name = "llm_generate" }
+/// "#;
+/// let wf = WorkflowFile::from_toml(toml)?;
+/// wf.workflow.validate()?;
+/// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WorkflowDefinition {
     /// Unique workflow name.
@@ -82,6 +98,19 @@ pub struct WorkflowDefinition {
 /// - **Legacy (action)**: `action = { type = "tool", name = "echo" }`
 ///
 /// When both are present, `runtime`/`config` take precedence.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_pipeline::TaskDefinition;
+///
+/// // runtime schema
+/// let task_toml = r#"
+/// id = "fetch"
+/// runtime = "http"
+/// config = { url = "https://example.com" }
+/// "#;
+/// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TaskDefinition {
     /// Unique task identifier within this workflow.

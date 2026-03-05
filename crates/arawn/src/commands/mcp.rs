@@ -15,9 +15,18 @@ use arawn_config::{McpServerEntry, McpTransportType, load_config, save_config};
 use arawn_mcp::{McpClient, McpServerConfig};
 
 use super::Context;
+use super::output;
 
 /// MCP server management commands.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn mcp list                    List configured servers
+  arawn mcp list --tools            List servers with their tools
+  arawn mcp add postgres npx -- @anthropic/mcp-postgres
+  arawn mcp add api http://localhost:3001 --http
+  arawn mcp add search uvx -- mcp-search -e API_KEY=sk-xxx
+  arawn mcp test postgres           Test server connectivity
+  arawn mcp remove postgres")]
 pub struct McpArgs {
     #[command(subcommand)]
     pub command: McpCommand,
@@ -190,7 +199,7 @@ fn print_list_table(servers: &[McpServerEntry], show_tools: bool, verbose: bool)
         "{:<20} {:<10} {:<10} {:<40}",
         "NAME", "TRANSPORT", "STATUS", "TARGET"
     );
-    println!("{}", "-".repeat(80));
+    println!("{}", "─".repeat(80));
 
     for server in servers {
         let transport = match server.transport {
@@ -217,10 +226,10 @@ fn print_list_table(servers: &[McpServerEntry], show_tools: bool, verbose: bool)
 
         println!(
             "{:<20} {:<10} {:<10} {:<40}",
-            truncate(&server.name, 20),
+            output::truncate(&server.name, 20),
             transport,
             status,
-            truncate(&target, 40)
+            output::truncate(&target, 40)
         );
 
         if verbose {
@@ -525,14 +534,14 @@ async fn run_test(args: TestArgs, ctx: &Context) -> Result<()> {
                     }))?
                 );
             } else {
-                println!("❌ Connection failed: {}", e);
+                output::error(format!("Connection failed: {}", e));
             }
             return Err(e.into());
         }
     };
 
     if !ctx.json_output {
-        println!("✓ Connected");
+        output::success("Connected");
     }
 
     // Initialize and clone server info to avoid borrow issues
@@ -550,14 +559,14 @@ async fn run_test(args: TestArgs, ctx: &Context) -> Result<()> {
                     }))?
                 );
             } else {
-                println!("❌ Initialization failed: {}", e);
+                output::error(format!("Initialization failed: {}", e));
             }
             return Err(e.into());
         }
     };
 
     if !ctx.json_output {
-        println!("✓ Initialized: {} v{}", server_info.0, server_info.1);
+        output::success(format!("Initialized: {} v{}", server_info.0, server_info.1));
     }
 
     // List tools
@@ -575,7 +584,7 @@ async fn run_test(args: TestArgs, ctx: &Context) -> Result<()> {
                     }))?
                 );
             } else {
-                println!("❌ Failed to list tools: {}", e);
+                output::error(format!("Failed to list tools: {}", e));
             }
             return Err(e.into());
         }
@@ -617,7 +626,7 @@ async fn run_test(args: TestArgs, ctx: &Context) -> Result<()> {
             }))?
         );
     } else {
-        println!("✓ Listed {} tools", tools.len());
+        output::success(format!("Listed {} tools", tools.len()));
         println!();
 
         if tools.is_empty() {
@@ -643,7 +652,7 @@ async fn run_test(args: TestArgs, ctx: &Context) -> Result<()> {
         }
 
         println!();
-        println!("✓ Connection test successful");
+        output::success("Connection test successful");
     }
 
     Ok(())
@@ -672,13 +681,4 @@ fn textwrap_simple(text: &str, max_width: usize) -> String {
     }
 
     result
-}
-
-/// Truncate a string to a maximum length.
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
 }

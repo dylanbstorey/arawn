@@ -1,4 +1,4 @@
-//! Explore tool for triggering RLM exploration.
+//! Explore tool for triggering RLM (Recursive Language Model) exploration.
 //!
 //! Wraps [`RlmSpawner`] as a standard [`Tool`] so the main agent can
 //! delegate research tasks to an isolated exploration sub-agent.

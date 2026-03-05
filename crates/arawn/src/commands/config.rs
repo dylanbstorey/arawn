@@ -6,9 +6,20 @@ use clap::{Args, Subcommand};
 use arawn_config::{self, Backend, Context as ClientContext};
 
 use super::Context;
+use super::output;
 
 /// Arguments for the config command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn config show                 Show resolved config and LLM profiles
+  arawn config which                Show config file load order
+  arawn config edit                 Open config in $EDITOR
+  arawn config init                 Create default user config
+  arawn config init --local         Create project-local config
+  arawn config set-secret anthropic Store Anthropic API key in keyring
+  arawn config set-context prod --server http://prod:8080
+  arawn config use-context prod     Switch to prod context
+  arawn config get-contexts         List available contexts")]
 pub struct ConfigArgs {
     #[command(subcommand)]
     pub command: ConfigCommand,
@@ -112,12 +123,13 @@ async fn cmd_show(ctx: &Context) -> Result<()> {
     let loaded = arawn_config::load_config(None)?;
     let config = &loaded.config;
 
-    println!("# Arawn Configuration\n");
+    output::header("Arawn Configuration");
 
     // Sources
     let sources = loaded.loaded_from();
     if sources.is_empty() {
-        println!("No config files loaded (using defaults)\n");
+        output::hint("No config files loaded (using defaults)");
+        println!();
     } else {
         println!("Config files:");
         for source in &sources {
@@ -129,7 +141,8 @@ async fn cmd_show(ctx: &Context) -> Result<()> {
     // LLM profiles
     let profiles = arawn_config::resolve_all_profiles(config);
     if profiles.is_empty() {
-        println!("No LLM profiles configured\n");
+        output::hint("No LLM profiles configured");
+        println!();
     } else {
         println!("LLM Profiles:");
         for (name, backend, model) in &profiles {
@@ -186,7 +199,7 @@ async fn cmd_show(ctx: &Context) -> Result<()> {
 async fn cmd_which(_ctx: &Context) -> Result<()> {
     let loaded = arawn_config::load_config(None)?;
 
-    println!("Config file search order (later overrides earlier):\n");
+    output::header("Config File Search Order");
 
     for source in &loaded.sources {
         let status = if source.loaded {
@@ -200,9 +213,9 @@ async fn cmd_which(_ctx: &Context) -> Result<()> {
     println!();
     let loaded_count = loaded.loaded_from().len();
     if loaded_count == 0 {
-        println!("No config files found. Run 'arawn config init' to create one.");
+        output::hint("No config files found. Run 'arawn config init' to create one.");
     } else {
-        println!("{} config file(s) loaded.", loaded_count);
+        output::hint(format!("{} config file(s) loaded.", loaded_count));
     }
 
     Ok(())
@@ -211,34 +224,30 @@ async fn cmd_which(_ctx: &Context) -> Result<()> {
 async fn cmd_set_secret(backend_str: &str) -> Result<()> {
     let backend = parse_backend(backend_str)?;
 
-    println!(
-        "Enter API key for {} (input hidden):",
+    let api_key = rpassword::prompt_password(format!(
+        "Enter API key for {} (input hidden): ",
         backend.display_name()
-    );
-
-    // Read from stdin (not hidden in this implementation — would use rpassword in production)
-    let mut api_key = String::new();
-    std::io::stdin().read_line(&mut api_key)?;
+    ))?;
     let api_key = api_key.trim();
 
     if api_key.is_empty() {
-        println!("No key provided, aborting.");
+        output::hint("No key provided, aborting.");
         return Ok(());
     }
 
     match arawn_config::secrets::store_secret(&backend, api_key) {
         Ok(()) => {
-            println!(
+            output::success(format!(
                 "API key stored in encrypted secret store for {}.",
                 backend.display_name()
-            );
+            ));
         }
         Err(e) => {
-            eprintln!("Failed to store secret: {}", e);
-            eprintln!(
+            output::error(format!("Failed to store secret: {}", e));
+            output::hint(format!(
                 "Fallback: set the {} environment variable instead.",
                 backend.env_var()
-            );
+            ));
         }
     }
 
@@ -250,13 +259,13 @@ async fn cmd_delete_secret(backend_str: &str) -> Result<()> {
 
     match arawn_config::secrets::delete_secret(&backend) {
         Ok(()) => {
-            println!(
+            output::success(format!(
                 "API key removed from encrypted secret store for {}.",
                 backend.display_name()
-            );
+            ));
         }
         Err(e) => {
-            eprintln!("Failed to delete secret: {}", e);
+            output::error(format!("Failed to delete secret: {}", e));
         }
     }
 
@@ -268,7 +277,7 @@ async fn cmd_edit() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
     if !config_path.exists() {
-        println!("No config file exists yet. Run 'arawn config init' first.");
+        output::hint("No config file exists yet. Run 'arawn config init' first.");
         return Ok(());
     }
 
@@ -279,7 +288,7 @@ async fn cmd_edit() -> Result<()> {
         .status()?;
 
     if !status.success() {
-        eprintln!("Editor exited with non-zero status");
+        output::error("Editor exited with non-zero status");
     }
 
     Ok(())
@@ -297,7 +306,7 @@ async fn cmd_init(local: bool) -> Result<()> {
 
     if path.exists() {
         println!("Config file already exists: {}", path.display());
-        println!("Use 'arawn config edit' to modify it.");
+        output::hint("Use 'arawn config edit' to modify it.");
         return Ok(());
     }
 
@@ -338,7 +347,7 @@ model = "llama-3.1-70b-versatile"
 "#;
 
     std::fs::write(&path, template)?;
-    println!("✓ Created config file: {}", path.display());
+    output::success(format!("Created config file: {}", path.display()));
     println!();
     println!("Next steps:");
     println!("  arawn config set-secret groq    # store API key in keyring");
@@ -352,7 +361,7 @@ async fn cmd_path() -> Result<()> {
     if let Some(path) = arawn_config::xdg_config_path() {
         println!("{}", path.display());
     } else {
-        eprintln!("Could not determine config directory");
+        output::error("Could not determine config directory");
     }
     Ok(())
 }
@@ -402,7 +411,9 @@ async fn cmd_current_context() -> Result<()> {
             println!("{}", name);
         }
         None => {
-            println!("No current context set. Use 'arawn config use-context <name>' to set one.");
+            output::hint(
+                "No current context set. Use 'arawn config use-context <name>' to set one.",
+            );
         }
     }
 
@@ -422,14 +433,15 @@ async fn cmd_get_contexts() -> Result<()> {
 
     let current = config.current_context.as_deref();
 
-    println!("CURRENT   NAME            SERVER");
+    println!("{:<10}{:<16}SERVER", "CURRENT", "NAME");
+    println!("{}", "─".repeat(60));
     for ctx in &config.contexts {
         let marker = if current == Some(ctx.name.as_str()) {
             "*"
         } else {
             " "
         };
-        println!("{}         {:<15} {}", marker, ctx.name, ctx.server);
+        println!("{:<10}{:<16}{}", marker, ctx.name, ctx.server);
     }
 
     Ok(())
@@ -441,7 +453,7 @@ async fn cmd_use_context(name: &str) -> Result<()> {
     config.use_context(name)?;
     arawn_config::save_client_config(&config)?;
 
-    println!("Switched to context \"{}\".", name);
+    output::success(format!("Switched to context \"{}\".", name));
 
     Ok(())
 }
@@ -470,7 +482,7 @@ async fn cmd_set_context(
         }
 
         config.set_context(ctx);
-        println!("Context \"{}\" created.", name);
+        output::success(format!("Context \"{}\" created.", name));
     } else {
         // Updating existing context
         let ctx = config.get_context_mut(name).unwrap();
@@ -485,7 +497,7 @@ async fn cmd_set_context(
             ctx.timeout = Some(t);
         }
 
-        println!("Context \"{}\" modified.", name);
+        output::success(format!("Context \"{}\" modified.", name));
     }
 
     arawn_config::save_client_config(&config)?;
@@ -494,7 +506,7 @@ async fn cmd_set_context(
     if config.current_context.is_none() && config.contexts.len() == 1 {
         config.current_context = Some(name.to_string());
         arawn_config::save_client_config(&config)?;
-        println!("Context \"{}\" set as current context.", name);
+        output::hint(format!("Context \"{}\" set as current context.", name));
     }
 
     Ok(())
@@ -506,15 +518,15 @@ async fn cmd_delete_context(name: &str) -> Result<()> {
     match config.remove_context(name) {
         Some(_) => {
             arawn_config::save_client_config(&config)?;
-            println!("Context \"{}\" deleted.", name);
+            output::success(format!("Context \"{}\" deleted.", name));
             if config.current_context.is_none() {
-                println!(
-                    "Note: No current context. Use 'arawn config use-context <name>' to set one."
+                output::hint(
+                    "No current context. Use 'arawn config use-context <name>' to set one.",
                 );
             }
         }
         None => {
-            println!("Context \"{}\" not found.", name);
+            output::hint(format!("Context \"{}\" not found.", name));
         }
     }
 

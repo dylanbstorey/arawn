@@ -1604,22 +1604,40 @@ impl App {
         self.sessions.set_items(self.sidebar.sessions.clone());
     }
 
-    /// Handle overlay (workstreams/palette) key events.
+    /// Handle workstreams overlay key events.
     fn handle_overlay_key(&mut self, key: crossterm::event::KeyEvent) {
         match key.code {
             KeyCode::Esc => {
+                self.sidebar.filter_clear();
                 self.focus.pop_overlay();
             }
             KeyCode::Enter => {
-                // TODO: Select item
+                // Switch to selected workstream
+                if let Some(ws) = self.sidebar.selected_workstream() {
+                    let name = ws.name.clone();
+                    self.switch_to_workstream(&name);
+                }
+                self.sidebar.filter_clear();
                 self.focus.pop_overlay();
             }
-            KeyCode::Up | KeyCode::Down => {
-                // TODO: Navigate list
+            KeyCode::Up => {
+                // Temporarily force workstream section for navigation
+                let prev_section = self.sidebar.section;
+                self.sidebar.section = SidebarSection::Workstreams;
+                self.sidebar.select_prev();
+                self.sidebar.section = prev_section;
+            }
+            KeyCode::Down => {
+                let prev_section = self.sidebar.section;
+                self.sidebar.section = SidebarSection::Workstreams;
+                self.sidebar.select_next();
+                self.sidebar.section = prev_section;
             }
             KeyCode::Char(c) => {
-                // TODO: Filter list
-                let _ = c;
+                self.sidebar.filter_push(c);
+            }
+            KeyCode::Backspace => {
+                self.sidebar.filter_pop();
             }
             _ => {}
         }

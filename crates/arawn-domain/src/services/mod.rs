@@ -21,6 +21,15 @@ pub use memory::MemoryService;
 ///
 /// Provides unified access to all domain services. This is the main entry point
 /// for transport layers to interact with Arawn's core functionality.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let services = DomainServices::new(agent, workstreams, dir_mgr, indexer, mcp, memory);
+/// let chat = services.chat();
+/// let mcp = services.mcp();
+/// let memory = services.memory();
+/// ```
 #[derive(Clone)]
 pub struct DomainServices {
     /// Chat service for conversation orchestration.

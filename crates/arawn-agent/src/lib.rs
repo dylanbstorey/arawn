@@ -69,6 +69,9 @@ pub use tool::{
     validate_json_output,
 };
 
+// Re-export command validation types
+pub use tool::{CommandValidation, CommandValidator};
+
 // Re-export agent
 pub use agent::{Agent, AgentBuilder, RecallConfig};
 

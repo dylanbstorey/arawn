@@ -10,6 +10,18 @@ pub const DEFAULT_MAX_SESSIONS: usize = 10_000;
 pub const DEFAULT_TTL: Option<Duration> = None;
 
 /// Configuration for the session cache.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_session::CacheConfig;
+/// use std::time::Duration;
+///
+/// let config = CacheConfig::new()
+///     .with_max_sessions(500)
+///     .with_ttl(Duration::from_secs(3600))
+///     .with_cleanup_task(true);
+/// ```
 #[derive(Debug, Clone)]
 pub struct CacheConfig {
     /// Maximum number of sessions to cache before LRU eviction.

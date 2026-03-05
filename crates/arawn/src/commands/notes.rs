@@ -2,13 +2,20 @@
 
 use anyhow::Result;
 use clap::{Args, Subcommand};
-use console::{Style, style};
+use console::Style;
 
 use super::Context;
+use super::output;
 use crate::client::Client;
 
 /// Arguments for the notes command.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn notes add \"Remember to refactor auth\" -t todo -t backend
+  arawn notes list
+  arawn notes search \"refactor\"
+  arawn notes show <id>
+  arawn notes delete <id>")]
 pub struct NotesArgs {
     #[command(subcommand)]
     pub command: NotesCommand,
@@ -60,7 +67,7 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
     match args.command {
         NotesCommand::Add { content, tags } => {
             if ctx.verbose && !tags.is_empty() {
-                println!("{}", dim.apply_to(format!("Tags: {:?}", tags)));
+                output::hint(format!("Tags: {:?}", tags));
             }
 
             match client.create_note(&content).await {
@@ -68,17 +75,11 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                     if ctx.json_output {
                         println!("{}", serde_json::to_string_pretty(&note)?);
                     } else {
-                        let green = Style::new().green();
-                        println!(
-                            "{} Note created: {}",
-                            green.apply_to("✓"),
-                            dim.apply_to(&note.id)
-                        );
+                        output::success(format!("Note created: {}", dim.apply_to(&note.id)));
                     }
                 }
                 Err(e) => {
-                    let red = Style::new().red();
-                    eprintln!("{} {}", red.apply_to("Error:"), e);
+                    output::error(&e);
                 }
             }
         }
@@ -87,33 +88,27 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                 if ctx.json_output {
                     println!("{}", serde_json::to_string_pretty(&notes)?);
                 } else {
-                    println!("{}", style("Notes").bold());
-                    println!("{}", dim.apply_to("─".repeat(50)));
-                    println!();
+                    output::header("Notes");
 
                     if notes.is_empty() {
-                        println!("{}", dim.apply_to("No notes found"));
+                        output::hint("No notes found");
                     } else {
                         for note in notes.iter().take(limit) {
                             println!(
                                 "{} {}",
                                 dim.apply_to(format!("[{}]", &note.id[..8])),
-                                truncate(&note.content, 60)
+                                output::truncate(&note.content, 60)
                             );
                         }
                         if notes.len() > limit {
                             println!();
-                            println!(
-                                "{}",
-                                dim.apply_to(format!("... and {} more", notes.len() - limit))
-                            );
+                            output::hint(format!("... and {} more", notes.len() - limit));
                         }
                     }
                 }
             }
             Err(e) => {
-                let red = Style::new().red();
-                eprintln!("{} {}", red.apply_to("Error:"), e);
+                super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
             }
         },
         NotesCommand::Search { query } => match client.search_notes(&query, 20).await {
@@ -121,31 +116,25 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                 if ctx.json_output {
                     println!("{}", serde_json::to_string_pretty(&results)?);
                 } else {
-                    println!("{}", style("Note Search").bold());
-                    println!("{}", dim.apply_to("─".repeat(50)));
-                    println!();
+                    output::header("Note Search");
 
                     if results.is_empty() {
-                        println!(
-                            "{}",
-                            dim.apply_to(format!("No notes matching \"{}\"", query))
-                        );
+                        output::hint(format!("No notes matching \"{}\"", query));
                     } else {
                         for result in &results {
                             println!(
                                 "{} {}",
                                 dim.apply_to(format!("[{}]", &result.id[..8.min(result.id.len())])),
-                                truncate(&result.content, 60)
+                                output::truncate(&result.content, 60)
                             );
                         }
                         println!();
-                        println!("{}", dim.apply_to(format!("{} result(s)", results.len())));
+                        output::hint(format!("{} result(s)", results.len()));
                     }
                 }
             }
             Err(e) => {
-                let red = Style::new().red();
-                eprintln!("{} {}", red.apply_to("Error:"), e);
+                super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
             }
         },
         NotesCommand::Show { id } => match client.get_note(&id).await {
@@ -153,25 +142,22 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                 if ctx.json_output {
                     println!("{}", serde_json::to_string_pretty(&note)?);
                 } else {
-                    println!("{}", style("Note Details").bold());
-                    println!("{}", dim.apply_to("─".repeat(50)));
-                    println!();
-                    println!("{} {}", dim.apply_to("ID:"), note.id);
+                    output::header("Note Details");
+                    output::kv("ID", &note.id);
                     if let Some(ref title) = note.title {
-                        println!("{} {}", dim.apply_to("Title:"), title);
+                        output::kv("Title", title);
                     }
                     if !note.tags.is_empty() {
-                        println!("{} {}", dim.apply_to("Tags:"), note.tags.join(", "));
+                        output::kv("Tags", note.tags.join(", "));
                     }
-                    println!("{} {}", dim.apply_to("Created:"), note.created_at);
-                    println!("{} {}", dim.apply_to("Updated:"), note.updated_at);
+                    output::kv("Created", &note.created_at);
+                    output::kv("Updated", &note.updated_at);
                     println!();
                     println!("{}", note.content);
                 }
             }
             Err(e) => {
-                let red = Style::new().red();
-                eprintln!("{} {}", red.apply_to("Error:"), e);
+                super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
             }
         },
         NotesCommand::Delete { id } => match client.delete_note(&id).await {
@@ -179,29 +165,14 @@ pub async fn run(args: NotesArgs, ctx: &Context) -> Result<()> {
                 if ctx.json_output {
                     println!("{}", serde_json::json!({"deleted": id}));
                 } else {
-                    let green = Style::new().green();
-                    println!(
-                        "{} Note deleted: {}",
-                        green.apply_to("✓"),
-                        dim.apply_to(&id)
-                    );
+                    output::success(format!("Note deleted: {}", dim.apply_to(&id)));
                 }
             }
             Err(e) => {
-                let red = Style::new().red();
-                eprintln!("{} {}", red.apply_to("Error:"), e);
+                super::print_cli_error(&e, &ctx.server_url, ctx.verbose);
             }
         },
     }
 
     Ok(())
-}
-
-fn truncate(s: &str, max_len: usize) -> String {
-    let s = s.replace('\n', " ");
-    if s.len() <= max_len {
-        s
-    } else {
-        format!("{}...", &s[..max_len - 3])
-    }
 }

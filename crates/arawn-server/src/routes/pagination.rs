@@ -10,6 +10,18 @@ pub const MAX_PAGE_SIZE: usize = 100;
 pub const DEFAULT_PAGE_SIZE: usize = 50;
 
 /// Pagination query parameters for list endpoints.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_server::routes::pagination::PaginationParams;
+///
+/// let params = PaginationParams { limit: 10, offset: 20 };
+/// let items: Vec<i32> = (0..100).collect();
+/// let (page, total) = params.paginate(&items);
+/// assert_eq!(page.len(), 10);
+/// assert_eq!(total, 100);
+/// ```
 #[derive(Debug, Clone, Deserialize, IntoParams)]
 pub struct PaginationParams {
     /// Maximum number of items to return (default: 50, max: 100).

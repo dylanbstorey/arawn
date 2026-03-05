@@ -7,7 +7,23 @@ use crate::secrets::{self, SecretSource};
 use crate::{ArawnConfig, Backend, ConfigError, LlmConfig, Result};
 
 /// A fully resolved LLM configuration ready to construct a backend.
-#[derive(Debug, Clone)]
+///
+/// The `Debug` impl intentionally redacts `api_key` to prevent secret leakage
+/// in log output. Use `.api_key` directly when the actual key is needed.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = ArawnConfig::from_toml(r#"
+///     [llm]
+///     backend = "anthropic"
+///     model = "claude-sonnet-4-20250514"
+/// "#)?;
+/// let resolved = arawn_config::resolve_for_agent(&config, "default")?;
+/// assert_eq!(resolved.model, "claude-sonnet-4-20250514");
+/// println!("{:?}", resolved); // api_key is redacted in Debug output
+/// ```
+#[derive(Clone)]
 pub struct ResolvedLlm {
     /// The backend provider.
     pub backend: Backend,
@@ -25,6 +41,21 @@ pub struct ResolvedLlm {
     pub retry_max: Option<u32>,
     /// Backoff delay between retries in milliseconds.
     pub retry_backoff_ms: Option<u64>,
+}
+
+impl std::fmt::Debug for ResolvedLlm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedLlm")
+            .field("backend", &self.backend)
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
+            .field("api_key_source", &self.api_key_source)
+            .field("resolved_from", &self.resolved_from)
+            .field("retry_max", &self.retry_max)
+            .field("retry_backoff_ms", &self.retry_backoff_ms)
+            .finish()
+    }
 }
 
 /// Tracks how the LLM config was resolved for diagnostics.
@@ -71,6 +102,14 @@ pub enum ApiKeySource {
 /// 1. Resolve which `LlmConfig` applies (agent-specific → agent.default → global)
 /// 2. Validate required fields (backend, model)
 /// 3. Resolve API key (keyring → env var → config file)
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = arawn_config::load_config(None)?.config;
+/// let resolved = arawn_config::resolve_for_agent(&config, "summarizer")?;
+/// println!("Using {} on {}", resolved.backend, resolved.model);
+/// ```
 pub fn resolve_for_agent(config: &ArawnConfig, agent_name: &str) -> Result<ResolvedLlm> {
     let (llm_config, resolved_from) = resolve_llm_config(config, agent_name)?;
 
@@ -110,6 +149,15 @@ pub fn resolve_for_agent(config: &ArawnConfig, agent_name: &str) -> Result<Resol
 }
 
 /// Resolve all named LLM configs into a summary for diagnostics.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = arawn_config::load_config(None)?.config;
+/// for (name, backend, model) in arawn_config::resolve_all_profiles(&config) {
+///     println!("{}: {} ({})", name, model, backend);
+/// }
+/// ```
 pub fn resolve_all_profiles(config: &ArawnConfig) -> Vec<(String, Backend, String)> {
     let mut profiles = Vec::new();
 
@@ -368,5 +416,44 @@ api_key = "config-key"
 
         let from = ResolvedFrom::GlobalDefault;
         assert_eq!(from.to_string(), "[llm] (global default)");
+    }
+
+    #[test]
+    fn test_resolved_llm_debug_redacts_api_key() {
+        let resolved = ResolvedLlm {
+            backend: Backend::Groq,
+            model: "llama3".to_string(),
+            base_url: None,
+            api_key: Some("gsk_super_secret_key_12345".to_string()),
+            api_key_source: Some(SecretSource::AgeStore),
+            resolved_from: ResolvedFrom::GlobalDefault,
+            retry_max: None,
+            retry_backoff_ms: None,
+        };
+        let debug = format!("{:?}", resolved);
+        assert!(
+            !debug.contains("gsk_super_secret_key_12345"),
+            "Debug output must not contain the API key"
+        );
+        assert!(debug.contains("[REDACTED]"));
+        assert!(debug.contains("Groq"));
+        assert!(debug.contains("llama3"));
+    }
+
+    #[test]
+    fn test_resolved_llm_debug_no_key() {
+        let resolved = ResolvedLlm {
+            backend: Backend::Ollama,
+            model: "llama3.2".to_string(),
+            base_url: Some("http://localhost:11434".to_string()),
+            api_key: None,
+            api_key_source: None,
+            resolved_from: ResolvedFrom::GlobalDefault,
+            retry_max: None,
+            retry_backoff_ms: None,
+        };
+        let debug = format!("{:?}", resolved);
+        assert!(debug.contains("None"));
+        assert!(!debug.contains("[REDACTED]"));
     }
 }

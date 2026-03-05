@@ -8,6 +8,17 @@ use sha2::{Digest, Sha256};
 use crate::error::{OAuthError, Result};
 
 /// OAuth configuration for Anthropic MAX plan.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_oauth::OAuthConfig;
+///
+/// let config = OAuthConfig::anthropic_max();
+/// let custom = config.with_overrides(
+///     Some("custom-client-id"), None, None, None, None,
+/// );
+/// ```
 #[derive(Debug, Clone)]
 pub struct OAuthConfig {
     pub client_id: String,
@@ -24,23 +35,75 @@ impl Default for OAuthConfig {
 }
 
 impl OAuthConfig {
+    /// Default client ID for Anthropic MAX plan OAuth.
+    const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
+    const DEFAULT_AUTHORIZE_URL: &str = "https://claude.ai/oauth/authorize";
+    const DEFAULT_TOKEN_URL: &str = "https://console.anthropic.com/v1/oauth/token";
+    const DEFAULT_REDIRECT_URI: &str = "https://console.anthropic.com/oauth/code/callback";
+    const DEFAULT_SCOPE: &str = "org:create_api_key user:profile user:inference";
+
     /// Create OAuth config for Anthropic MAX plan.
     ///
-    /// TODO: Make these configurable via `arawn.toml` if we need to support
-    /// mock OAuth servers for testing or if Anthropic changes endpoints.
-    /// See ARAWN-T-0224 (P2 tech debt).
+    /// Environment variable overrides (checked in order):
+    /// - `ARAWN_OAUTH_CLIENT_ID`
+    /// - `ARAWN_OAUTH_AUTHORIZE_URL`
+    /// - `ARAWN_OAUTH_TOKEN_URL`
+    /// - `ARAWN_OAUTH_REDIRECT_URI`
+    /// - `ARAWN_OAUTH_SCOPE`
     pub fn anthropic_max() -> Self {
         Self {
-            client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e".to_string(),
-            authorize_url: "https://claude.ai/oauth/authorize".to_string(),
-            token_url: "https://console.anthropic.com/v1/oauth/token".to_string(),
-            redirect_uri: "https://console.anthropic.com/oauth/code/callback".to_string(),
-            scope: "org:create_api_key user:profile user:inference".to_string(),
+            client_id: std::env::var("ARAWN_OAUTH_CLIENT_ID")
+                .unwrap_or_else(|_| Self::DEFAULT_CLIENT_ID.to_string()),
+            authorize_url: std::env::var("ARAWN_OAUTH_AUTHORIZE_URL")
+                .unwrap_or_else(|_| Self::DEFAULT_AUTHORIZE_URL.to_string()),
+            token_url: std::env::var("ARAWN_OAUTH_TOKEN_URL")
+                .unwrap_or_else(|_| Self::DEFAULT_TOKEN_URL.to_string()),
+            redirect_uri: std::env::var("ARAWN_OAUTH_REDIRECT_URI")
+                .unwrap_or_else(|_| Self::DEFAULT_REDIRECT_URI.to_string()),
+            scope: std::env::var("ARAWN_OAUTH_SCOPE")
+                .unwrap_or_else(|_| Self::DEFAULT_SCOPE.to_string()),
         }
+    }
+
+    /// Apply config overrides. Any `Some` value replaces the current field.
+    pub fn with_overrides(
+        mut self,
+        client_id: Option<&str>,
+        authorize_url: Option<&str>,
+        token_url: Option<&str>,
+        redirect_uri: Option<&str>,
+        scope: Option<&str>,
+    ) -> Self {
+        if let Some(v) = client_id {
+            self.client_id = v.to_string();
+        }
+        if let Some(v) = authorize_url {
+            self.authorize_url = v.to_string();
+        }
+        if let Some(v) = token_url {
+            self.token_url = v.to_string();
+        }
+        if let Some(v) = redirect_uri {
+            self.redirect_uri = v.to_string();
+        }
+        if let Some(v) = scope {
+            self.scope = v.to_string();
+        }
+        self
     }
 }
 
 /// PKCE code verifier and challenge pair.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_oauth::PkceChallenge;
+///
+/// let pkce = PkceChallenge::generate();
+/// println!("verifier: {}", pkce.verifier);
+/// println!("challenge: {}", pkce.challenge);
+/// ```
 #[derive(Debug, Clone)]
 pub struct PkceChallenge {
     pub verifier: String,
@@ -74,6 +137,18 @@ pub fn generate_state() -> String {
 }
 
 /// Build the authorization URL for the OAuth flow.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_oauth::{OAuthConfig, PkceChallenge, build_authorization_url, generate_state};
+///
+/// let config = OAuthConfig::anthropic_max();
+/// let pkce = PkceChallenge::generate();
+/// let state = generate_state();
+/// let url = build_authorization_url(&config, &pkce.challenge, &state);
+/// // Open `url` in the user's browser
+/// ```
 pub fn build_authorization_url(config: &OAuthConfig, challenge: &str, state: &str) -> String {
     let params = [
         ("code", "true"),
@@ -224,6 +299,16 @@ pub async fn refresh_access_token(
 }
 
 /// Parse the code#state response from the OAuth callback.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_oauth::parse_code_state;
+///
+/// let (code, state) = parse_code_state("auth_code_123#state_xyz").unwrap();
+/// assert_eq!(code, "auth_code_123");
+/// assert_eq!(state, "state_xyz");
+/// ```
 pub fn parse_code_state(input: &str) -> Result<(String, String)> {
     let trimmed = input.trim();
     if !trimmed.contains('#') {

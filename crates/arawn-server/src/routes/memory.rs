@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
-use arawn_memory::MemoryStore;
+use arawn_domain::{ContentType, Memory, MemoryId, MemoryNote, MemoryStore, NoteId};
 
 use super::pagination::PaginationParams;
 use crate::auth::Identity;
@@ -205,7 +205,7 @@ fn require_memory_store(state: &AppState) -> Result<&Arc<MemoryStore>, ServerErr
 }
 
 /// Convert an `arawn_memory::Note` to the API `Note` type.
-fn to_api_note(note: arawn_memory::types::Note) -> Note {
+fn to_api_note(note: MemoryNote) -> Note {
     Note {
         id: note.id.to_string(),
         title: note.title,
@@ -240,7 +240,7 @@ pub async fn create_note_handler(
 ) -> Result<(StatusCode, Json<Note>), ServerError> {
     let store = require_memory_store(&state)?;
 
-    let mut note = arawn_memory::types::Note::new(request.content);
+    let mut note = MemoryNote::new(request.content);
     if let Some(title) = request.title {
         note = note.with_title(title);
     }
@@ -331,7 +331,7 @@ pub async fn get_note_handler(
 ) -> Result<Json<Note>, ServerError> {
     let store = require_memory_store(&state)?;
 
-    let id = arawn_memory::types::NoteId::parse(&note_id)
+    let id = NoteId::parse(&note_id)
         .map_err(|_| ServerError::BadRequest(format!("Invalid note ID: {}", note_id)))?;
 
     let note = store
@@ -367,7 +367,7 @@ pub async fn update_note_handler(
 ) -> Result<Json<Note>, ServerError> {
     let store = require_memory_store(&state)?;
 
-    let id = arawn_memory::types::NoteId::parse(&note_id)
+    let id = NoteId::parse(&note_id)
         .map_err(|_| ServerError::BadRequest(format!("Invalid note ID: {}", note_id)))?;
 
     let mut note = store
@@ -416,7 +416,7 @@ pub async fn delete_note_handler(
 ) -> Result<StatusCode, ServerError> {
     let store = require_memory_store(&state)?;
 
-    let id = arawn_memory::types::NoteId::parse(&note_id)
+    let id = NoteId::parse(&note_id)
         .map_err(|_| ServerError::BadRequest(format!("Invalid note ID: {}", note_id)))?;
 
     let deleted = store
@@ -551,9 +551,8 @@ pub async fn store_memory_handler(
     let store = require_memory_store(&state)?;
 
     // Parse content type (default to Fact if invalid)
-    let content_type = arawn_memory::types::ContentType::parse(&request.content_type)
-        .unwrap_or(arawn_memory::types::ContentType::Fact);
-    let mut memory = arawn_memory::types::Memory::new(content_type, &request.content);
+    let content_type = ContentType::parse(&request.content_type).unwrap_or(ContentType::Fact);
+    let mut memory = Memory::new(content_type, &request.content);
 
     // Set session ID if provided
     if let Some(ref session_id) = request.session_id {
@@ -604,7 +603,7 @@ pub async fn delete_memory_handler(
     // Parse UUID and wrap in MemoryId
     let uuid = uuid::Uuid::parse_str(&memory_id)
         .map_err(|_| ServerError::BadRequest(format!("Invalid memory ID: {}", memory_id)))?;
-    let id = arawn_memory::MemoryId(uuid);
+    let id = MemoryId(uuid);
 
     // Delete the memory
     store
@@ -623,7 +622,7 @@ mod tests {
     use super::*;
     use crate::auth::auth_middleware;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
     use axum::{
         Router,
@@ -733,7 +732,7 @@ mod tests {
         let store = state.memory_store().unwrap().clone();
 
         // Insert a note directly into the store
-        let note = arawn_memory::types::Note::new("Direct note").with_title("Direct");
+        let note = MemoryNote::new("Direct note").with_title("Direct");
         store.insert_note(&note).unwrap();
         let note_id = note.id.to_string();
 
@@ -784,7 +783,7 @@ mod tests {
         let state = create_test_state();
         let store = state.memory_store().unwrap().clone();
 
-        let note = arawn_memory::types::Note::new("Original content");
+        let note = MemoryNote::new("Original content");
         store.insert_note(&note).unwrap();
         let note_id = note.id.to_string();
 
@@ -820,7 +819,7 @@ mod tests {
         let state = create_test_state();
         let store = state.memory_store().unwrap().clone();
 
-        let note = arawn_memory::types::Note::new("To delete");
+        let note = MemoryNote::new("To delete");
         store.insert_note(&note).unwrap();
         let note_id = note.id.to_string();
 
@@ -850,10 +849,10 @@ mod tests {
         let store = state.memory_store().unwrap().clone();
 
         store
-            .insert_note(&arawn_memory::types::Note::new("First note").with_tag("test"))
+            .insert_note(&MemoryNote::new("First note").with_tag("test"))
             .unwrap();
         store
-            .insert_note(&arawn_memory::types::Note::new("Second note").with_tag("other"))
+            .insert_note(&MemoryNote::new("Second note").with_tag("other"))
             .unwrap();
 
         let app = create_test_router(state);
@@ -885,11 +884,9 @@ mod tests {
         let store = state.memory_store().unwrap().clone();
 
         store
-            .insert_note(&arawn_memory::types::Note::new("Tagged").with_tag("rust"))
+            .insert_note(&MemoryNote::new("Tagged").with_tag("rust"))
             .unwrap();
-        store
-            .insert_note(&arawn_memory::types::Note::new("Untagged"))
-            .unwrap();
+        store.insert_note(&MemoryNote::new("Untagged")).unwrap();
 
         let app = create_test_router(state);
 
@@ -945,10 +942,7 @@ mod tests {
         let state = create_test_state();
         let store = state.memory_store().unwrap().clone();
 
-        let memory = arawn_memory::types::Memory::new(
-            arawn_memory::types::ContentType::Fact,
-            "Rust is a systems programming language",
-        );
+        let memory = Memory::new(ContentType::Fact, "Rust is a systems programming language");
         store.insert_memory(&memory).unwrap();
 
         let app = create_test_router(state);
@@ -984,9 +978,7 @@ mod tests {
 
         // Insert a note that matches
         store
-            .insert_note(&arawn_memory::types::Note::new(
-                "Tokio is an async runtime for Rust",
-            ))
+            .insert_note(&MemoryNote::new("Tokio is an async runtime for Rust"))
             .unwrap();
 
         let app = create_test_router(state);
@@ -1092,10 +1084,7 @@ mod tests {
         let state = create_test_state();
         let store = state.memory_store().unwrap().clone();
 
-        let memory = arawn_memory::types::Memory::new(
-            arawn_memory::types::ContentType::Fact,
-            "To be deleted",
-        );
+        let memory = Memory::new(ContentType::Fact, "To be deleted");
         store.insert_memory(&memory).unwrap();
         let memory_id = memory.id.to_string();
 

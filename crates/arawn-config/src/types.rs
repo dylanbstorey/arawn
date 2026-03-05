@@ -35,7 +35,7 @@ pub struct ArawnConfig {
 
     /// Agent configurations.
     #[serde(default)]
-    pub agent: HashMap<String, AgentConfig>,
+    pub agent: HashMap<String, AgentProfileConfig>,
 
     /// Server configuration.
     pub server: Option<ServerConfig>,
@@ -75,6 +75,9 @@ pub struct ArawnConfig {
 
     /// RLM (Recursive Language Model) exploration agent configuration.
     pub rlm: Option<RlmTomlConfig>,
+
+    /// OAuth configuration overrides.
+    pub oauth: Option<OAuthConfigOverride>,
 }
 
 impl ArawnConfig {
@@ -84,6 +87,17 @@ impl ArawnConfig {
     }
 
     /// Parse from a TOML string.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let config = ArawnConfig::from_toml(r#"
+    ///     [llm]
+    ///     backend = "anthropic"
+    ///     model = "claude-sonnet-4-20250514"
+    /// "#)?;
+    /// assert!(config.llm.is_some());
+    /// ```
     pub fn from_toml(toml_str: &str) -> crate::Result<Self> {
         // Parse into raw TOML value first to handle the llm table split
         let raw: RawConfig = toml::from_str(toml_str)?;
@@ -98,6 +112,22 @@ impl ArawnConfig {
     }
 
     /// Merge another config on top of this one (other takes priority).
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let mut base = ArawnConfig::from_toml(r#"
+    ///     [llm]
+    ///     backend = "groq"
+    ///     model = "llama-3.1-70b-versatile"
+    /// "#)?;
+    /// let overlay = ArawnConfig::from_toml(r#"
+    ///     [server]
+    ///     port = 9090
+    /// "#)?;
+    /// base.merge(overlay);
+    /// assert_eq!(base.server.unwrap().port, 9090);
+    /// ```
     pub fn merge(&mut self, other: ArawnConfig) {
         if other.llm.is_some() {
             self.llm = other.llm;
@@ -162,6 +192,10 @@ impl ArawnConfig {
         if other.rlm.is_some() {
             self.rlm = other.rlm;
         }
+
+        if other.oauth.is_some() {
+            self.oauth = other.oauth;
+        }
     }
 
     /// Resolve the LLM config for a given agent name.
@@ -170,6 +204,25 @@ impl ArawnConfig {
     /// 1. `agent.<name>.llm` → lookup in `llm_profiles`
     /// 2. `agent.default.llm` → lookup in `llm_profiles`
     /// 3. `[llm]` (global default)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let config = ArawnConfig::from_toml(r#"
+    ///     [llm]
+    ///     backend = "groq"
+    ///     model = "llama-3.1-70b-versatile"
+    ///
+    ///     [llm.claude]
+    ///     backend = "anthropic"
+    ///     model = "claude-sonnet-4-20250514"
+    ///
+    ///     [agent.default]
+    ///     llm = "claude"
+    /// "#)?;
+    /// let llm = config.resolve_llm("researcher")?;
+    /// assert_eq!(llm.model.as_deref(), Some("claude-sonnet-4-20250514"));
+    /// ```
     pub fn resolve_llm(&self, agent_name: &str) -> crate::Result<&LlmConfig> {
         // 1. Agent-specific
         if let Some(agent_cfg) = self.agent.get(agent_name)
@@ -224,7 +277,7 @@ impl ArawnConfig {
 struct RawConfig {
     llm: Option<RawLlmSection>,
     #[serde(default)]
-    agent: HashMap<String, AgentConfig>,
+    agent: HashMap<String, AgentProfileConfig>,
     server: Option<ServerConfig>,
     logging: Option<LoggingConfig>,
     embedding: Option<EmbeddingConfig>,
@@ -238,6 +291,7 @@ struct RawConfig {
     tools: Option<ToolsConfig>,
     paths: Option<crate::paths::PathConfig>,
     rlm: Option<RlmTomlConfig>,
+    oauth: Option<OAuthConfigOverride>,
 }
 
 /// The `[llm]` section which can contain both direct fields and named sub-tables.
@@ -303,6 +357,7 @@ impl From<RawConfig> for ArawnConfig {
             tools: raw.tools,
             paths: raw.paths,
             rlm: raw.rlm,
+            oauth: raw.oauth,
         }
     }
 }
@@ -341,6 +396,7 @@ impl From<ArawnConfig> for RawConfig {
             tools: config.tools,
             paths: config.paths,
             rlm: config.rlm,
+            oauth: config.oauth,
         }
     }
 }
@@ -350,6 +406,17 @@ impl From<ArawnConfig> for RawConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Configuration for an LLM backend.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let llm = LlmConfig {
+///     backend: Some(Backend::Anthropic),
+///     model: Some("claude-sonnet-4-20250514".into()),
+///     ..Default::default()
+/// };
+/// assert_eq!(llm.api_key_env_var(), Some("ANTHROPIC_API_KEY"));
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LlmConfig {
@@ -442,9 +509,22 @@ impl std::fmt::Display for Backend {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Per-agent configuration.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = ArawnConfig::from_toml(r#"
+///     [agent.summarizer]
+///     llm = "fast"
+///     max_iterations = 5
+///     max_tokens = 2048
+/// "#)?;
+/// let agent = &config.agent["summarizer"];
+/// assert_eq!(agent.llm.as_deref(), Some("fast"));
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
-pub struct AgentConfig {
+pub struct AgentProfileConfig {
     /// Name of the LLM config to use (references a key in `llm_profiles`).
     pub llm: Option<String>,
     /// System prompt override.
@@ -460,6 +540,19 @@ pub struct AgentConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Server configuration.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = ArawnConfig::from_toml(r#"
+///     [server]
+///     port = 3000
+///     bind = "0.0.0.0"
+///     rate_limiting = false
+/// "#)?;
+/// let server = config.server.unwrap();
+/// assert_eq!(server.port, 3000);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ServerConfig {
@@ -477,6 +570,11 @@ pub struct ServerConfig {
     pub bootstrap_dir: Option<PathBuf>,
     /// Working directory.
     pub workspace: Option<PathBuf>,
+    /// Allowed origins for WebSocket connections.
+    /// If not set, defaults to localhost variants when auth is enabled.
+    /// Set to `["*"]` to allow all origins (not recommended for production).
+    #[serde(default)]
+    pub ws_allowed_origins: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -489,6 +587,7 @@ impl Default for ServerConfig {
             request_logging: true,
             bootstrap_dir: None,
             workspace: None,
+            ws_allowed_origins: Vec::new(),
         }
     }
 }
@@ -1540,6 +1639,40 @@ pub struct RlmTomlConfig {
     pub max_total_tokens: Option<usize>,
     /// Separate model for compaction (cheaper/faster).
     pub compaction_model: Option<String>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OAuth Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// OAuth configuration overrides for the `[oauth]` TOML section.
+///
+/// All fields are optional — any field not set falls through to environment
+/// variables and then built-in defaults in `arawn-oauth`.
+/// # Examples
+///
+/// ```rust,ignore
+/// let config = ArawnConfig::from_toml(r#"
+///     [oauth]
+///     client_id = "my-client-id"
+///     scope = "openid profile"
+/// "#)?;
+/// let oauth = config.oauth.unwrap();
+/// assert_eq!(oauth.client_id.as_deref(), Some("my-client-id"));
+/// ```
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct OAuthConfigOverride {
+    /// OAuth client ID.
+    pub client_id: Option<String>,
+    /// Authorization endpoint URL.
+    pub authorize_url: Option<String>,
+    /// Token exchange endpoint URL.
+    pub token_url: Option<String>,
+    /// OAuth redirect URI.
+    pub redirect_uri: Option<String>,
+    /// OAuth scopes (space-separated).
+    pub scope: Option<String>,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -12,12 +12,24 @@
 use crate::Backend;
 
 /// Result of API key resolution with provenance.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The `Debug` impl intentionally redacts `value` to prevent secret leakage
+/// in log output. Use `.value` directly when the actual secret is needed.
+#[derive(Clone, PartialEq, Eq)]
 pub struct ResolvedSecret {
     /// The secret value.
     pub value: String,
     /// Where the secret was found.
     pub source: SecretSource,
+}
+
+impl std::fmt::Debug for ResolvedSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedSecret")
+            .field("value", &"[REDACTED]")
+            .field("source", &self.source)
+            .finish()
+    }
 }
 
 /// Where a secret was resolved from.
@@ -86,12 +98,26 @@ pub fn has_age_store_entry(backend: &Backend) -> bool {
 }
 
 /// Store an API key in the age-encrypted secret store.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_config::{Backend, secrets};
+/// secrets::store_secret(&Backend::Anthropic, "sk-ant-...")?;
+/// ```
 pub fn store_secret(backend: &Backend, api_key: &str) -> std::result::Result<(), String> {
     let name = age_store_name(backend);
     store_named_secret(&name, api_key)
 }
 
 /// Store a named secret in the age-encrypted secret store.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_config::secrets;
+/// secrets::store_named_secret("my_custom_token", "tok-abc123")?;
+/// ```
 pub fn store_named_secret(name: &str, value: &str) -> std::result::Result<(), String> {
     let store = crate::AgeSecretStore::open_default()
         .map_err(|e| format!("opening secret store: {}", e))?;
@@ -117,6 +143,16 @@ pub fn delete_named_secret(name: &str) -> std::result::Result<(), String> {
 }
 
 /// List all secret names in the age store.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_config::secrets;
+/// let names = secrets::list_secrets()?;
+/// for name in &names {
+///     println!("stored secret: {}", name);
+/// }
+/// ```
 pub fn list_secrets() -> std::result::Result<Vec<String>, String> {
     let store = crate::AgeSecretStore::open_default()
         .map_err(|e| format!("opening secret store: {}", e))?;
@@ -301,5 +337,20 @@ mod tests {
         let result = store_in_keyring(&Backend::Groq, "test-key");
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not compiled"));
+    }
+
+    #[test]
+    fn test_resolved_secret_debug_redacts_value() {
+        let secret = ResolvedSecret {
+            value: "super-secret-api-key-12345".to_string(),
+            source: SecretSource::AgeStore,
+        };
+        let debug = format!("{:?}", secret);
+        assert!(
+            !debug.contains("super-secret-api-key-12345"),
+            "Debug output must not contain the secret value"
+        );
+        assert!(debug.contains("[REDACTED]"));
+        assert!(debug.contains("AgeStore"));
     }
 }

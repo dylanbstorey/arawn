@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Addresses the 6 critical issues identified in AUDIT_REPORT.md that could cause d
 ## Objective
 
 Fix all CRITICAL severity issues from the codebase audit to ensure production stability.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

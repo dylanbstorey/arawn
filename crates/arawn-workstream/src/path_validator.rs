@@ -217,13 +217,18 @@ impl PathValidator {
     /// For files that don't exist yet, validates the parent directory exists
     /// and is within allowed boundaries, then constructs the full path.
     ///
+    /// If the target file already exists and is a symlink, the symlink target
+    /// is resolved and checked against boundaries to prevent symlink-based
+    /// sandbox escape on overwrites.
+    ///
     /// # Algorithm
     ///
-    /// 1. Get the parent directory of the path
-    /// 2. Canonicalize the parent (must exist)
-    /// 3. Check parent against denied paths
-    /// 4. Check parent against allowed paths
-    /// 5. Return parent + filename
+    /// 1. If target exists, canonicalize it and check against boundaries
+    /// 2. Get the parent directory of the path
+    /// 3. Canonicalize the parent (must exist)
+    /// 4. Check parent against denied paths
+    /// 5. Check parent against allowed paths
+    /// 6. Return parent + filename
     ///
     /// # Returns
     ///
@@ -235,7 +240,31 @@ impl PathValidator {
     /// - `PathError::ParentNotFound` if the parent directory doesn't exist
     /// - `PathError::NotAllowed` if the parent is outside allowed directories
     /// - `PathError::DeniedPath` if the parent is in a denied directory
+    /// - `PathError::SymlinkEscape` if the target is a symlink pointing outside boundaries
     pub fn validate_write(&self, path: &Path) -> PathResult<PathBuf> {
+        // If the target already exists, resolve symlinks and check the real
+        // destination.  This prevents an attacker from creating a symlink
+        // inside the sandbox that points outside, then having a write
+        // operation follow the symlink to overwrite an external file.
+        if path.exists() {
+            let canonical = path.canonicalize().map_err(PathError::Io)?;
+            self.check_denied(&canonical)?;
+
+            // Check if this is a symlink that escapes allowed boundaries
+            if path.symlink_metadata().is_ok_and(|m| m.is_symlink()) {
+                let target_allowed = self.is_under_allowed_canonical(&canonical);
+                if !target_allowed {
+                    return Err(PathError::SymlinkEscape {
+                        path: path.to_path_buf(),
+                        target: canonical,
+                    });
+                }
+            }
+
+            self.check_allowed(&canonical)?;
+            return Ok(canonical);
+        }
+
         // Get filename
         let filename = path
             .file_name()
@@ -638,6 +667,74 @@ mod tests {
     fn test_thread_safety() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<PathValidator>();
+    }
+
+    #[test]
+    fn test_validate_write_symlink_escape_rejected() {
+        let (dir, validator) = setup();
+
+        // Create a file outside allowed directory
+        let outside_dir = tempfile::tempdir().unwrap();
+        let outside_file = outside_dir.path().join("secret.txt");
+        fs::write(&outside_file, "secret data").unwrap();
+
+        // Create symlink inside allowed directory pointing to outside file
+        let link_path = dir.path().join("sneaky_write_link.txt");
+        symlink(&outside_file, &link_path).unwrap();
+
+        // validate_write should reject this — the symlink points outside
+        let result = validator.validate_write(&link_path);
+        assert!(
+            matches!(
+                result,
+                Err(PathError::SymlinkEscape { .. }) | Err(PathError::NotAllowed { .. })
+            ),
+            "Expected SymlinkEscape or NotAllowed for write via symlink, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_validate_write_symlink_within_allowed_succeeds() {
+        let (dir, validator) = setup();
+
+        // Create a real file and a symlink to it, both within allowed directory
+        let real_file = dir.path().join("real_file.txt");
+        fs::write(&real_file, "hello").unwrap();
+
+        let link_path = dir.path().join("internal_link.txt");
+        symlink(&real_file, &link_path).unwrap();
+
+        // validate_write should succeed — symlink stays within allowed area
+        let result = validator.validate_write(&link_path);
+        assert!(
+            result.is_ok(),
+            "Write via symlink within allowed dir should succeed, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_validate_write_symlink_dir_escape_rejected() {
+        let (dir, validator) = setup();
+
+        // Create a directory outside allowed area
+        let outside_dir = tempfile::tempdir().unwrap();
+
+        // Create a symlink to the outside directory inside allowed area
+        let link_dir = dir.path().join("link_to_outside");
+        symlink(outside_dir.path(), &link_dir).unwrap();
+
+        // Try to write a new file via the symlinked directory
+        // validate_write canonicalizes the parent, so the symlinked dir
+        // will resolve to the outside location
+        let file_path = link_dir.join("escape.txt");
+        let result = validator.validate_write(&file_path);
+        assert!(
+            result.is_err(),
+            "Write via symlinked directory escape should be rejected, got: {:?}",
+            result
+        );
     }
 
     #[test]

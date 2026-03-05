@@ -58,6 +58,15 @@ impl LoadedConfig {
 /// 2. Project-local (`./arawn.toml` or specified project dir)
 ///
 /// Later files override earlier ones.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use std::path::Path;
+/// let loaded = arawn_config::load_config(Some(Path::new("/my/project")))?;
+/// println!("loaded from: {:?}", loaded.loaded_from());
+/// let config = loaded.config;
+/// ```
 pub fn load_config(project_dir: Option<&Path>) -> Result<LoadedConfig> {
     load_config_with_options(project_dir, None)
 }
@@ -145,6 +154,14 @@ const CONFIG_DIR_ENV: &str = "ARAWN_CONFIG_DIR";
 ///
 /// Checks `ARAWN_CONFIG_DIR` env var first, then falls back to platform default
 /// (`~/.config/arawn/config.toml` on Linux, `~/Library/Application Support/arawn/config.toml` on macOS).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// if let Some(path) = arawn_config::xdg_config_path() {
+///     println!("config file at: {}", path.display());
+/// }
+/// ```
 pub fn xdg_config_path() -> Option<PathBuf> {
     xdg_config_dir().map(|d| d.join(USER_CONFIG_FILE))
 }

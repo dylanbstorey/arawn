@@ -9,6 +9,20 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Information about an available subagent.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::SubagentInfo;
+///
+/// let info = SubagentInfo {
+///     name: "code-reviewer".into(),
+///     description: "Reviews code changes for quality".into(),
+///     tools: vec!["file_read".into(), "grep".into()],
+///     source: Some("review-plugin".into()),
+/// };
+/// assert_eq!(info.name, "code-reviewer");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubagentInfo {
     /// The name of the subagent.
@@ -44,6 +58,23 @@ pub struct SubagentResult {
 }
 
 /// Outcome of a subagent delegation attempt.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::{DelegationOutcome, SubagentResult};
+///
+/// let outcome = DelegationOutcome::Success(SubagentResult {
+///     text: "Task completed.".into(),
+///     success: true,
+///     turns: 3,
+///     duration_ms: 1200,
+///     truncated: false,
+///     compacted: false,
+///     original_len: None,
+/// });
+/// assert!(matches!(outcome, DelegationOutcome::Success(_)));
+/// ```
 #[derive(Debug, Clone)]
 pub enum DelegationOutcome {
     /// Subagent executed successfully.

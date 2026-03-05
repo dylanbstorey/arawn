@@ -14,7 +14,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use arawn_mcp::McpServerConfig;
+use arawn_domain::McpServerConfig;
 
 use crate::auth::Identity;
 use crate::error::ServerError;
@@ -556,9 +556,9 @@ mod tests {
     use super::*;
     use crate::auth::auth_middleware;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::McpManager;
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
-    use arawn_mcp::McpManager;
     use axum::{
         Router,
         body::Body,

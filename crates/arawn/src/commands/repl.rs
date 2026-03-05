@@ -12,6 +12,7 @@ use crate::client::{ChatEvent, Client};
 /// REPL state and configuration.
 pub struct Repl {
     client: Client,
+    server_url: String,
     session_id: Option<String>,
     editor: Editor<(), DefaultHistory>,
     term: Term,
@@ -20,7 +21,12 @@ pub struct Repl {
 
 impl Repl {
     /// Create a new REPL instance.
-    pub fn new(client: Client, session_id: Option<String>, verbose: bool) -> Result<Self> {
+    pub fn new(
+        client: Client,
+        server_url: String,
+        session_id: Option<String>,
+        verbose: bool,
+    ) -> Result<Self> {
         let config = Config::builder()
             .history_ignore_space(true)
             .auto_add_history(true)
@@ -30,6 +36,7 @@ impl Repl {
 
         Ok(Self {
             client,
+            server_url,
             session_id,
             editor,
             term: Term::stdout(),
@@ -93,10 +100,18 @@ impl Repl {
 
     /// Send a message and stream the response.
     async fn send_message(&mut self, message: &str) -> Result<()> {
-        let mut stream = self
+        let mut stream = match self
             .client
             .chat_stream(message, self.session_id.as_deref())
-            .await?;
+            .await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                let friendly = super::format_user_error(&e, &self.server_url);
+                self.print_error(&friendly);
+                return Ok(());
+            }
+        };
 
         // Print response with streaming
         while let Some(event) = stream.next_event().await {
@@ -256,7 +271,8 @@ impl Repl {
                 }
             }
             Err(e) => {
-                self.print_error(&format!("Search failed: {}", e));
+                let friendly = super::format_user_error(&e, &self.server_url);
+                self.print_error(&friendly);
             }
         }
         Ok(())
@@ -269,7 +285,8 @@ impl Repl {
                 println!("{} Note saved: {}", green.apply_to("✓"), note.id);
             }
             Err(e) => {
-                self.print_error(&format!("Failed to save note: {}", e));
+                let friendly = super::format_user_error(&e, &self.server_url);
+                self.print_error(&friendly);
             }
         }
         Ok(())

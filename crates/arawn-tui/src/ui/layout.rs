@@ -318,27 +318,83 @@ fn render_sessions_overlay(app: &App, frame: &mut Frame, area: Rect) {
 }
 
 /// Render the workstreams overlay.
-fn render_workstreams_overlay(_app: &App, frame: &mut Frame, area: Rect) {
+fn render_workstreams_overlay(app: &App, frame: &mut Frame, area: Rect) {
     let overlay_area = centered_rect(60, 50, area);
     frame.render_widget(Clear, overlay_area);
 
+    let filter = app.sidebar.filter.as_str();
+    let title = if filter.is_empty() {
+        " workstreams ".to_string()
+    } else {
+        format!(" workstreams ({}) ", filter)
+    };
+
     let block = Block::default()
-        .title(" workstreams ")
+        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::Cyan));
 
-    let content = Paragraph::new(vec![
-        Line::from(" > search..."),
-        Line::from(""),
-        Line::from(Span::styled(
-            " ★ default",
-            Style::default().add_modifier(Modifier::BOLD),
-        )),
-        Line::from("   project-alpha                          45 msgs  2d"),
-        Line::from("   research-notes                         12 msgs  5d"),
-    ])
-    .block(block);
+    let mut lines = Vec::new();
 
+    // Search prompt
+    let search_text = if filter.is_empty() {
+        " > search...".to_string()
+    } else {
+        format!(" > {}", filter)
+    };
+    lines.push(Line::from(Span::styled(
+        search_text,
+        Style::default().fg(Color::DarkGray),
+    )));
+    lines.push(Line::from(""));
+
+    // Workstream list from sidebar data
+    let workstreams: Vec<_> = app.sidebar.visible_workstreams().collect();
+    if workstreams.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  No workstreams found",
+            Style::default().fg(Color::DarkGray),
+        )));
+    } else {
+        for (is_selected, ws) in &workstreams {
+            let marker = if ws.is_current {
+                "★"
+            } else if *is_selected {
+                "›"
+            } else {
+                " "
+            };
+
+            let sessions_text = if ws.session_count == 1 {
+                "1 session".to_string()
+            } else {
+                format!("{} sessions", ws.session_count)
+            };
+
+            let label = format!(" {} {:<24} {}", marker, ws.name, sessions_text);
+
+            let style = if *is_selected {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if ws.is_current {
+                Style::default().add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            lines.push(Line::from(Span::styled(label, style)));
+        }
+    }
+
+    // Footer hints
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        " ↑↓ navigate  Enter select  Esc close",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let content = Paragraph::new(lines).block(block);
     frame.render_widget(content, overlay_area);
 }
 

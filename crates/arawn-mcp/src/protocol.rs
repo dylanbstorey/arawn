@@ -16,6 +16,18 @@ pub const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A JSON-RPC request.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_mcp::protocol::JsonRpcRequest;
+///
+/// let req = JsonRpcRequest::new(1, "tools/list", None);
+/// let req_with_params = JsonRpcRequest::new(2, "tools/call", Some(serde_json::json!({
+///     "name": "read_file",
+///     "arguments": { "path": "/tmp/test.txt" }
+/// })));
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonRpcRequest {
     /// JSON-RPC version (always "2.0").
@@ -227,6 +239,18 @@ pub struct InitializeResult {
 }
 
 /// A tool definition from the server.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_mcp::protocol::ToolInfo;
+///
+/// let tool: ToolInfo = serde_json::from_value(serde_json::json!({
+///     "name": "read_file",
+///     "description": "Read a file from disk",
+///     "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } } }
+/// }))?;
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolInfo {
@@ -288,6 +312,19 @@ pub enum ToolContent {
 }
 
 /// Result of the tools/call request.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_mcp::protocol::CallToolResult;
+///
+/// let result: CallToolResult = serde_json::from_value(serde_json::json!({
+///     "content": [{ "type": "text", "text": "file contents" }],
+///     "isError": false
+/// }))?;
+/// assert!(!result.is_error());
+/// assert_eq!(result.text(), Some("file contents".to_string()));
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CallToolResult {

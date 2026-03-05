@@ -4,11 +4,52 @@
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use tokio::fs;
 
 use crate::error::Result;
 use crate::tool::{FileReadParams, FileWriteParams, Tool, ToolContext, ToolResult};
+
+/// Reject paths that contain `..` (parent directory) traversal components.
+///
+/// This is a defense-in-depth check. In the normal flow, the FsGate
+/// canonicalizes paths before they reach the tool, so legitimate paths
+/// never contain `..` sequences. Any remaining traversal indicates a
+/// bypass attempt.
+fn reject_traversal(path: &Path) -> std::result::Result<(), crate::error::AgentError> {
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(crate::error::AgentError::Tool(format!(
+                "Path traversal not allowed: {}",
+                path.display()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Resolve `..` and `.` components lexically (without filesystem access).
+///
+/// Used as a fallback when the filesystem path doesn't exist yet and
+/// `canonicalize()` can't be called.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                // Pop the last normal component (if any)
+                if let Some(Component::Normal(_)) = components.last() {
+                    components.pop();
+                } else {
+                    components.push(component);
+                }
+            }
+            Component::CurDir => {} // skip `.`
+            _ => components.push(component),
+        }
+    }
+    components.iter().collect()
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // File Read Tool
@@ -37,6 +78,9 @@ impl FileReadTool {
     /// Validate and resolve the file path.
     fn resolve_path(&self, path: &str) -> Result<std::path::PathBuf> {
         let path = Path::new(path);
+
+        // Defense-in-depth: reject traversal sequences
+        reject_traversal(path)?;
 
         // If we have a base directory, ensure the path is within it
         if let Some(ref base) = self.base_dir {
@@ -176,6 +220,9 @@ impl FileWriteTool {
     fn resolve_path(&self, path: &str) -> Result<std::path::PathBuf> {
         let path = Path::new(path);
 
+        // Defense-in-depth: reject traversal sequences
+        reject_traversal(path)?;
+
         if let Some(ref base) = self.base_dir {
             let base_path = Path::new(base).canonicalize().map_err(|e| {
                 crate::error::AgentError::Tool(format!("Invalid base directory: {}", e))
@@ -209,9 +256,13 @@ impl FileWriteTool {
                 return Ok(canonical_parent.join(file_name));
             }
 
-            // If parent doesn't exist, just ensure the path would be under base
-            if full_path.starts_with(&base_path) {
-                Ok(full_path)
+            // If parent doesn't exist, normalize the path lexically to
+            // resolve any remaining traversal sequences before checking
+            // the prefix. This prevents bypass via paths like
+            // "/base/nonexistent/../../etc/passwd".
+            let normalized = normalize_path(&full_path);
+            if normalized.starts_with(&base_path) {
+                Ok(normalized)
             } else {
                 Err(crate::error::AgentError::Tool(
                     "Path is outside allowed directory".to_string(),
@@ -500,5 +551,117 @@ mod tests {
 
         assert!(result.is_error());
         assert!(result.to_llm_content().contains("not allowed"));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Path traversal tests
+    // ─────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_reject_traversal_blocks_dotdot() {
+        assert!(reject_traversal(Path::new("/tmp/../etc/passwd")).is_err());
+        assert!(reject_traversal(Path::new("../secret.txt")).is_err());
+        assert!(reject_traversal(Path::new("foo/../../bar")).is_err());
+    }
+
+    #[test]
+    fn test_reject_traversal_allows_normal_paths() {
+        assert!(reject_traversal(Path::new("/tmp/file.txt")).is_ok());
+        assert!(reject_traversal(Path::new("relative/path.rs")).is_ok());
+        assert!(reject_traversal(Path::new("/a/b/c/d.txt")).is_ok());
+    }
+
+    #[test]
+    fn test_normalize_path_resolves_dotdot() {
+        assert_eq!(
+            normalize_path(Path::new("/a/b/../c")),
+            PathBuf::from("/a/c")
+        );
+        assert_eq!(
+            normalize_path(Path::new("/a/b/c/../../d")),
+            PathBuf::from("/a/d")
+        );
+        assert_eq!(
+            normalize_path(Path::new("/a/./b/./c")),
+            PathBuf::from("/a/b/c")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_file_write_traversal_rejected_no_base() {
+        let tool = FileWriteTool::new();
+        let ctx = ToolContext::default();
+
+        let result = tool
+            .execute(
+                json!({
+                    "path": "/tmp/../etc/passwd",
+                    "content": "malicious"
+                }),
+                &ctx,
+            )
+            .await;
+
+        // Should fail with traversal error
+        assert!(
+            result.is_err() || {
+                let r = result.unwrap();
+                r.is_error() && r.to_llm_content().contains("traversal")
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_file_write_traversal_rejected_with_base() {
+        let temp_dir = TempDir::new().unwrap();
+        let tool = FileWriteTool::new().with_base_dir(temp_dir.path().to_str().unwrap());
+        let ctx = ToolContext::default();
+
+        let result = tool
+            .execute(
+                json!({
+                    "path": "../../etc/passwd",
+                    "content": "malicious"
+                }),
+                &ctx,
+            )
+            .await;
+
+        // Should fail — either traversal rejection or path-outside-base
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_file_read_traversal_rejected() {
+        let tool = FileReadTool::new();
+        let ctx = ToolContext::default();
+
+        let result = tool
+            .execute(json!({"path": "/tmp/../etc/passwd"}), &ctx)
+            .await;
+
+        // Should fail with traversal error
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_file_write_base_dir_traversal_nonexistent_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let tool = FileWriteTool::new().with_base_dir(temp_dir.path().to_str().unwrap());
+        let ctx = ToolContext::default();
+
+        // Attempt traversal through a nonexistent directory
+        let result = tool
+            .execute(
+                json!({
+                    "path": "nonexistent/../../etc/passwd",
+                    "content": "malicious"
+                }),
+                &ctx,
+            )
+            .await;
+
+        // Should fail
+        assert!(result.is_err());
     }
 }

@@ -16,6 +16,19 @@ use crate::error::PipelineError;
 use crate::task::DynamicTask;
 
 /// Configuration for the pipeline engine.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_pipeline::PipelineConfig;
+///
+/// let config = PipelineConfig {
+///     max_concurrent_tasks: 8,
+///     task_timeout_secs: 120,
+///     cron_enabled: false,
+///     ..PipelineConfig::default()
+/// };
+/// ```
 #[derive(Debug, Clone)]
 pub struct PipelineConfig {
     /// Maximum concurrent tasks.
@@ -245,6 +258,17 @@ mod tests {
 /// - Dynamic workflow construction (no macros needed)
 /// - Simplified API for Arawn's use cases
 /// - Push trigger support for event-driven execution
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_pipeline::{PipelineEngine, PipelineConfig};
+///
+/// let engine = PipelineEngine::new(Path::new("pipeline.db"), PipelineConfig::default()).await?;
+/// engine.register_dynamic_workflow("my-wf", "description", tasks).await?;
+/// let result = engine.execute("my-wf", context).await?;
+/// engine.shutdown().await?;
+/// ```
 pub struct PipelineEngine {
     runner: DefaultRunner,
     /// Registered workflows by name, for push trigger execution.

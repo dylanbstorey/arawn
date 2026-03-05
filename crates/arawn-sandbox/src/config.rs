@@ -11,6 +11,19 @@ use std::time::Duration;
 ///   Everything else is read-only.
 /// - **Deny read paths**: Sensitive paths that should be blocked even for reading.
 /// - **Network**: Domain-based allowlist for network access.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_sandbox::SandboxConfig;
+/// use std::time::Duration;
+///
+/// let config = SandboxConfig::new()
+///     .add_write_path("/tmp/workspace")
+///     .add_allowed_domain("api.github.com")
+///     .with_timeout(Duration::from_secs(60))
+///     .with_working_dir("/tmp/workspace");
+/// ```
 #[derive(Debug, Clone)]
 pub struct SandboxConfig {
     /// Paths allowed for writing (allow-only model).

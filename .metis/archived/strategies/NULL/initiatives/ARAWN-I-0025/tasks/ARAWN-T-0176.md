@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 8 low-priority issues from the codebase audit.
 ## Objective
 
 Address remaining tech debt and minor issues for improved code quality.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

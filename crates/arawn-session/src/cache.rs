@@ -14,6 +14,15 @@ use crate::persistence::{NoPersistence, PersistenceHook};
 use crate::ttl::TtlTracker;
 
 /// Entry stored in the cache.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_session::CacheEntry;
+///
+/// let entry = CacheEntry::new("session data".to_string(), "workstream-1".to_string());
+/// assert!(!entry.dirty);
+/// ```
 #[derive(Debug, Clone)]
 pub struct CacheEntry<V> {
     /// Cached value.
@@ -74,6 +83,18 @@ struct CacheInner<P: PersistenceHook> {
 /// The value type stored in the cache is determined by the persistence
 /// hook's associated `Value` type. With [`NoPersistence`], values are
 /// [`SessionData`]; custom hooks can store any `Clone + Send + Sync` type.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_session::{SessionCache, CacheConfig};
+///
+/// let config = CacheConfig::new().with_max_sessions(100);
+/// let cache = SessionCache::new(config);
+///
+/// cache.insert("session-1", "workstream-1", session_data).await?;
+/// let data = cache.get_or_load("session-1", "workstream-1").await?;
+/// ```
 pub struct SessionCache<P: PersistenceHook = NoPersistence> {
     inner: Arc<RwLock<CacheInner<P>>>,
     config: CacheConfig,

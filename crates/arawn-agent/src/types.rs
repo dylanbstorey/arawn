@@ -88,6 +88,19 @@ impl std::fmt::Display for TurnId {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A tool call made by the agent.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::types::ToolCall;
+///
+/// let call = ToolCall {
+///     id: "call_1".to_string(),
+///     name: "read_file".to_string(),
+///     arguments: serde_json::json!({"path": "/tmp/data.txt"}),
+/// };
+/// assert_eq!(call.name, "read_file");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
     /// Unique ID for this tool call.
@@ -99,6 +112,19 @@ pub struct ToolCall {
 }
 
 /// Result of a tool execution.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::types::ToolResultRecord;
+///
+/// let result = ToolResultRecord {
+///     tool_call_id: "call_1".to_string(),
+///     success: true,
+///     content: "file contents here".to_string(),
+/// };
+/// assert!(result.success);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResultRecord {
     /// ID of the tool call this is a result for.
@@ -114,6 +140,18 @@ pub struct ToolResultRecord {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A single conversation turn (user message + agent response).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::types::Turn;
+///
+/// let mut turn = Turn::new("Explain ownership in Rust");
+/// assert!(!turn.is_complete());
+///
+/// turn.complete("Ownership is Rust's memory-management model...");
+/// assert!(turn.is_complete());
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Turn {
     /// Unique identifier for this turn.
@@ -202,6 +240,16 @@ pub struct Session {
 
 impl Session {
     /// Create a new empty session.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use arawn_agent::types::Session;
+    ///
+    /// let session = Session::new();
+    /// assert!(session.is_empty());
+    /// assert_eq!(session.turn_count(), 0);
+    /// ```
     pub fn new() -> Self {
         let now = Utc::now();
         Self {
@@ -342,6 +390,18 @@ impl Default for Session {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Configuration for the agent.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::AgentConfig;
+///
+/// let config = AgentConfig::new("claude-sonnet-4-20250514")
+///     .with_max_tokens(8192)
+///     .with_temperature(0.7)
+///     .with_max_iterations(10);
+/// assert_eq!(config.model, "claude-sonnet-4-20250514");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     /// Model identifier to use.
@@ -469,6 +529,15 @@ impl AgentResponse {
 }
 
 /// Token usage statistics.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::types::ResponseUsage;
+///
+/// let usage = ResponseUsage::new(1200, 350);
+/// assert_eq!(usage.total(), 1550);
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ResponseUsage {
     /// Input tokens used.

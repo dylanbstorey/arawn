@@ -12,6 +12,14 @@ use tracing::{debug, info, warn};
 use crate::error::{DomainError, Result};
 
 /// Response from a chat turn.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let response: ChatResponse = chat.send_message(session_id, "Hello", &opts).await?;
+/// println!("Response: {}", response.response);
+/// println!("Tokens: {} in / {} out", response.input_tokens, response.output_tokens);
+/// ```
 #[derive(Debug, Clone)]
 pub struct ChatResponse {
     /// The session ID.
@@ -40,6 +48,14 @@ pub struct ToolCallSummary {
 }
 
 /// Options for executing a turn.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let opts = TurnOptions {
+///     max_message_bytes: Some(100_000),
+/// };
+/// ```
 #[derive(Debug, Clone, Default)]
 pub struct TurnOptions {
     /// Maximum message size in bytes.

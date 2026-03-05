@@ -113,6 +113,16 @@ pub mod defaults {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Standalone session configuration.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::config::{SessionConfigProvider, HasSessionConfig};
+///
+/// let config = SessionConfigProvider::default();
+/// assert_eq!(config.max_sessions(), 10_000);
+/// assert!(config.session_ttl().is_none());
+/// ```
 #[derive(Debug, Clone)]
 pub struct SessionConfigProvider {
     pub max_sessions: usize,
@@ -147,6 +157,20 @@ impl HasSessionConfig for SessionConfigProvider {
 }
 
 /// Standalone tool configuration.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::config::{ToolConfigProvider, HasToolConfig};
+/// use std::time::Duration;
+///
+/// let config = ToolConfigProvider {
+///     shell_timeout: Duration::from_secs(60),
+///     web_timeout: Duration::from_secs(15),
+///     max_output_bytes: 50_000,
+/// };
+/// assert_eq!(config.shell_timeout(), Duration::from_secs(60));
+/// ```
 #[derive(Debug, Clone)]
 pub struct ToolConfigProvider {
     pub shell_timeout: Duration,
@@ -181,6 +205,16 @@ impl HasToolConfig for ToolConfigProvider {
 }
 
 /// Standalone agent configuration.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::config::{AgentConfigProvider, HasAgentConfig};
+///
+/// let config = AgentConfigProvider::default();
+/// assert_eq!(config.max_iterations(), 25);
+/// assert_eq!(config.default_timeout().as_secs(), 300);
+/// ```
 #[derive(Debug, Clone)]
 pub struct AgentConfigProvider {
     pub max_iterations: u32,

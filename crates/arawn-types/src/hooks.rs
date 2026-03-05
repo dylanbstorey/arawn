@@ -73,6 +73,21 @@ pub enum HookType {
 }
 
 /// A single hook action (Claude Code format).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::{HookAction, HookType};
+///
+/// let action = HookAction {
+///     hook_type: HookType::Command,
+///     command: Some("./lint.sh".into()),
+///     prompt: None,
+///     agent: None,
+///     timeout: Some(5000),
+/// };
+/// assert_eq!(action.hook_type, HookType::Command);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HookAction {
     /// Hook type (command, prompt, or agent).
@@ -103,6 +118,19 @@ pub struct HookMatcherGroup {
 }
 
 /// The root hooks.json structure (Claude Code format).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::HooksConfig;
+///
+/// let config = HooksConfig::default();
+/// assert!(config.is_empty());
+///
+/// let json = r#"{"hooks":{"PreToolUse":[{"hooks":[{"command":"./check.sh"}]}]}}"#;
+/// let config: HooksConfig = serde_json::from_str(json).unwrap();
+/// assert!(!config.is_empty());
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct HooksConfig {
     /// Hooks grouped by event type.

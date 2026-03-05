@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use utoipa::ToSchema;
 
-use arawn_agent::{Session, SessionId};
+use arawn_domain::{Session, SessionId};
 
 use super::pagination::PaginationParams;
 use crate::auth::Identity;
@@ -429,10 +429,17 @@ pub async fn update_session_handler(
     // Track the workstream ID for potential reload after reassignment
     let mut target_workstream_id: Option<String> = None;
     // Track file migration info when moving from scratch
-    let mut migration_result: Option<arawn_workstream::AttachResult> = None;
+    let mut migration_result: Option<arawn_domain::AttachResult> = None;
 
     // Handle workstream reassignment if requested
     if let Some(ref new_workstream_id) = request.workstream_id {
+        // Validate workstream ID to prevent path traversal
+        if !arawn_domain::DirectoryManager::is_valid_name(new_workstream_id) {
+            return Err(ServerError::BadRequest(format!(
+                "Invalid workstream ID: '{}'. Must contain only alphanumeric characters, hyphens, and underscores.",
+                new_workstream_id
+            )));
+        }
         tracing::info!(
             session_id = %session_id,
             new_workstream_id = %new_workstream_id,
@@ -472,7 +479,7 @@ pub async fn update_session_handler(
                                 );
                                 migration_result = Some(result);
                             }
-                            Err(arawn_workstream::DirectoryError::SessionWorkNotFound(_)) => {
+                            Err(arawn_domain::DirectoryError::SessionWorkNotFound(_)) => {
                                 // No files to migrate, that's fine
                                 tracing::debug!(
                                     session_id = %session_id,
@@ -740,7 +747,7 @@ mod tests {
     use super::*;
     use crate::auth::auth_middleware;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
     use axum::{
         Router,

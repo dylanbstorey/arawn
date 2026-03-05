@@ -233,7 +233,7 @@ pub async fn request_logging_middleware(
 mod tests {
     use super::*;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
     use axum::{
         Router,

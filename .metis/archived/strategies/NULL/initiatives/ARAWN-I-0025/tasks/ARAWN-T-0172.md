@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 4 security and stability issues from the codebase audit.
 ## Objective
 
 Improve security posture and connection stability for the server.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

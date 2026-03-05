@@ -15,7 +15,7 @@ use tokio_util::sync::CancellationToken;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use arawn_agent::{SessionId, StreamChunk};
+use arawn_domain::{SessionId, StreamChunk};
 
 use crate::auth::Identity;
 use crate::error::ServerError;
@@ -26,6 +26,15 @@ use crate::state::AppState;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Request body for chat endpoints.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let request = ChatRequest {
+///     session_id: None, // creates a new session
+///     message: "Hello, agent!".to_string(),
+/// };
+/// ```
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 pub struct ChatRequest {
     /// Optional session ID. If not provided, a new session is created.
@@ -389,7 +398,7 @@ mod tests {
     use super::*;
     use crate::auth::auth_middleware;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
     use axum::{
         Router,

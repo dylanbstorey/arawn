@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 4 HIGH severity data integrity issues from the codebase audit.
 ## Objective
 
 Ensure chat conversations persist correctly across REST API and WebSocket, and fix TUI workstream management bugs.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

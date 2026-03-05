@@ -10,11 +10,26 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use arawn_workstream::WorkstreamManager;
+use arawn_domain::{
+    DirectoryError, DirectoryManager, MessageRole, SCRATCH_ID, WorkstreamManager, WorkstreamMessage,
+};
 
 use super::pagination::PaginationParams;
 use crate::error::ServerError;
 use crate::state::AppState;
+
+/// Validate a workstream ID from a URL path parameter.
+///
+/// Rejects IDs containing path traversal sequences, path separators,
+/// or other invalid characters. Valid IDs match `^[a-zA-Z0-9_-]+$`.
+fn validate_id(id: &str) -> Result<(), ServerError> {
+    DirectoryManager::validate_workstream_id(id).map_err(|_| {
+        ServerError::BadRequest(format!(
+            "Invalid workstream ID: '{}'. IDs must contain only alphanumeric characters, hyphens, and underscores.",
+            id
+        ))
+    })
+}
 
 // ── Request/Response types ──────────────────────────────────────────
 
@@ -303,7 +318,7 @@ fn get_manager(state: &AppState) -> Result<&Arc<WorkstreamManager>, ServerError>
 }
 
 fn to_workstream_response(
-    ws: &arawn_workstream::store::Workstream,
+    ws: &arawn_domain::Workstream,
     tags: Option<Vec<String>>,
 ) -> WorkstreamResponse {
     WorkstreamResponse {
@@ -319,7 +334,7 @@ fn to_workstream_response(
     }
 }
 
-fn to_message_response(msg: &arawn_workstream::WorkstreamMessage) -> MessageResponse {
+fn to_message_response(msg: &WorkstreamMessage) -> MessageResponse {
     MessageResponse {
         id: msg.id.clone(),
         workstream_id: msg.workstream_id.clone(),
@@ -429,6 +444,7 @@ pub async fn get_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<WorkstreamResponse>, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     let ws = mgr.get_workstream(&id)?;
@@ -457,6 +473,7 @@ pub async fn delete_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     mgr.archive_workstream(&id)?;
@@ -486,6 +503,7 @@ pub async fn update_workstream_handler(
     Path(id): Path<String>,
     Json(req): Json<UpdateWorkstreamRequest>,
 ) -> Result<Json<WorkstreamResponse>, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     // Update workstream fields
@@ -527,6 +545,7 @@ pub async fn list_workstream_sessions_handler(
     Path(id): Path<String>,
     Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<SessionListResponse>, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     let ws_sessions = mgr.list_sessions(&id)?;
@@ -574,13 +593,14 @@ pub async fn send_message_handler(
     Path(id): Path<String>,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<(StatusCode, Json<MessageResponse>), ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     let role = match req.role.as_deref().unwrap_or("user") {
-        "user" => arawn_workstream::MessageRole::User,
-        "assistant" => arawn_workstream::MessageRole::Assistant,
-        "system" => arawn_workstream::MessageRole::System,
-        "agent_push" => arawn_workstream::MessageRole::AgentPush,
+        "user" => MessageRole::User,
+        "assistant" => MessageRole::Assistant,
+        "system" => MessageRole::System,
+        "agent_push" => MessageRole::AgentPush,
         other => {
             return Err(ServerError::BadRequest(format!("Invalid role: {other}")));
         }
@@ -616,6 +636,7 @@ pub async fn list_messages_handler(
     Query(query): Query<MessageQuery>,
     Query(pagination): Query<PaginationParams>,
 ) -> Result<Json<MessageListResponse>, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     let result = if let Some(since_str) = &query.since {
@@ -662,9 +683,10 @@ pub async fn promote_handler(
     Path(id): Path<String>,
     Json(req): Json<PromoteRequest>,
 ) -> Result<(StatusCode, Json<WorkstreamResponse>), ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
-    if id != arawn_workstream::SCRATCH_ID {
+    if id != SCRATCH_ID {
         return Err(ServerError::BadRequest(
             "Only the scratch workstream can be promoted".to_string(),
         ));
@@ -699,6 +721,7 @@ pub async fn promote_file_handler(
     Path(workstream_id): Path<String>,
     Json(req): Json<PromoteFileRequest>,
 ) -> Result<(StatusCode, Json<PromoteFileResponse>), ServerError> {
+    validate_id(&workstream_id)?;
     let mgr = get_manager(&state)?;
 
     // Get the directory manager
@@ -714,16 +737,16 @@ pub async fn promote_file_handler(
             StdPath::new(&req.destination),
         )
         .map_err(|e| match e {
-            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+            DirectoryError::WorkstreamNotFound(ws) => {
                 ServerError::NotFound(format!("Workstream not found: {ws}"))
             }
-            arawn_workstream::directory::DirectoryError::SourceNotFound(path) => {
+            DirectoryError::SourceNotFound(path) => {
                 ServerError::NotFound(format!("Source file not found: {}", path.display()))
             }
-            arawn_workstream::directory::DirectoryError::NotAFile(path) => {
+            DirectoryError::NotAFile(path) => {
                 ServerError::BadRequest(format!("Source is not a file: {}", path.display()))
             }
-            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+            DirectoryError::InvalidName(name) => {
                 ServerError::BadRequest(format!("Invalid workstream name: {name}"))
             }
             other => ServerError::Internal(format!("File promotion failed: {other}")),
@@ -773,6 +796,7 @@ pub async fn export_file_handler(
     Path(workstream_id): Path<String>,
     Json(req): Json<ExportFileRequest>,
 ) -> Result<(StatusCode, Json<ExportFileResponse>), ServerError> {
+    validate_id(&workstream_id)?;
     let mgr = get_manager(&state)?;
 
     // Get the directory manager
@@ -788,16 +812,16 @@ pub async fn export_file_handler(
             StdPath::new(&req.destination),
         )
         .map_err(|e| match e {
-            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+            DirectoryError::WorkstreamNotFound(ws) => {
                 ServerError::NotFound(format!("Workstream not found: {ws}"))
             }
-            arawn_workstream::directory::DirectoryError::SourceNotFound(path) => {
+            DirectoryError::SourceNotFound(path) => {
                 ServerError::NotFound(format!("Source file not found: {}", path.display()))
             }
-            arawn_workstream::directory::DirectoryError::NotAFile(path) => {
+            DirectoryError::NotAFile(path) => {
                 ServerError::BadRequest(format!("Source is not a file: {}", path.display()))
             }
-            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+            DirectoryError::InvalidName(name) => {
                 ServerError::BadRequest(format!("Invalid workstream name: {name}"))
             }
             other => ServerError::Internal(format!("File export failed: {other}")),
@@ -836,6 +860,7 @@ pub async fn clone_repo_handler(
     Path(workstream_id): Path<String>,
     Json(req): Json<CloneRepoRequest>,
 ) -> Result<(StatusCode, Json<CloneRepoResponse>), ServerError> {
+    validate_id(&workstream_id)?;
     let mgr = get_manager(&state)?;
 
     // Get the directory manager
@@ -847,19 +872,19 @@ pub async fn clone_repo_handler(
     let result = dir_mgr
         .clone_repo(&workstream_id, &req.url, req.name.as_deref())
         .map_err(|e| match e {
-            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+            DirectoryError::WorkstreamNotFound(ws) => {
                 ServerError::NotFound(format!("Workstream not found: {ws}"))
             }
-            arawn_workstream::directory::DirectoryError::AlreadyExists(path) => {
+            DirectoryError::AlreadyExists(path) => {
                 ServerError::Conflict(format!("Destination already exists: {}", path.display()))
             }
-            arawn_workstream::directory::DirectoryError::GitNotFound => {
+            DirectoryError::GitNotFound => {
                 ServerError::ServiceUnavailable("Git is not installed or not in PATH".to_string())
             }
-            arawn_workstream::directory::DirectoryError::CloneFailed { url, stderr } => {
+            DirectoryError::CloneFailed { url, stderr } => {
                 ServerError::BadRequest(format!("Clone failed for {url}: {stderr}"))
             }
-            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+            DirectoryError::InvalidName(name) => {
                 ServerError::BadRequest(format!("Invalid workstream name: {name}"))
             }
             other => ServerError::Internal(format!("Clone failed: {other}")),
@@ -903,6 +928,7 @@ pub async fn get_usage_handler(
     State(state): State<AppState>,
     Path(workstream_id): Path<String>,
 ) -> Result<Json<UsageResponse>, ServerError> {
+    validate_id(&workstream_id)?;
     let mgr = get_manager(&state)?;
 
     // Get the directory manager
@@ -912,10 +938,10 @@ pub async fn get_usage_handler(
 
     // Get usage statistics
     let stats = dir_mgr.get_usage(&workstream_id).map_err(|e| match e {
-        arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+        DirectoryError::WorkstreamNotFound(ws) => {
             ServerError::NotFound(format!("Workstream not found: {ws}"))
         }
-        arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+        DirectoryError::InvalidName(name) => {
             ServerError::BadRequest(format!("Invalid workstream name: {name}"))
         }
         other => ServerError::Internal(format!("Failed to get usage stats: {other}")),
@@ -965,6 +991,7 @@ pub async fn cleanup_handler(
     Path(workstream_id): Path<String>,
     Json(req): Json<CleanupRequest>,
 ) -> Result<Json<CleanupResponse>, ServerError> {
+    validate_id(&workstream_id)?;
     let mgr = get_manager(&state)?;
 
     // Get the directory manager
@@ -976,10 +1003,10 @@ pub async fn cleanup_handler(
     let result = dir_mgr
         .cleanup_work(&workstream_id, req.older_than_days, req.confirm)
         .map_err(|e| match e {
-            arawn_workstream::directory::DirectoryError::WorkstreamNotFound(ws) => {
+            DirectoryError::WorkstreamNotFound(ws) => {
                 ServerError::NotFound(format!("Workstream not found: {ws}"))
             }
-            arawn_workstream::directory::DirectoryError::InvalidName(name) => {
+            DirectoryError::InvalidName(name) => {
                 ServerError::BadRequest(format!("Invalid workstream name: {name}"))
             }
             other => ServerError::Internal(format!("Cleanup failed: {other}")),
@@ -1024,6 +1051,7 @@ pub async fn compress_workstream_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<CompressResponse>, ServerError> {
+    validate_id(&id)?;
     let mgr = get_manager(&state)?;
 
     let compressor = state

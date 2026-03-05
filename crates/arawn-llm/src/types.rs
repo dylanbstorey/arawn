@@ -60,6 +60,17 @@ impl SystemPrompt {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A completion request to an LLM provider.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::{CompletionRequest, Message};
+///
+/// let request = CompletionRequest::new("claude-sonnet-4-20250514", vec![Message::user("Hi")], 1024)
+///     .with_system("You are helpful.")
+///     .with_temperature(0.7)
+///     .with_streaming();
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompletionRequest {
     /// The model to use for completion.
@@ -163,6 +174,16 @@ impl CompletionRequest {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// A message in the conversation.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::Message;
+///
+/// let user_msg = Message::user("Hello, Claude!");
+/// let assistant_msg = Message::assistant("Hi there!");
+/// let blocks_msg = Message::assistant_blocks(vec![ContentBlock::text("response")]);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     /// The role of the message author.
@@ -439,6 +460,24 @@ impl From<ToolResultBlock> for ContentBlock {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Definition of a tool available to the model.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::ToolDefinition;
+///
+/// let tool = ToolDefinition::new(
+///     "read_file",
+///     "Read contents of a file",
+///     serde_json::json!({
+///         "type": "object",
+///         "properties": {
+///             "path": { "type": "string", "description": "File path" }
+///         },
+///         "required": ["path"]
+///     }),
+/// );
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolDefinition {
     /// Name of the tool.
@@ -741,6 +780,15 @@ pub enum StopReason {
 }
 
 /// Token usage statistics.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::Usage;
+///
+/// let usage = Usage::new(150, 42);
+/// assert_eq!(usage.total(), 192);
+/// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Usage {
     /// Tokens in the input.

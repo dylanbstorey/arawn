@@ -46,6 +46,17 @@ pub enum SidebarSection {
 ///
 /// Sessions list always has "+ New Session" at index 0.
 /// Actual sessions are at indices 1+.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_tui::sidebar::Sidebar;
+///
+/// let mut sidebar = Sidebar::new();
+/// sidebar.toggle(); // open
+/// sidebar.toggle_section(); // switch from Workstreams to Sessions
+/// sidebar.select_next(); // move selection down
+/// ```
 #[derive(Debug)]
 pub struct Sidebar {
     /// Whether the sidebar is open (expanded and focused).

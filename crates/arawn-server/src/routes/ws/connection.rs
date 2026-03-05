@@ -9,7 +9,7 @@ use futures::{SinkExt, StreamExt};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use arawn_agent::SessionId;
+use arawn_domain::SessionId;
 
 use super::handlers::{MessageResponse, handle_message};
 use super::protocol::{ClientMessage, ServerMessage};

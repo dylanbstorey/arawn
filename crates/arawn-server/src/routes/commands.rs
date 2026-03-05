@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use utoipa::ToSchema;
 
-use arawn_agent::{CompactionResult, CompactorConfig, SessionCompactor, SessionId};
+use arawn_domain::{CompactionResult, CompactorConfig, SessionCompactor, SessionId};
 use uuid::Uuid;
 
 use crate::auth::Identity;
@@ -111,6 +111,16 @@ pub enum CommandOutput {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Registry for command handlers.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_server::routes::commands::CommandRegistry;
+///
+/// let mut registry = CommandRegistry::new();
+/// registry.register(my_command_handler);
+/// let commands = registry.list();
+/// ```
 #[derive(Default)]
 pub struct CommandRegistry {
     handlers: HashMap<String, Arc<dyn CommandHandler>>,
@@ -503,7 +513,7 @@ pub async fn compact_command_stream_handler(
 mod tests {
     use super::*;
     use crate::config::ServerConfig;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
 
     fn create_test_state() -> AppState {

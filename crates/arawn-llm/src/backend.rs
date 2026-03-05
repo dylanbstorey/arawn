@@ -221,6 +221,17 @@ impl From<ParsedToolCall> for ContentBlock {
 /// 2. **Prompt-based**: Tools injected into prompt, responses parsed for tool calls
 ///
 /// Override the tool format methods to customize behavior per backend/model.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::{AnthropicBackend, AnthropicConfig, LlmBackend};
+///
+/// let backend = AnthropicBackend::new(AnthropicConfig::new("sk-ant-..."))?;
+/// let request = CompletionRequest::new("claude-sonnet-4-20250514", vec![Message::user("Hi")], 1024);
+/// let response = backend.complete(request).await?;
+/// println!("{}", response.text());
+/// ```
 #[async_trait]
 pub trait LlmBackend: Send + Sync {
     /// Execute a completion request and return the full response.

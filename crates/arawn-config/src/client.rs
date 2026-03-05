@@ -380,6 +380,15 @@ pub fn client_config_path() -> Option<PathBuf> {
 /// Load the client configuration.
 ///
 /// Returns a default config if the file doesn't exist.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// let client_config = arawn_config::load_client_config()?;
+/// if let Some(ctx) = client_config.current_context() {
+///     println!("current context: {}", ctx.name);
+/// }
+/// ```
 pub fn load_client_config() -> Result<ClientConfig> {
     load_client_config_from(client_config_path().as_deref())
 }

@@ -266,7 +266,7 @@ impl ServerMessage {
     }
 
     /// Create a filesystem change notification from an FsChangeEvent.
-    pub fn fs_change(event: &arawn_workstream::FsChangeEvent) -> Self {
+    pub fn fs_change(event: &arawn_domain::FsChangeEvent) -> Self {
         Self::FsChange {
             workstream: event.workstream.clone(),
             path: event.path.clone(),
@@ -289,7 +289,7 @@ impl ServerMessage {
     }
 
     /// Create a disk pressure alert from a DiskPressureEvent.
-    pub fn disk_pressure(event: &arawn_workstream::cleanup::DiskPressureEvent) -> Self {
+    pub fn disk_pressure(event: &arawn_domain::DiskPressureEvent) -> Self {
         Self::DiskPressure {
             level: event.level.to_string(),
             scope: event.scope.clone(),
@@ -534,7 +534,7 @@ mod tests {
 
     #[test]
     fn test_fs_change_serialization() {
-        use arawn_workstream::{FsAction, FsChangeEvent};
+        use arawn_domain::{FsAction, FsChangeEvent};
 
         let event = FsChangeEvent::new("my-blog", "production/post.md", FsAction::Modified);
         let msg = ServerMessage::fs_change(&event);
@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn test_disk_pressure_serialization() {
-        use arawn_workstream::cleanup::{DiskPressureEvent, PressureLevel};
+        use arawn_domain::{DiskPressureEvent, PressureLevel};
 
         // Warning level
         let event = DiskPressureEvent::new(PressureLevel::Warning, "my-workstream", 1800.0, 2048.0);

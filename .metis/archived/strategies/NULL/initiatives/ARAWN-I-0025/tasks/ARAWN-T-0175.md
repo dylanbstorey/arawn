@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 9 medium-priority TUI issues from the codebase audit.
 ## Objective
 
 Improve TUI stability, user experience, and fix race conditions and edge cases.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

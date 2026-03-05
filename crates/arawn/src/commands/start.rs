@@ -38,6 +38,12 @@ use super::Context;
 ///
 /// CLI arguments override config file values.
 #[derive(Args, Debug)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn start                       Start with config file defaults
+  arawn start -p 9090               Start on port 9090
+  arawn start -d                    Start as a background daemon
+  arawn start --backend anthropic   Start with a specific LLM backend
+  arawn start --token my-secret     Start with an explicit auth token")]
 pub struct StartArgs {
     /// Run server in background (daemon mode)
     #[arg(short, long)]
@@ -150,7 +156,7 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         }
     }
 
-    let backend = create_backend(&resolved).await?;
+    let backend = create_backend(&resolved, config.oauth.as_ref()).await?;
 
     // ── Create named backends from profiles ──────────────────────────────
 
@@ -159,20 +165,22 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
 
     for (name, llm_config) in &config.llm_profiles {
         match resolve_profile(name, llm_config) {
-            Ok(profile_resolved) => match create_backend(&profile_resolved).await {
-                Ok(profile_backend) => {
-                    if ctx.verbose {
-                        println!(
-                            "Backend '{}': {} / {}",
-                            name, profile_resolved.backend, profile_resolved.model
-                        );
+            Ok(profile_resolved) => {
+                match create_backend(&profile_resolved, config.oauth.as_ref()).await {
+                    Ok(profile_backend) => {
+                        if ctx.verbose {
+                            println!(
+                                "Backend '{}': {} / {}",
+                                name, profile_resolved.backend, profile_resolved.model
+                            );
+                        }
+                        backends.insert(name.clone(), profile_backend);
                     }
-                    backends.insert(name.clone(), profile_backend);
+                    Err(e) => {
+                        eprintln!("warning: failed to create backend '{}': {}", name, e);
+                    }
                 }
-                Err(e) => {
-                    eprintln!("warning: failed to create backend '{}': {}", name, e);
-                }
-            },
+            }
             Err(e) => {
                 eprintln!("warning: failed to resolve profile '{}': {}", name, e);
             }
@@ -1248,11 +1256,40 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         .map(|s| s.api_rpm)
         .unwrap_or(arawn_types::config::defaults::REQUESTS_PER_MINUTE);
 
-    let server_config = ServerConfig::new(auth_token)
+    // Resolve WebSocket allowed origins:
+    // 1. Explicit config (ws_allowed_origins in [server]) takes priority
+    //    - Set to ["*"] to allow all origins (disables validation)
+    // 2. If auth is enabled and no origins configured, default to localhost variants
+    // 3. If auth is disabled (localhost-only mode), allow all origins
+    let ws_allowed_origins = server_cfg
+        .and_then(|s| {
+            if s.ws_allowed_origins.is_empty() {
+                None
+            } else {
+                Some(s.ws_allowed_origins.clone())
+            }
+        })
+        .unwrap_or_default();
+
+    let mut server_config = ServerConfig::new(auth_token)
         .with_bind_address(addr)
         .with_rate_limiting(rate_limiting)
         .with_request_logging(request_logging)
         .with_api_rpm(api_rpm);
+
+    if !ws_allowed_origins.is_empty() {
+        server_config = server_config.with_ws_allowed_origins(ws_allowed_origins);
+    } else if server_config.auth_token.is_some() {
+        // Auth enabled but no explicit origins — default to localhost variants
+        server_config = server_config.with_ws_allowed_origins(vec![
+            "http://localhost".to_string(),
+            "http://127.0.0.1".to_string(),
+            "http://[::1]".to_string(),
+            "https://localhost".to_string(),
+            "https://127.0.0.1".to_string(),
+            "https://[::1]".to_string(),
+        ]);
+    }
 
     let mut app_state = AppState::new(agent, server_config);
     if let Some(idx) = indexer {
@@ -1434,7 +1471,10 @@ fn resolve_with_cli_overrides(
 }
 
 /// Create an LLM backend from a resolved config.
-async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
+async fn create_backend(
+    resolved: &ResolvedLlm,
+    oauth_overrides: Option<&arawn_config::OAuthConfigOverride>,
+) -> Result<SharedBackend> {
     match resolved.backend {
         Backend::Anthropic => {
             let api_key = resolved.api_key.as_deref().ok_or_else(|| {
@@ -1529,7 +1569,24 @@ async fn create_backend(resolved: &ResolvedLlm) -> Result<SharedBackend> {
             let data_dir = arawn_config::xdg_config_dir()
                 .ok_or_else(|| anyhow::anyhow!("Could not determine config directory"))?;
 
-            let token_manager = arawn_oauth::token_manager::create_token_manager(&data_dir);
+            let oauth_config = {
+                let base = arawn_oauth::OAuthConfig::default();
+                match oauth_overrides {
+                    Some(o) => base.with_overrides(
+                        o.client_id.as_deref(),
+                        o.authorize_url.as_deref(),
+                        o.token_url.as_deref(),
+                        o.redirect_uri.as_deref(),
+                        o.scope.as_deref(),
+                    ),
+                    None => base,
+                }
+            };
+
+            let token_manager = arawn_oauth::token_manager::create_token_manager_with_config(
+                &data_dir,
+                oauth_config,
+            );
             if !token_manager.has_tokens() {
                 return Err(anyhow::anyhow!(
                     "No OAuth tokens found. Run 'arawn auth login' first to authenticate."

@@ -29,13 +29,11 @@ use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 
-use arawn_agent::{Agent, Session, SessionId, SessionIndexer};
-use arawn_domain::DomainServices;
-use arawn_mcp::McpManager;
-use arawn_memory::MemoryStore;
-use arawn_sandbox::SandboxManager;
+use arawn_domain::{
+    Agent, Compressor, DirectoryManager, DomainServices, McpManager, MemoryStore, SandboxManager,
+    Session, SessionId, SessionIndexer, WatcherHandle, WorkstreamManager,
+};
 use arawn_types::{HasSessionConfig, SharedHookDispatcher};
-use arawn_workstream::{Compressor, DirectoryManager, WatcherHandle, WorkstreamManager};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use chrono::{DateTime, Utc};
@@ -443,10 +441,10 @@ impl SharedServices {
         &self,
         workstream_id: &str,
         session_id: &str,
-    ) -> Option<arawn_workstream::PathValidator> {
+    ) -> Option<arawn_domain::PathValidator> {
         self.directory_manager
             .as_ref()
-            .map(|dm| arawn_workstream::PathValidator::for_session(dm, workstream_id, session_id))
+            .map(|dm| arawn_domain::PathValidator::for_session(dm, workstream_id, session_id))
     }
 }
 
@@ -769,7 +767,7 @@ impl AppState {
         &self,
         workstream_id: &str,
         session_id: &str,
-    ) -> Option<arawn_workstream::PathValidator> {
+    ) -> Option<arawn_domain::PathValidator> {
         self.services.path_validator(workstream_id, session_id)
     }
 
@@ -814,7 +812,7 @@ impl AppState {
 
         // Create scratch session directory for new sessions
         if is_new {
-            if workstream_id == arawn_workstream::SCRATCH_ID
+            if workstream_id == arawn_domain::SCRATCH_ID
                 && let Some(ref dm) = self.services.directory_manager
                 && let Err(e) = dm.create_scratch_session(&id.to_string())
             {
@@ -1207,7 +1205,7 @@ pub(crate) fn messages_as_refs(messages: &[(String, String)]) -> Vec<(&str, &str
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arawn_agent::{Agent, ToolRegistry};
+    use arawn_domain::{Agent, ToolRegistry};
     use arawn_llm::MockBackend;
 
     fn create_test_state() -> AppState {

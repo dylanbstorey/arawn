@@ -89,6 +89,16 @@ pub type FsGateResolver = Arc<dyn Fn(&str, &str) -> Option<Arc<dyn FsGate>> + Se
 pub const GATED_TOOLS: &[&str] = &["file_read", "file_write", "glob", "grep", "shell"];
 
 /// Check if a tool name requires filesystem gate enforcement.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_types::is_gated_tool;
+///
+/// assert!(is_gated_tool("shell"));
+/// assert!(is_gated_tool("file_read"));
+/// assert!(!is_gated_tool("web_search"));
+/// ```
 pub fn is_gated_tool(name: &str) -> bool {
     GATED_TOOLS.contains(&name)
 }

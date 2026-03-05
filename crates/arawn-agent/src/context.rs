@@ -113,6 +113,17 @@ impl ContextStatus {
 /// ContextTracker monitors context window usage and reports status based on
 /// warning and critical thresholds. This enables proactive context management
 /// such as triggering compaction before hitting hard limits.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::context::ContextTracker;
+///
+/// let mut tracker = ContextTracker::for_model(200_000);
+/// tracker.update(150_000);
+/// assert!(tracker.status().is_warning());
+/// assert!(!tracker.should_compact()); // not yet critical
+/// ```
 #[derive(Debug, Clone)]
 pub struct ContextTracker {
     /// Maximum tokens available for context.
@@ -222,6 +233,17 @@ impl ContextTracker {
 /// - Converting session turns to LLM message format
 /// - Managing context window size by truncating old messages
 /// - Including system prompts and tool definitions
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_agent::context::ContextBuilder;
+///
+/// let builder = ContextBuilder::new()
+///     .with_max_tokens(128_000)
+///     .with_system_prompt("You are a helpful assistant.");
+/// let request = builder.build(&session, "Hello", &config, &tools);
+/// ```
 #[derive(Debug, Clone)]
 pub struct ContextBuilder {
     /// Maximum estimated tokens for context (approximate).

@@ -21,6 +21,12 @@ use commands::{
 #[command(name = "arawn")]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
+#[command(after_help = "\x1b[1mExamples:\x1b[0m
+  arawn start                       Launch the server with default settings
+  arawn ask \"What is Rust?\"         One-shot question
+  arawn chat                        Interactive chat session
+  arawn status                      Check if the server is running
+  arawn config show                 Show resolved configuration")]
 pub struct Cli {
     /// Enable verbose output
     #[arg(short, long, global = true)]
@@ -132,7 +138,17 @@ fn resolve_server_url(server_flag: Option<&str>, context_flag: Option<&str>) -> 
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(e) = run().await {
+        // The individual commands handle their own user-friendly error printing.
+        // This top-level handler catches anything that wasn't formatted by a command.
+        let red = console::Style::new().red();
+        eprintln!("{} {:#}", red.apply_to("Error:"), e);
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
     let cli = Cli::parse();
 
     // Check if running TUI - need to skip console logging to avoid corrupting display

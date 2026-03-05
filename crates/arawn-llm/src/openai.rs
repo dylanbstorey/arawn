@@ -34,6 +34,21 @@ const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Configuration for the OpenAI-compatible backend.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_llm::OpenAiConfig;
+///
+/// // OpenAI
+/// let openai = OpenAiConfig::openai("sk-...").with_model("gpt-4o");
+///
+/// // Groq
+/// let groq = OpenAiConfig::groq("gsk-...");
+///
+/// // Local Ollama
+/// let ollama = OpenAiConfig::ollama().with_model("llama3.1");
+/// ```
 #[derive(Debug, Clone)]
 pub struct OpenAiConfig {
     /// API key for authentication (optional for local services like Ollama).

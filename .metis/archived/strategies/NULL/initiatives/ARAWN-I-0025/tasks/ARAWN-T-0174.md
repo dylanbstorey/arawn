@@ -15,7 +15,6 @@ tags:
 
 
 exit_criteria_met: false
-strategy_id: NULL
 initiative_id: ARAWN-I-0025
 ---
 
@@ -30,6 +29,8 @@ Fix 5 medium-priority workstream issues from the codebase audit.
 ## Objective
 
 Improve workstream crate error handling, logging, and data integrity.
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

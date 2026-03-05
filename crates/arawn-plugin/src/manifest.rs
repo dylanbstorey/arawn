@@ -103,6 +103,19 @@ impl CapabilitySummary {
 ///
 /// This follows Claude Code's plugin.json schema. Component discovery happens
 /// by scanning the directories specified in the manifest (skills, agents, etc.).
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use arawn_plugin::PluginManifest;
+///
+/// let manifest = PluginManifest::from_json(r#"{
+///     "name": "my-plugin",
+///     "version": "1.0.0",
+///     "skills": "./skills/"
+/// }"#)?;
+/// assert_eq!(manifest.name, "my-plugin");
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
     /// Plugin name (unique identifier, kebab-case).
