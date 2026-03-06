@@ -4,15 +4,15 @@ level: task
 title: "Bug: Agent unaware of its own capabilities and workspace structure"
 short_code: "ARAWN-T-0271"
 created_at: 2026-03-06T03:14:16.461433+00:00
-updated_at: 2026-03-06T03:14:16.461433+00:00
+updated_at: 2026-03-06T03:38:36.811526+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#bug"
+  - "#phase/active"
 
 
 exit_criteria_met: false
@@ -49,6 +49,10 @@ From workstream `76ea4fdc`:
 - User: "can you clone the repo at github.com/colliery-io/arawn"
 - Agent: "I'm happy to fetch the contents for you, but I don't have direct access to a writable file-system in this environment"
 - Agent has `shell`, `file_write`, `file_read`, `glob` tools — it absolutely can clone and work with repos
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 

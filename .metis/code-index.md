@@ -1,6 +1,6 @@
 # Code Index
 
-> Generated: 2026-03-06T02:48:29Z | 304 files | Rust
+> Generated: 2026-03-06T04:24:48Z | 304 files | Rust
 
 ## Project Structure
 
@@ -631,18 +631,18 @@
 
 #### crates/arawn/src/commands/start.rs
 
-- pub `StartArgs` struct L48-100 — `{ daemon: bool, port: Option<u16>, bind: Option<String>, token: Option<String>, ...` — Start command - launches the Arawn server.
-- pub `run` function L103-1419 — `(args: StartArgs, ctx: &Context) -> Result<()>` — Run the start command.
--  `resolve_with_cli_overrides` function L1422-1472 — `( config: &arawn_config::ArawnConfig, args: &StartArgs, ) -> Result<ResolvedLlm>` — Resolve LLM config, applying CLI overrides on top of config file values.
--  `make_api_key_provider` function L1478-1482 — `(backend: Backend, config_value: Option<String>) -> ApiKeyProvider` — Build an `ApiKeyProvider` that re-resolves from the secret store on each request.
--  `create_backend` function L1485-1619 — `( resolved: &ResolvedLlm, oauth_overrides: Option<&arawn_config::OAuthConfigOver...` — Create an LLM backend from a resolved config.
--  `parse_backend` function L1621-1634 — `(s: &str) -> Result<Backend>` — Start command - launches the Arawn server.
--  `load_or_generate_server_token` function L1637-1653 — `() -> Result<String>` — Load a persisted server token, or generate and save a new one.
--  `resolve_profile` function L1656-1687 — `(name: &str, llm_config: &LlmConfig) -> Result<ResolvedLlm>` — Resolve a named LLM profile into a ResolvedLlm ready for backend creation.
--  `build_embedder_spec` function L1690-1736 — `(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec` — Build an `EmbedderSpec` from the application's `EmbeddingConfig`.
--  `default_model` function L1738-1746 — `(backend: &Backend) -> String` — Start command - launches the Arawn server.
--  `register_builtin_runtimes` function L1753-1837 — `( runtimes_src_dir: &std::path::Path, executor: &Arc<ScriptExecutor>, catalog: &...` — Compile and register built-in WASM runtimes from source crate directories.
--  `seed_test_data` function L1840-1933 — `(manager: &WorkstreamManager, verbose: bool)` — Seed the database with test workstreams and sessions for development.
+- pub `StartArgs` struct L49-101 — `{ daemon: bool, port: Option<u16>, bind: Option<String>, token: Option<String>, ...` — Start command - launches the Arawn server.
+- pub `run` function L104-1453 — `(args: StartArgs, ctx: &Context) -> Result<()>` — Run the start command.
+-  `resolve_with_cli_overrides` function L1456-1506 — `( config: &arawn_config::ArawnConfig, args: &StartArgs, ) -> Result<ResolvedLlm>` — Resolve LLM config, applying CLI overrides on top of config file values.
+-  `make_api_key_provider` function L1512-1516 — `(backend: Backend, config_value: Option<String>) -> ApiKeyProvider` — Build an `ApiKeyProvider` that re-resolves from the secret store on each request.
+-  `create_backend` function L1519-1653 — `( resolved: &ResolvedLlm, oauth_overrides: Option<&arawn_config::OAuthConfigOver...` — Create an LLM backend from a resolved config.
+-  `parse_backend` function L1655-1668 — `(s: &str) -> Result<Backend>` — Start command - launches the Arawn server.
+-  `load_or_generate_server_token` function L1671-1687 — `() -> Result<String>` — Load a persisted server token, or generate and save a new one.
+-  `resolve_profile` function L1690-1721 — `(name: &str, llm_config: &LlmConfig) -> Result<ResolvedLlm>` — Resolve a named LLM profile into a ResolvedLlm ready for backend creation.
+-  `build_embedder_spec` function L1724-1770 — `(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec` — Build an `EmbedderSpec` from the application's `EmbeddingConfig`.
+-  `default_model` function L1772-1780 — `(backend: &Backend) -> String` — Start command - launches the Arawn server.
+-  `register_builtin_runtimes` function L1787-1871 — `( runtimes_src_dir: &std::path::Path, executor: &Arc<ScriptExecutor>, catalog: &...` — Compile and register built-in WASM runtimes from source crate directories.
+-  `seed_test_data` function L1874-1967 — `(manager: &WorkstreamManager, verbose: bool)` — Seed the database with test workstreams and sessions for development.
 
 #### crates/arawn/src/commands/status.rs
 
@@ -709,89 +709,91 @@
 #### crates/arawn-agent/src/agent.rs
 
 - pub `RecallConfig` struct L34-41 — `{ enabled: bool, threshold: f32, limit: usize }` — Configuration for active recall behavior in the agent turn loop.
-- pub `Agent` struct L58-79 — `{ backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, interac...` — The core agent that orchestrates LLM calls and tool execution.
-- pub `new` function L83-96 — `(backend: SharedBackend, tools: ToolRegistry, config: AgentConfig) -> Self` — Create a new agent with the given backend and tools.
-- pub `builder` function L99-101 — `() -> AgentBuilder` — Create an agent builder for fluent construction.
-- pub `config` function L104-106 — `(&self) -> &AgentConfig` — Get the agent configuration.
-- pub `tools` function L109-111 — `(&self) -> &ToolRegistry` — Get the tool registry.
-- pub `backend` function L114-116 — `(&self) -> SharedBackend` — Get the LLM backend.
-- pub `turn` function L122-365 — `( &self, session: &mut Session, user_message: &str, workstream_id: Option<&str>,...` — Execute a single turn of conversation.
-- pub `turn_stream` function L379-411 — `( &self, session: &mut Session, user_message: &str, cancellation: CancellationTo...` — Execute a single turn of conversation with streaming output.
-- pub `AgentBuilder` struct L770-784 — `{ backend: Option<SharedBackend>, tools: ToolRegistry, config: AgentConfig, prom...` — Builder for constructing an Agent with fluent API.
-- pub `new` function L788-804 — `() -> Self` — Create a new builder with defaults.
-- pub `with_backend` function L807-810 — `(mut self, backend: impl LlmBackend + 'static) -> Self` — Set the LLM backend.
-- pub `with_shared_backend` function L813-816 — `(mut self, backend: SharedBackend) -> Self` — Set the LLM backend from a shared reference.
-- pub `with_tools` function L819-822 — `(mut self, tools: ToolRegistry) -> Self` — Set the tool registry.
-- pub `with_tool` function L825-828 — `(mut self, tool: T) -> Self` — Register a single tool.
-- pub `with_config` function L831-834 — `(mut self, config: AgentConfig) -> Self` — Set the configuration.
-- pub `with_model` function L837-840 — `(mut self, model: impl Into<String>) -> Self` — Set the model.
-- pub `with_system_prompt` function L843-846 — `(mut self, prompt: impl Into<String>) -> Self` — Set the system prompt.
-- pub `with_max_tokens` function L849-852 — `(mut self, max_tokens: u32) -> Self` — Set max tokens.
-- pub `with_max_iterations` function L855-858 — `(mut self, max_iterations: u32) -> Self` — Set max iterations.
-- pub `with_max_total_tokens` function L864-867 — `(mut self, max_total_tokens: usize) -> Self` — Set cumulative token budget (input + output).
-- pub `with_workspace` function L872-875 — `(mut self, path: impl Into<std::path::PathBuf>) -> Self` — Set the workspace path.
-- pub `with_prompt_builder` function L883-886 — `(mut self, builder: SystemPromptBuilder) -> Self` — Set a prompt builder for dynamic system prompt generation.
-- pub `with_bootstrap_dir` function L902-928 — `(mut self, path: impl AsRef<std::path::Path>) -> Self` — Load bootstrap context files from a directory.
-- pub `with_prompt_file` function L944-971 — `(mut self, path: impl AsRef<std::path::Path>) -> Self` — Load a custom prompt file and add it to the bootstrap context.
-- pub `with_memory_store` function L974-977 — `(mut self, store: Arc<MemoryStore>) -> Self` — Set the memory store for active recall.
-- pub `with_embedder` function L980-983 — `(mut self, embedder: SharedEmbedder) -> Self` — Set the embedder for active recall.
-- pub `with_recall_config` function L986-989 — `(mut self, config: RecallConfig) -> Self` — Set the recall configuration.
-- pub `with_interaction_logger` function L992-995 — `(mut self, logger: Arc<InteractionLogger>) -> Self` — Set the interaction logger for structured JSONL capture.
-- pub `with_plugin_prompts` function L1001-1004 — `(mut self, prompts: Vec<(String, String)>) -> Self` — Add plugin prompt fragments to the system prompt.
-- pub `with_hook_dispatcher` function L1013-1016 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Set the hook dispatcher for plugin lifecycle events.
-- pub `build` function L1019-1068 — `(mut self) -> Result<Agent>` — Build the agent.
-- pub `with_fs_gate_resolver` function L1071-1074 — `(mut self, resolver: FsGateResolver) -> Self` — Set the filesystem gate resolver for workstream sandbox enforcement.
-- pub `with_secret_resolver` function L1077-1080 — `(mut self, resolver: SharedSecretResolver) -> Self` — Set the secret resolver for `${{secrets.*}}` handle resolution in tool params.
+- pub `Agent` struct L58-81 — `{ backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, prompt_...` — The core agent that orchestrates LLM calls and tool execution.
+- pub `new` function L85-99 — `(backend: SharedBackend, tools: ToolRegistry, config: AgentConfig) -> Self` — Create a new agent with the given backend and tools.
+- pub `builder` function L102-104 — `() -> AgentBuilder` — Create an agent builder for fluent construction.
+- pub `config` function L107-109 — `(&self) -> &AgentConfig` — Get the agent configuration.
+- pub `tools` function L112-114 — `(&self) -> &ToolRegistry` — Get the tool registry.
+- pub `backend` function L117-119 — `(&self) -> SharedBackend` — Get the LLM backend.
+- pub `system_prompt` function L125-127 — `(&self) -> Option<String>` — Get the current system prompt (built dynamically if a builder is present).
+- pub `turn` function L167-410 — `( &self, session: &mut Session, user_message: &str, workstream_id: Option<&str>,...` — Execute a single turn of conversation.
+- pub `turn_stream` function L424-460 — `( &self, session: &mut Session, user_message: &str, cancellation: CancellationTo...` — Execute a single turn of conversation with streaming output.
+- pub `AgentBuilder` struct L803-817 — `{ backend: Option<SharedBackend>, tools: ToolRegistry, config: AgentConfig, prom...` — Builder for constructing an Agent with fluent API.
+- pub `new` function L821-837 — `() -> Self` — Create a new builder with defaults.
+- pub `with_backend` function L840-843 — `(mut self, backend: impl LlmBackend + 'static) -> Self` — Set the LLM backend.
+- pub `with_shared_backend` function L846-849 — `(mut self, backend: SharedBackend) -> Self` — Set the LLM backend from a shared reference.
+- pub `with_tools` function L852-855 — `(mut self, tools: ToolRegistry) -> Self` — Set the tool registry.
+- pub `with_tool` function L858-861 — `(mut self, tool: T) -> Self` — Register a single tool.
+- pub `with_config` function L864-867 — `(mut self, config: AgentConfig) -> Self` — Set the configuration.
+- pub `with_model` function L870-873 — `(mut self, model: impl Into<String>) -> Self` — Set the model.
+- pub `with_system_prompt` function L876-879 — `(mut self, prompt: impl Into<String>) -> Self` — Set the system prompt.
+- pub `with_max_tokens` function L882-885 — `(mut self, max_tokens: u32) -> Self` — Set max tokens.
+- pub `with_max_iterations` function L888-891 — `(mut self, max_iterations: u32) -> Self` — Set max iterations.
+- pub `with_max_total_tokens` function L897-900 — `(mut self, max_total_tokens: usize) -> Self` — Set cumulative token budget (input + output).
+- pub `with_workspace` function L905-908 — `(mut self, path: impl Into<std::path::PathBuf>) -> Self` — Set the workspace path.
+- pub `with_prompt_builder` function L916-919 — `(mut self, builder: SystemPromptBuilder) -> Self` — Set a prompt builder for dynamic system prompt generation.
+- pub `with_bootstrap_dir` function L935-961 — `(mut self, path: impl AsRef<std::path::Path>) -> Self` — Load bootstrap context files from a directory.
+- pub `with_prompt_file` function L977-1004 — `(mut self, path: impl AsRef<std::path::Path>) -> Self` — Load a custom prompt file and add it to the bootstrap context.
+- pub `with_memory_store` function L1007-1010 — `(mut self, store: Arc<MemoryStore>) -> Self` — Set the memory store for active recall.
+- pub `with_embedder` function L1013-1016 — `(mut self, embedder: SharedEmbedder) -> Self` — Set the embedder for active recall.
+- pub `with_recall_config` function L1019-1022 — `(mut self, config: RecallConfig) -> Self` — Set the recall configuration.
+- pub `with_interaction_logger` function L1025-1028 — `(mut self, logger: Arc<InteractionLogger>) -> Self` — Set the interaction logger for structured JSONL capture.
+- pub `with_plugin_prompts` function L1034-1037 — `(mut self, prompts: Vec<(String, String)>) -> Self` — Add plugin prompt fragments to the system prompt.
+- pub `with_hook_dispatcher` function L1046-1049 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Set the hook dispatcher for plugin lifecycle events.
+- pub `build` function L1052-1102 — `(mut self) -> Result<Agent>` — Build the agent.
+- pub `with_fs_gate_resolver` function L1105-1108 — `(mut self, resolver: FsGateResolver) -> Self` — Set the filesystem gate resolver for workstream sandbox enforcement.
+- pub `with_secret_resolver` function L1111-1114 — `(mut self, resolver: SharedSecretResolver) -> Self` — Set the secret resolver for `${{secrets.*}}` handle resolution in tool params.
 -  `RecallConfig` type L43-51 — `impl Default for RecallConfig` — conversation loop, handles tool execution, and manages context.
 -  `default` function L44-50 — `() -> Self` — conversation loop, handles tool execution, and manages context.
--  `Agent` type L81-748 — `= Agent` — conversation loop, handles tool execution, and manages context.
--  `estimate_messages_tokens` function L414-419 — `(&self, messages: &[Message]) -> usize` — Estimate total tokens for a list of messages.
--  `estimate_message_tokens` function L422-449 — `(&self, message: &Message) -> usize` — Estimate tokens for a single message.
--  `build_messages` function L452-512 — `(&self, session: &Session) -> Vec<Message>` — Build messages from session history.
--  `build_request` function L519-563 — `( &self, messages: &[Message], context_preamble: Option<&str>, ) -> CompletionRe...` — Build a completion request.
--  `execute_tools` function L566-681 — `( &self, response: &CompletionResponse, session_id: crate::types::SessionId, tur...` — Execute tool calls from an LLM response.
--  `perform_recall` function L688-747 — `(&self, user_message: &str) -> Option<Message>` — Perform active recall for a user message.
--  `format_recall_context` function L751-763 — `(matches: &[arawn_memory::store::RecallMatch]) -> String` — Format recall matches into a concise context string for injection.
--  `AgentBuilder` type L786-1081 — `= AgentBuilder` — conversation loop, handles tool execution, and manages context.
--  `AgentBuilder` type L1083-1087 — `impl Default for AgentBuilder` — conversation loop, handles tool execution, and manages context.
--  `default` function L1084-1086 — `() -> Self` — conversation loop, handles tool execution, and manages context.
--  `tests` module L1094-1773 — `-` — conversation loop, handles tool execution, and manages context.
--  `mock_text_response` function L1099-1110 — `(text: &str) -> CompletionResponse` — conversation loop, handles tool execution, and manages context.
--  `mock_tool_use_response` function L1112-1129 — `( tool_id: &str, tool_name: &str, args: serde_json::Value, ) -> CompletionRespon...` — conversation loop, handles tool execution, and manages context.
--  `test_agent_builder_no_backend` function L1132-1135 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_builder_with_backend` function L1138-1152 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_simple_turn_no_tools` function L1155-1167 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_with_tool_use` function L1170-1199 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_max_iterations` function L1202-1230 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_token_budget_exceeded` function L1233-1261 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_no_token_budget` function L1264-1277 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_tool_error_handling` function L1280-1312 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_turn_unknown_tool` function L1315-1332 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_tool_validation_error_retry` function L1335-1357 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_tool_validation_error_exhausts_retries` function L1360-1385 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_multi_turn_conversation` function L1388-1408 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_with_prompt_builder` function L1411-1434 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_prompt_builder_with_static_fallback` function L1437-1451 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_prompt_builder_overrides_static` function L1454-1474 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_with_bootstrap_dir` function L1477-1507 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_bootstrap_dir_creates_builder_if_none` function L1510-1533 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_bootstrap_dir_nonexistent_is_ok` function L1536-1548 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_with_prompt_file` function L1551-1571 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_with_multiple_prompt_files` function L1574-1597 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_agent_combine_bootstrap_dir_and_prompt_file` function L1600-1630 — `()` — conversation loop, handles tool execution, and manages context.
--  `recall_tests` module L1634-1772 — `-` — conversation loop, handles tool execution, and manages context.
--  `FixedEmbedder` struct L1642-1644 — `{ dims: usize }` — Simple mock embedder that returns a fixed vector.
--  `FixedEmbedder` type L1646-1650 — `= FixedEmbedder` — conversation loop, handles tool execution, and manages context.
--  `new` function L1647-1649 — `(dims: usize) -> Self` — conversation loop, handles tool execution, and manages context.
--  `FixedEmbedder` type L1653-1665 — `impl Embedder for FixedEmbedder` — conversation loop, handles tool execution, and manages context.
--  `embed` function L1654-1656 — `(&self, _text: &str) -> arawn_llm::Result<Vec<f32>>` — conversation loop, handles tool execution, and manages context.
--  `dimensions` function L1658-1660 — `(&self) -> usize` — conversation loop, handles tool execution, and manages context.
--  `name` function L1662-1664 — `(&self) -> &str` — conversation loop, handles tool execution, and manages context.
--  `create_recall_store` function L1667-1672 — `(dims: usize) -> Arc<MemoryStore>` — conversation loop, handles tool execution, and manages context.
--  `test_recall_injects_context` function L1676-1708 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_recall_no_results` function L1712-1734 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_recall_disabled_config` function L1737-1752 — `()` — conversation loop, handles tool execution, and manages context.
--  `test_recall_no_embedder` function L1755-1771 — `()` — conversation loop, handles tool execution, and manages context.
+-  `Agent` type L83-781 — `= Agent` — conversation loop, handles tool execution, and manages context.
+-  `build_system_prompt` function L134-161 — `(&self, context_preamble: Option<&str>) -> Option<String>` — Build the system prompt dynamically.
+-  `estimate_messages_tokens` function L463-468 — `(&self, messages: &[Message]) -> usize` — Estimate total tokens for a list of messages.
+-  `estimate_message_tokens` function L471-498 — `(&self, message: &Message) -> usize` — Estimate tokens for a single message.
+-  `build_messages` function L501-561 — `(&self, session: &Session) -> Vec<Message>` — Build messages from session history.
+-  `build_request` function L568-596 — `( &self, messages: &[Message], context_preamble: Option<&str>, ) -> CompletionRe...` — Build a completion request.
+-  `execute_tools` function L599-714 — `( &self, response: &CompletionResponse, session_id: crate::types::SessionId, tur...` — Execute tool calls from an LLM response.
+-  `perform_recall` function L721-780 — `(&self, user_message: &str) -> Option<Message>` — Perform active recall for a user message.
+-  `format_recall_context` function L784-796 — `(matches: &[arawn_memory::store::RecallMatch]) -> String` — Format recall matches into a concise context string for injection.
+-  `AgentBuilder` type L819-1115 — `= AgentBuilder` — conversation loop, handles tool execution, and manages context.
+-  `AgentBuilder` type L1117-1121 — `impl Default for AgentBuilder` — conversation loop, handles tool execution, and manages context.
+-  `default` function L1118-1120 — `() -> Self` — conversation loop, handles tool execution, and manages context.
+-  `tests` module L1128-1807 — `-` — conversation loop, handles tool execution, and manages context.
+-  `mock_text_response` function L1133-1144 — `(text: &str) -> CompletionResponse` — conversation loop, handles tool execution, and manages context.
+-  `mock_tool_use_response` function L1146-1163 — `( tool_id: &str, tool_name: &str, args: serde_json::Value, ) -> CompletionRespon...` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_builder_no_backend` function L1166-1169 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_builder_with_backend` function L1172-1186 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_simple_turn_no_tools` function L1189-1201 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_with_tool_use` function L1204-1233 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_max_iterations` function L1236-1264 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_token_budget_exceeded` function L1267-1295 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_no_token_budget` function L1298-1311 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_tool_error_handling` function L1314-1346 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_turn_unknown_tool` function L1349-1366 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_tool_validation_error_retry` function L1369-1391 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_tool_validation_error_exhausts_retries` function L1394-1419 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_multi_turn_conversation` function L1422-1442 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_with_prompt_builder` function L1445-1468 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_prompt_builder_with_static_fallback` function L1471-1485 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_prompt_builder_overrides_static` function L1488-1508 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_with_bootstrap_dir` function L1511-1541 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_bootstrap_dir_creates_builder_if_none` function L1544-1567 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_bootstrap_dir_nonexistent_is_ok` function L1570-1582 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_with_prompt_file` function L1585-1605 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_with_multiple_prompt_files` function L1608-1631 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_agent_combine_bootstrap_dir_and_prompt_file` function L1634-1664 — `()` — conversation loop, handles tool execution, and manages context.
+-  `recall_tests` module L1668-1806 — `-` — conversation loop, handles tool execution, and manages context.
+-  `FixedEmbedder` struct L1676-1678 — `{ dims: usize }` — Simple mock embedder that returns a fixed vector.
+-  `FixedEmbedder` type L1680-1684 — `= FixedEmbedder` — conversation loop, handles tool execution, and manages context.
+-  `new` function L1681-1683 — `(dims: usize) -> Self` — conversation loop, handles tool execution, and manages context.
+-  `FixedEmbedder` type L1687-1699 — `impl Embedder for FixedEmbedder` — conversation loop, handles tool execution, and manages context.
+-  `embed` function L1688-1690 — `(&self, _text: &str) -> arawn_llm::Result<Vec<f32>>` — conversation loop, handles tool execution, and manages context.
+-  `dimensions` function L1692-1694 — `(&self) -> usize` — conversation loop, handles tool execution, and manages context.
+-  `name` function L1696-1698 — `(&self) -> &str` — conversation loop, handles tool execution, and manages context.
+-  `create_recall_store` function L1701-1706 — `(dims: usize) -> Arc<MemoryStore>` — conversation loop, handles tool execution, and manages context.
+-  `test_recall_injects_context` function L1710-1742 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_recall_no_results` function L1746-1768 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_recall_disabled_config` function L1771-1786 — `()` — conversation loop, handles tool execution, and manages context.
+-  `test_recall_no_embedder` function L1789-1805 — `()` — conversation loop, handles tool execution, and manages context.
 
 #### crates/arawn-agent/src/compaction.rs
 
@@ -1022,26 +1024,26 @@
 
 #### crates/arawn-agent/src/stream.rs
 
-- pub `StreamChunk` enum L38-77 — `Text | ToolStart | ToolOutput | ToolEnd | Done | Error` — A chunk emitted during streaming response.
-- pub `text` function L81-85 — `(content: impl Into<String>) -> Self` — Create a text chunk.
-- pub `tool_start` function L88-93 — `(id: impl Into<String>, name: impl Into<String>) -> Self` — Create a tool start chunk.
-- pub `tool_output` function L96-101 — `(id: impl Into<String>, content: impl Into<String>) -> Self` — Create a tool output chunk (partial output during execution).
-- pub `tool_end` function L104-110 — `(id: impl Into<String>, success: bool, content: impl Into<String>) -> Self` — Create a tool end chunk.
-- pub `done` function L113-115 — `(iterations: u32) -> Self` — Create a done chunk.
-- pub `error` function L118-122 — `(message: impl Into<String>) -> Self` — Create an error chunk.
-- pub `AgentStream` type L130 — `= Pin<Box<dyn Stream<Item = StreamChunk> + Send + 'static>>` — A boxed stream of chunks.
-- pub `create_turn_stream` function L153-350 — `( backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, message...` — Create a streaming response for an agent turn.
--  `StreamChunk` type L79-123 — `= StreamChunk` — token-by-token output during agent responses.
--  `StreamState` struct L133-146 — `{ backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, message...` — State for streaming agent responses.
--  `build_stream_request` function L352-374 — `(state: &StreamState) -> CompletionRequest` — token-by-token output during agent responses.
--  `build_sync_request` function L376-397 — `(state: &StreamState) -> CompletionRequest` — token-by-token output during agent responses.
--  `tests` module L404-457 — `-` — token-by-token output during agent responses.
--  `test_stream_chunk_text` function L408-411 — `()` — token-by-token output during agent responses.
--  `test_stream_chunk_tool_start` function L414-420 — `()` — token-by-token output during agent responses.
--  `test_stream_chunk_tool_end` function L423-430 — `()` — token-by-token output during agent responses.
--  `test_stream_chunk_done` function L433-436 — `()` — token-by-token output during agent responses.
--  `test_stream_chunk_error` function L439-445 — `()` — token-by-token output during agent responses.
--  `test_stream_chunk_serialization` function L448-456 — `()` — token-by-token output during agent responses.
+- pub `StreamChunk` enum L38-79 — `Text | ToolStart | ToolOutput | ToolEnd | Done | Error` — A chunk emitted during streaming response.
+- pub `text` function L83-87 — `(content: impl Into<String>) -> Self` — Create a text chunk.
+- pub `tool_start` function L90-100 — `( id: impl Into<String>, name: impl Into<String>, arguments: serde_json::Value, ...` — Create a tool start chunk.
+- pub `tool_output` function L103-108 — `(id: impl Into<String>, content: impl Into<String>) -> Self` — Create a tool output chunk (partial output during execution).
+- pub `tool_end` function L111-117 — `(id: impl Into<String>, success: bool, content: impl Into<String>) -> Self` — Create a tool end chunk.
+- pub `done` function L120-122 — `(iterations: u32) -> Self` — Create a done chunk.
+- pub `error` function L125-129 — `(message: impl Into<String>) -> Self` — Create an error chunk.
+- pub `AgentStream` type L137 — `= Pin<Box<dyn Stream<Item = StreamChunk> + Send + 'static>>` — A boxed stream of chunks.
+- pub `create_turn_stream` function L160-357 — `( backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, message...` — Create a streaming response for an agent turn.
+-  `StreamChunk` type L81-130 — `= StreamChunk` — token-by-token output during agent responses.
+-  `StreamState` struct L140-153 — `{ backend: SharedBackend, tools: Arc<ToolRegistry>, config: AgentConfig, message...` — State for streaming agent responses.
+-  `build_stream_request` function L359-381 — `(state: &StreamState) -> CompletionRequest` — token-by-token output during agent responses.
+-  `build_sync_request` function L383-404 — `(state: &StreamState) -> CompletionRequest` — token-by-token output during agent responses.
+-  `tests` module L411-465 — `-` — token-by-token output during agent responses.
+-  `test_stream_chunk_text` function L415-418 — `()` — token-by-token output during agent responses.
+-  `test_stream_chunk_tool_start` function L421-428 — `()` — token-by-token output during agent responses.
+-  `test_stream_chunk_tool_end` function L431-438 — `()` — token-by-token output during agent responses.
+-  `test_stream_chunk_done` function L441-444 — `()` — token-by-token output during agent responses.
+-  `test_stream_chunk_error` function L447-453 — `()` — token-by-token output during agent responses.
+-  `test_stream_chunk_serialization` function L456-464 — `()` — token-by-token output during agent responses.
 
 #### crates/arawn-agent/src/types.rs
 
@@ -1382,34 +1384,35 @@
 - pub `with_memory_hints` function L145-148 — `(mut self) -> Self` — Enable memory hints section.
 - pub `with_bootstrap` function L153-156 — `(mut self, context: BootstrapContext) -> Self` — Add bootstrap context from workspace files.
 - pub `with_plugin_prompts` function L162-165 — `(mut self, fragments: Vec<(String, String)>) -> Self` — Add plugin prompt fragments.
-- pub `build` function L171-224 — `(self) -> String` — Build the final system prompt string.
+- pub `build` function L172-230 — `(&self) -> String` — Build the final system prompt string.
 -  `SystemPromptBuilder` type L51-55 — `impl Default for SystemPromptBuilder` — Provides a fluent builder for assembling system prompts from modular sections.
 -  `default` function L52-54 — `() -> Self` — Provides a fluent builder for assembling system prompts from modular sections.
--  `SystemPromptBuilder` type L57-319 — `= SystemPromptBuilder` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_identity_section` function L230-234 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_tools_section` function L236-256 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_workspace_section` function L258-263 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_datetime_section` function L265-286 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_memory_section` function L288-298 — `(&self) -> String` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_think_section` function L300-311 — `() -> String` — Provides a fluent builder for assembling system prompts from modular sections.
--  `build_bootstrap_section` function L313-318 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
--  `tests` module L322-534 — `-` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_default_empty` function L327-330 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_identity` function L333-339 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_tools_full_mode` function L342-355 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_tools_minimal_mode` function L358-372 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_workspace` function L375-383 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_datetime` function L386-394 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_with_memory_hints` function L397-405 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_builder_identity_mode` function L408-427 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_sections_joined_with_double_newline` function L430-437 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_think_section_included_when_tool_registered` function L440-451 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_think_section_omitted_when_no_think_tool` function L454-464 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_think_section_omitted_in_minimal_mode` function L467-477 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_tool_summaries_direct` function L480-492 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_plugin_prompts_included` function L495-511 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_plugin_prompts_empty_skipped` function L514-524 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
--  `test_plugin_prompts_none` function L527-533 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `SystemPromptBuilder` type L57-367 — `= SystemPromptBuilder` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_identity_section` function L236-240 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_behavior_section` function L242-267 — `() -> String` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_tools_section` function L269-289 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_workspace_section` function L291-311 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_datetime_section` function L313-334 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_memory_section` function L336-346 — `(&self) -> String` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_think_section` function L348-359 — `() -> String` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `build_bootstrap_section` function L361-366 — `(&self) -> Option<String>` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `tests` module L370-587 — `-` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_default_has_behavior` function L375-379 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_identity` function L382-388 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_tools_full_mode` function L391-404 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_tools_minimal_mode` function L407-421 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_workspace` function L424-436 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_datetime` function L439-447 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_with_memory_hints` function L450-458 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_builder_identity_mode` function L461-480 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_sections_joined_with_double_newline` function L483-490 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_think_section_included_when_tool_registered` function L493-504 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_think_section_omitted_when_no_think_tool` function L507-517 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_think_section_omitted_in_minimal_mode` function L520-530 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_tool_summaries_direct` function L533-545 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_plugin_prompts_included` function L548-564 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_plugin_prompts_empty_skipped` function L567-577 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
+-  `test_plugin_prompts_none` function L580-586 — `()` — Provides a fluent builder for assembling system prompts from modular sections.
 
 #### crates/arawn-agent/src/prompt/mod.rs
 
@@ -1425,13 +1428,14 @@
 - pub `include_memory_hints` function L48-50 — `(&self) -> bool` — Check if this mode includes memory hints.
 - pub `include_bootstrap` function L53-55 — `(&self) -> bool` — Check if this mode includes bootstrap context.
 - pub `include_workspace` function L58-60 — `(&self) -> bool` — Check if this mode includes workspace information.
--  `PromptMode` type L36-61 — `= PromptMode` — Different modes control which sections are included in the generated prompt.
--  `tests` module L64-111 — `-` — Different modes control which sections are included in the generated prompt.
--  `test_default_mode_is_full` function L68-70 — `()` — Different modes control which sections are included in the generated prompt.
--  `test_full_mode_includes_all` function L73-80 — `()` — Different modes control which sections are included in the generated prompt.
--  `test_minimal_mode_includes_subset` function L83-90 — `()` — Different modes control which sections are included in the generated prompt.
--  `test_identity_mode_includes_nothing` function L93-100 — `()` — Different modes control which sections are included in the generated prompt.
--  `test_serialization` function L103-110 — `()` — Different modes control which sections are included in the generated prompt.
+- pub `include_behavior` function L63-65 — `(&self) -> bool` — Check if this mode includes core behavioral instructions.
+-  `PromptMode` type L36-66 — `= PromptMode` — Different modes control which sections are included in the generated prompt.
+-  `tests` module L69-119 — `-` — Different modes control which sections are included in the generated prompt.
+-  `test_default_mode_is_full` function L73-75 — `()` — Different modes control which sections are included in the generated prompt.
+-  `test_full_mode_includes_all` function L78-86 — `()` — Different modes control which sections are included in the generated prompt.
+-  `test_minimal_mode_includes_subset` function L89-97 — `()` — Different modes control which sections are included in the generated prompt.
+-  `test_identity_mode_includes_nothing` function L100-108 — `()` — Different modes control which sections are included in the generated prompt.
+-  `test_serialization` function L111-118 — `()` — Different modes control which sections are included in the generated prompt.
 
 ### crates/arawn-agent/src/rlm
 
@@ -2839,57 +2843,57 @@
 - pub `Backend` enum L465-473 — `Anthropic | Openai | Groq | Ollama | Custom | ClaudeOauth` — Supported LLM backend providers.
 - pub `env_var` function L477-486 — `(&self) -> &'static str` — Environment variable name for this backend's API key.
 - pub `display_name` function L489-498 — `(&self) -> &'static str` — Human-readable name.
-- pub `AgentProfileConfig` struct L527-536 — `{ llm: Option<String>, system_prompt: Option<String>, max_iterations: Option<u32...` — Per-agent configuration.
-- pub `ServerConfig` struct L558-578 — `{ port: u16, bind: String, rate_limiting: bool, api_rpm: u32, request_logging: b...` — Server configuration.
-- pub `LoggingConfig` struct L602-605 — `{ interactions: InteractionLogConfig }` — Logging configuration section.
-- pub `InteractionLogConfig` struct L610-617 — `{ enabled: bool, path: Option<PathBuf>, retention_days: u32 }` — Settings for structured interaction logging (JSONL).
-- pub `EmbeddingConfig` struct L648-657 — `{ provider: EmbeddingProvider, dimensions: Option<usize>, openai: Option<Embeddi...` — Embedding provider configuration.
-- pub `effective_dimensions` function L672-687 — `(&self) -> usize` — Effective dimensions for the configured provider.
-- pub `EmbeddingProvider` enum L693-700 — `Local | OpenAi | Mock` — Supported embedding providers.
-- pub `EmbeddingOpenAiConfig` struct L705-714 — `{ model: String, dimensions: Option<usize>, base_url: Option<String>, api_key: O...` — OpenAI embedding provider settings.
-- pub `EmbeddingLocalConfig` struct L731-742 — `{ model_path: Option<PathBuf>, tokenizer_path: Option<PathBuf>, model_url: Optio...` — Local ONNX embedding settings.
-- pub `MemoryConfig` struct L759-769 — `{ database: Option<PathBuf>, recall: RecallConfig, indexing: IndexingConfig, con...` — Memory subsystem configuration.
-- pub `RecallConfig` struct L777-784 — `{ enabled: bool, threshold: f32, limit: usize }` — Configuration for active recall behavior.
-- pub `IndexingConfig` struct L808-830 — `{ enabled: bool, backend: String, model: String, ner_model_path: Option<String>,...` — Configuration for session indexing pipeline.
-- pub `ConfidenceConfig` struct L858-867 — `{ fresh_days: f32, staleness_days: f32, staleness_floor: f32, reinforcement_cap:...` — Configuration for confidence scoring parameters.
-- pub `DelegationConfig` struct L901-906 — `{ max_result_len: usize, compaction: CompactionConfig }` — Subagent delegation configuration.
-- pub `CompactionConfig` struct L924-936 — `{ enabled: bool, threshold: usize, backend: String, model: String, target_len: u...` — Configuration for LLM-based result compaction.
-- pub `PluginsConfig` struct L969-982 — `{ enabled: bool, dirs: Vec<PathBuf>, hot_reload: bool, auto_update: bool, subscr...` — Plugin system configuration.
-- pub `PluginSubscription` struct L1003-1021 — `{ source: PluginSource, repo: Option<String>, url: Option<String>, path: Option<...` — A plugin subscription defining where to fetch a plugin from.
-- pub `github` function L1029-1038 — `(repo: impl Into<String>) -> Self` — Create a GitHub subscription.
-- pub `url` function L1041-1050 — `(url: impl Into<String>) -> Self` — Create a URL subscription.
-- pub `local` function L1053-1062 — `(path: impl Into<PathBuf>) -> Self` — Create a local path subscription.
-- pub `with_ref` function L1065-1068 — `(mut self, git_ref: impl Into<String>) -> Self` — Set the git ref (branch, tag, or commit).
-- pub `effective_ref` function L1071-1073 — `(&self) -> &str` — Get the effective git ref, defaulting to "main".
-- pub `id` function L1078-1100 — `(&self) -> String` — Generate a unique identifier for this subscription.
-- pub `clone_url` function L1103-1112 — `(&self) -> Option<String>` — Get the clone URL for this subscription.
-- pub `PluginSource` enum L1127-1134 — `GitHub | Url | Local` — Source type for plugin subscriptions.
-- pub `PipelineSection` struct L1155-1174 — `{ enabled: bool, database: Option<PathBuf>, workflow_dir: Option<PathBuf>, max_c...` — Pipeline / workflow engine configuration.
-- pub `McpConfig` struct L1217-1223 — `{ enabled: bool, servers: Vec<McpServerEntry> }` — MCP (Model Context Protocol) configuration.
-- pub `McpTransportType` enum L1237-1243 — `Stdio | Http` — Transport type for MCP server connections.
-- pub `McpServerEntry` struct L1249-1276 — `{ name: String, transport: McpTransportType, command: String, url: Option<String...` — Configuration for a single MCP server.
-- pub `new` function L1280-1293 — `(name: impl Into<String>, command: impl Into<String>) -> Self` — Create a new MCP server entry for stdio transport.
-- pub `http` function L1296-1309 — `(name: impl Into<String>, url: impl Into<String>) -> Self` — Create a new MCP server entry for HTTP transport.
-- pub `with_arg` function L1312-1315 — `(mut self, arg: impl Into<String>) -> Self` — Add an argument (for stdio transport).
-- pub `with_args` function L1318-1321 — `(mut self, args: Vec<String>) -> Self` — Add arguments (for stdio transport).
-- pub `with_env` function L1324-1327 — `(mut self, key: impl Into<String>, value: impl Into<String>) -> Self` — Add an environment variable (for stdio transport).
-- pub `with_header` function L1330-1333 — `(mut self, key: impl Into<String>, value: impl Into<String>) -> Self` — Add an HTTP header (for HTTP transport).
-- pub `with_timeout_secs` function L1336-1339 — `(mut self, timeout: u64) -> Self` — Set request timeout in seconds (for HTTP transport).
-- pub `with_retries` function L1342-1345 — `(mut self, retries: u32) -> Self` — Set number of retries (for HTTP transport).
-- pub `with_enabled` function L1348-1351 — `(mut self, enabled: bool) -> Self` — Set enabled state.
-- pub `is_http` function L1354-1356 — `(&self) -> bool` — Check if this is an HTTP transport.
-- pub `is_stdio` function L1359-1361 — `(&self) -> bool` — Check if this is a stdio transport.
-- pub `env_tuples` function L1364-1369 — `(&self) -> Vec<(String, String)>` — Convert environment variables to the tuple format expected by McpServerConfig.
-- pub `header_tuples` function L1372-1377 — `(&self) -> Vec<(String, String)>` — Convert HTTP headers to the tuple format.
-- pub `WorkstreamConfig` struct L1389-1400 — `{ database: Option<PathBuf>, data_dir: Option<PathBuf>, session_timeout_minutes:...` — Configuration for workstreams (persistent conversation contexts).
-- pub `CompressionConfig` struct L1428-1440 — `{ enabled: bool, backend: String, model: String, max_summary_tokens: u32, token_...` — Configuration for automatic session/workstream compression.
-- pub `SessionConfig` struct L1470-1475 — `{ max_sessions: usize, cleanup_interval_secs: u64 }` — Session cache configuration.
-- pub `ToolsConfig` struct L1519-1526 — `{ output: ToolOutputConfig, shell: ShellToolConfig, web: WebToolConfig }` — Tool execution configuration.
-- pub `ToolOutputConfig` struct L1536-1548 — `{ max_size_bytes: usize, shell: Option<usize>, file_read: Option<usize>, web_fet...` — Tool output configuration.
-- pub `ShellToolConfig` struct L1565-1568 — `{ timeout_secs: u64 }` — Shell tool configuration.
-- pub `WebToolConfig` struct L1579-1582 — `{ timeout_secs: u64 }` — Web tool configuration.
-- pub `RlmTomlConfig` struct L1627-1642 — `{ model: Option<String>, max_turns: Option<u32>, max_context_tokens: Option<usiz...` — Configuration for the RLM (Recursive Language Model) exploration agent.
-- pub `OAuthConfigOverride` struct L1665-1676 — `{ client_id: Option<String>, authorize_url: Option<String>, token_url: Option<St...` — OAuth configuration overrides for the `[oauth]` TOML section.
+- pub `AgentProfileConfig` struct L527-540 — `{ llm: Option<String>, name: Option<String>, description: Option<String>, system...` — Per-agent configuration.
+- pub `ServerConfig` struct L562-582 — `{ port: u16, bind: String, rate_limiting: bool, api_rpm: u32, request_logging: b...` — Server configuration.
+- pub `LoggingConfig` struct L606-609 — `{ interactions: InteractionLogConfig }` — Logging configuration section.
+- pub `InteractionLogConfig` struct L614-621 — `{ enabled: bool, path: Option<PathBuf>, retention_days: u32 }` — Settings for structured interaction logging (JSONL).
+- pub `EmbeddingConfig` struct L652-661 — `{ provider: EmbeddingProvider, dimensions: Option<usize>, openai: Option<Embeddi...` — Embedding provider configuration.
+- pub `effective_dimensions` function L676-691 — `(&self) -> usize` — Effective dimensions for the configured provider.
+- pub `EmbeddingProvider` enum L697-704 — `Local | OpenAi | Mock` — Supported embedding providers.
+- pub `EmbeddingOpenAiConfig` struct L709-718 — `{ model: String, dimensions: Option<usize>, base_url: Option<String>, api_key: O...` — OpenAI embedding provider settings.
+- pub `EmbeddingLocalConfig` struct L735-746 — `{ model_path: Option<PathBuf>, tokenizer_path: Option<PathBuf>, model_url: Optio...` — Local ONNX embedding settings.
+- pub `MemoryConfig` struct L763-773 — `{ database: Option<PathBuf>, recall: RecallConfig, indexing: IndexingConfig, con...` — Memory subsystem configuration.
+- pub `RecallConfig` struct L781-788 — `{ enabled: bool, threshold: f32, limit: usize }` — Configuration for active recall behavior.
+- pub `IndexingConfig` struct L812-834 — `{ enabled: bool, backend: String, model: String, ner_model_path: Option<String>,...` — Configuration for session indexing pipeline.
+- pub `ConfidenceConfig` struct L862-871 — `{ fresh_days: f32, staleness_days: f32, staleness_floor: f32, reinforcement_cap:...` — Configuration for confidence scoring parameters.
+- pub `DelegationConfig` struct L905-910 — `{ max_result_len: usize, compaction: CompactionConfig }` — Subagent delegation configuration.
+- pub `CompactionConfig` struct L928-940 — `{ enabled: bool, threshold: usize, backend: String, model: String, target_len: u...` — Configuration for LLM-based result compaction.
+- pub `PluginsConfig` struct L973-986 — `{ enabled: bool, dirs: Vec<PathBuf>, hot_reload: bool, auto_update: bool, subscr...` — Plugin system configuration.
+- pub `PluginSubscription` struct L1007-1025 — `{ source: PluginSource, repo: Option<String>, url: Option<String>, path: Option<...` — A plugin subscription defining where to fetch a plugin from.
+- pub `github` function L1033-1042 — `(repo: impl Into<String>) -> Self` — Create a GitHub subscription.
+- pub `url` function L1045-1054 — `(url: impl Into<String>) -> Self` — Create a URL subscription.
+- pub `local` function L1057-1066 — `(path: impl Into<PathBuf>) -> Self` — Create a local path subscription.
+- pub `with_ref` function L1069-1072 — `(mut self, git_ref: impl Into<String>) -> Self` — Set the git ref (branch, tag, or commit).
+- pub `effective_ref` function L1075-1077 — `(&self) -> &str` — Get the effective git ref, defaulting to "main".
+- pub `id` function L1082-1104 — `(&self) -> String` — Generate a unique identifier for this subscription.
+- pub `clone_url` function L1107-1116 — `(&self) -> Option<String>` — Get the clone URL for this subscription.
+- pub `PluginSource` enum L1131-1138 — `GitHub | Url | Local` — Source type for plugin subscriptions.
+- pub `PipelineSection` struct L1159-1178 — `{ enabled: bool, database: Option<PathBuf>, workflow_dir: Option<PathBuf>, max_c...` — Pipeline / workflow engine configuration.
+- pub `McpConfig` struct L1221-1227 — `{ enabled: bool, servers: Vec<McpServerEntry> }` — MCP (Model Context Protocol) configuration.
+- pub `McpTransportType` enum L1241-1247 — `Stdio | Http` — Transport type for MCP server connections.
+- pub `McpServerEntry` struct L1253-1280 — `{ name: String, transport: McpTransportType, command: String, url: Option<String...` — Configuration for a single MCP server.
+- pub `new` function L1284-1297 — `(name: impl Into<String>, command: impl Into<String>) -> Self` — Create a new MCP server entry for stdio transport.
+- pub `http` function L1300-1313 — `(name: impl Into<String>, url: impl Into<String>) -> Self` — Create a new MCP server entry for HTTP transport.
+- pub `with_arg` function L1316-1319 — `(mut self, arg: impl Into<String>) -> Self` — Add an argument (for stdio transport).
+- pub `with_args` function L1322-1325 — `(mut self, args: Vec<String>) -> Self` — Add arguments (for stdio transport).
+- pub `with_env` function L1328-1331 — `(mut self, key: impl Into<String>, value: impl Into<String>) -> Self` — Add an environment variable (for stdio transport).
+- pub `with_header` function L1334-1337 — `(mut self, key: impl Into<String>, value: impl Into<String>) -> Self` — Add an HTTP header (for HTTP transport).
+- pub `with_timeout_secs` function L1340-1343 — `(mut self, timeout: u64) -> Self` — Set request timeout in seconds (for HTTP transport).
+- pub `with_retries` function L1346-1349 — `(mut self, retries: u32) -> Self` — Set number of retries (for HTTP transport).
+- pub `with_enabled` function L1352-1355 — `(mut self, enabled: bool) -> Self` — Set enabled state.
+- pub `is_http` function L1358-1360 — `(&self) -> bool` — Check if this is an HTTP transport.
+- pub `is_stdio` function L1363-1365 — `(&self) -> bool` — Check if this is a stdio transport.
+- pub `env_tuples` function L1368-1373 — `(&self) -> Vec<(String, String)>` — Convert environment variables to the tuple format expected by McpServerConfig.
+- pub `header_tuples` function L1376-1381 — `(&self) -> Vec<(String, String)>` — Convert HTTP headers to the tuple format.
+- pub `WorkstreamConfig` struct L1393-1404 — `{ database: Option<PathBuf>, data_dir: Option<PathBuf>, session_timeout_minutes:...` — Configuration for workstreams (persistent conversation contexts).
+- pub `CompressionConfig` struct L1432-1444 — `{ enabled: bool, backend: String, model: String, max_summary_tokens: u32, token_...` — Configuration for automatic session/workstream compression.
+- pub `SessionConfig` struct L1474-1479 — `{ max_sessions: usize, cleanup_interval_secs: u64 }` — Session cache configuration.
+- pub `ToolsConfig` struct L1523-1530 — `{ output: ToolOutputConfig, shell: ShellToolConfig, web: WebToolConfig }` — Tool execution configuration.
+- pub `ToolOutputConfig` struct L1540-1552 — `{ max_size_bytes: usize, shell: Option<usize>, file_read: Option<usize>, web_fet...` — Tool output configuration.
+- pub `ShellToolConfig` struct L1569-1572 — `{ timeout_secs: u64 }` — Shell tool configuration.
+- pub `WebToolConfig` struct L1583-1586 — `{ timeout_secs: u64 }` — Web tool configuration.
+- pub `RlmTomlConfig` struct L1631-1646 — `{ model: Option<String>, max_turns: Option<u32>, max_context_tokens: Option<usiz...` — Configuration for the RLM (Recursive Language Model) exploration agent.
+- pub `OAuthConfigOverride` struct L1669-1680 — `{ client_id: Option<String>, authorize_url: Option<String>, token_url: Option<St...` — OAuth configuration overrides for the `[oauth]` TOML section.
 -  `ArawnConfig` type L83-265 — `= ArawnConfig` — ```
 -  `lookup_llm` function L246-253 — `(&'a self, name: &str, context: &str) -> crate::Result<&'a LlmConfig>` — Look up a named LLM config.
 -  `RawConfig` struct L277-295 — `{ llm: Option<RawLlmSection>, agent: HashMap<String, AgentProfileConfig>, server...` — Internal raw config matching the actual TOML layout.
@@ -2902,136 +2906,136 @@
 -  `Backend` type L475-499 — `= Backend` — ```
 -  `Backend` type L501-505 — `= Backend` — ```
 -  `fmt` function L502-504 — `(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result` — ```
--  `ServerConfig` type L580-593 — `impl Default for ServerConfig` — ```
--  `default` function L581-592 — `() -> Self` — ```
--  `InteractionLogConfig` type L619-627 — `impl Default for InteractionLogConfig` — ```
--  `default` function L620-626 — `() -> Self` — ```
--  `EmbeddingConfig` type L659-668 — `impl Default for EmbeddingConfig` — ```
--  `default` function L660-667 — `() -> Self` — ```
--  `EmbeddingConfig` type L670-688 — `= EmbeddingConfig` — ```
--  `EmbeddingOpenAiConfig` type L716-725 — `impl Default for EmbeddingOpenAiConfig` — ```
--  `default` function L717-724 — `() -> Self` — ```
--  `RecallConfig` type L786-794 — `impl Default for RecallConfig` — ```
--  `default` function L787-793 — `() -> Self` — ```
--  `IndexingConfig` type L832-845 — `impl Default for IndexingConfig` — ```
--  `default` function L833-844 — `() -> Self` — ```
--  `ConfidenceConfig` type L869-878 — `impl Default for ConfidenceConfig` — ```
--  `default` function L870-877 — `() -> Self` — ```
--  `DelegationConfig` type L908-915 — `impl Default for DelegationConfig` — ```
--  `default` function L909-914 — `() -> Self` — ```
--  `CompactionConfig` type L938-948 — `impl Default for CompactionConfig` — ```
--  `default` function L939-947 — `() -> Self` — ```
--  `PluginsConfig` type L984-994 — `impl Default for PluginsConfig` — ```
--  `default` function L985-993 — `() -> Self` — ```
--  `default_enabled` function L1023-1025 — `() -> bool` — ```
--  `PluginSubscription` type L1027-1113 — `= PluginSubscription` — ```
--  `simple_hash` function L1116-1122 — `(s: &str) -> u64` — Simple hash function for generating stable identifiers.
--  `PipelineSection` type L1176-1189 — `impl Default for PipelineSection` — ```
--  `default` function L1177-1188 — `() -> Self` — ```
--  `McpConfig` type L1225-1232 — `impl Default for McpConfig` — ```
--  `default` function L1226-1231 — `() -> Self` — ```
--  `McpServerEntry` type L1278-1378 — `= McpServerEntry` — ```
--  `WorkstreamConfig` type L1402-1411 — `impl Default for WorkstreamConfig` — ```
--  `default` function L1403-1410 — `() -> Self` — ```
--  `CompressionConfig` type L1442-1452 — `impl Default for CompressionConfig` — ```
--  `default` function L1443-1451 — `() -> Self` — ```
--  `SessionConfig` type L1477-1484 — `impl Default for SessionConfig` — ```
--  `default` function L1478-1483 — `() -> Self` — ```
--  `SessionConfig` type L1486 — `= SessionConfig` — ```
--  `SessionConfig` type L1488-1496 — `= SessionConfig` — ```
--  `max_sessions` function L1489-1491 — `(&self) -> usize` — ```
--  `cleanup_interval` function L1493-1495 — `(&self) -> std::time::Duration` — ```
--  `ToolOutputConfig` type L1550-1560 — `impl Default for ToolOutputConfig` — ```
--  `default` function L1551-1559 — `() -> Self` — ```
--  `ShellToolConfig` type L1570-1574 — `impl Default for ShellToolConfig` — ```
--  `default` function L1571-1573 — `() -> Self` — ```
--  `WebToolConfig` type L1584-1588 — `impl Default for WebToolConfig` — ```
--  `default` function L1585-1587 — `() -> Self` — ```
--  `ToolsConfig` type L1590 — `= ToolsConfig` — ```
--  `ToolsConfig` type L1592-1604 — `= ToolsConfig` — ```
--  `shell_timeout` function L1593-1595 — `(&self) -> std::time::Duration` — ```
--  `web_timeout` function L1597-1599 — `(&self) -> std::time::Duration` — ```
--  `max_output_bytes` function L1601-1603 — `(&self) -> usize` — ```
--  `tests` module L1683-3081 — `-` — ```
--  `test_empty_config` function L1687-1693 — `()` — ```
--  `test_parse_minimal` function L1696-1706 — `()` — ```
--  `test_parse_named_profiles` function L1709-1733 — `()` — ```
--  `test_parse_agents` function L1736-1759 — `()` — ```
--  `test_resolve_llm_agent_specific` function L1762-1778 — `()` — ```
--  `test_resolve_llm_agent_default` function L1781-1798 — `()` — ```
--  `test_resolve_llm_global_default` function L1801-1810 — `()` — ```
--  `test_resolve_llm_no_default` function L1813-1817 — `()` — ```
--  `test_resolve_llm_missing_reference` function L1820-1832 — `()` — ```
--  `test_merge_override` function L1835-1860 — `()` — ```
--  `test_merge_adds_profiles` function L1863-1887 — `()` — ```
--  `test_server_defaults` function L1890-1899 — `()` — ```
--  `test_backend_env_var` function L1902-1906 — `()` — ```
--  `test_plaintext_api_key_warning` function L1909-1918 — `()` — ```
--  `test_llm_names` function L1921-1938 — `()` — ```
--  `test_parse_full_example` function L1941-2001 — `()` — ```
--  `test_roundtrip_toml` function L2004-2020 — `()` — ```
--  `test_embedding_defaults` function L2025-2029 — `()` — ```
--  `test_embedding_explicit_dimensions` function L2032-2039 — `()` — ```
--  `test_embedding_openai_default_dimensions` function L2042-2050 — `()` — ```
--  `test_embedding_openai_provider_dimensions` function L2053-2064 — `()` — ```
--  `test_parse_embedding_config` function L2067-2085 — `()` — ```
--  `test_parse_embedding_local_default` function L2088-2097 — `()` — ```
--  `test_no_embedding_section_uses_default` function L2100-2111 — `()` — ```
--  `test_merge_embedding_override` function L2114-2131 — `()` — ```
--  `test_pipeline_defaults` function L2136-2144 — `()` — ```
--  `test_parse_pipeline_config` function L2147-2172 — `()` — ```
--  `test_parse_pipeline_disabled` function L2175-2183 — `()` — ```
--  `test_no_pipeline_section_uses_default` function L2186-2196 — `()` — ```
--  `test_recall_defaults` function L2201-2206 — `()` — ```
--  `test_parse_recall_config` function L2209-2221 — `()` — ```
--  `test_no_memory_section_uses_default` function L2224-2236 — `()` — ```
--  `test_merge_memory_override` function L2239-2260 — `()` — ```
--  `test_memory_indexing_defaults` function L2263-2272 — `()` — ```
--  `test_memory_confidence_defaults` function L2275-2285 — `()` — ```
--  `test_memory_indexing_override` function L2288-2300 — `()` — ```
--  `test_memory_confidence_override` function L2303-2317 — `()` — ```
--  `test_memory_partial_sections` function L2320-2333 — `()` — ```
--  `test_merge_memory_with_indexing` function L2336-2355 — `()` — ```
--  `test_merge_pipeline_override` function L2358-2377 — `()` — ```
--  `test_plugins_defaults` function L2382-2389 — `()` — ```
--  `test_plugin_subscription_github` function L2392-2398 — `()` — ```
--  `test_plugin_subscription_url` function L2401-2408 — `()` — ```
--  `test_plugin_subscription_local` function L2411-2418 — `()` — ```
--  `test_plugin_subscription_with_ref` function L2421-2425 — `()` — ```
--  `test_plugin_subscription_id` function L2428-2437 — `()` — ```
--  `test_plugin_subscription_clone_url` function L2440-2455 — `()` — ```
--  `test_parse_plugin_subscriptions` function L2458-2508 — `()` — ```
--  `test_parse_plugins_no_subscriptions` function L2511-2520 — `()` — ```
--  `test_delegation_defaults` function L2525-2533 — `()` — ```
--  `test_compaction_defaults` function L2536-2543 — `()` — ```
--  `test_parse_delegation_config` function L2546-2566 — `()` — ```
--  `test_parse_delegation_compaction_disabled` function L2569-2584 — `()` — ```
--  `test_no_delegation_section_uses_default` function L2587-2598 — `()` — ```
--  `test_merge_delegation_override` function L2601-2628 — `()` — ```
--  `test_mcp_defaults` function L2633-2637 — `()` — ```
--  `test_mcp_server_entry_new` function L2640-2647 — `()` — ```
--  `test_mcp_server_entry_builder` function L2650-2659 — `()` — ```
--  `test_mcp_server_entry_env_tuples` function L2662-2674 — `()` — ```
--  `test_parse_mcp_config` function L2677-2711 — `()` — ```
--  `test_parse_mcp_disabled` function L2714-2723 — `()` — ```
--  `test_no_mcp_section_uses_default` function L2726-2737 — `()` — ```
--  `test_merge_mcp_override` function L2740-2766 — `()` — ```
--  `test_model_config_parses_max_context_tokens` function L2771-2781 — `()` — ```
--  `test_model_config_context_tokens_in_profile` function L2784-2803 — `()` — ```
--  `test_require_max_context_tokens_success` function L2806-2813 — `()` — ```
--  `test_require_max_context_tokens_error` function L2816-2827 — `()` — ```
--  `test_model_context_roundtrip` function L2830-2844 — `()` — ```
--  `test_parse_paths_config` function L2849-2882 — `()` — ```
--  `test_no_paths_section_uses_default` function L2885-2897 — `()` — ```
--  `test_merge_paths_override` function L2900-2925 — `()` — ```
--  `test_paths_roundtrip` function L2928-2959 — `()` — ```
--  `test_tool_output_config_per_tool_fields` function L2962-2978 — `()` — ```
--  `test_tool_output_config_defaults_none` function L2981-2993 — `()` — ```
--  `test_rlm_config_deserialization` function L2996-3019 — `()` — ```
--  `test_rlm_config_defaults` function L3022-3035 — `()` — ```
--  `test_rlm_config_partial` function L3038-3050 — `()` — ```
--  `test_rlm_config_absent` function L3053-3056 — `()` — ```
--  `test_rlm_config_merge` function L3059-3080 — `()` — ```
+-  `ServerConfig` type L584-597 — `impl Default for ServerConfig` — ```
+-  `default` function L585-596 — `() -> Self` — ```
+-  `InteractionLogConfig` type L623-631 — `impl Default for InteractionLogConfig` — ```
+-  `default` function L624-630 — `() -> Self` — ```
+-  `EmbeddingConfig` type L663-672 — `impl Default for EmbeddingConfig` — ```
+-  `default` function L664-671 — `() -> Self` — ```
+-  `EmbeddingConfig` type L674-692 — `= EmbeddingConfig` — ```
+-  `EmbeddingOpenAiConfig` type L720-729 — `impl Default for EmbeddingOpenAiConfig` — ```
+-  `default` function L721-728 — `() -> Self` — ```
+-  `RecallConfig` type L790-798 — `impl Default for RecallConfig` — ```
+-  `default` function L791-797 — `() -> Self` — ```
+-  `IndexingConfig` type L836-849 — `impl Default for IndexingConfig` — ```
+-  `default` function L837-848 — `() -> Self` — ```
+-  `ConfidenceConfig` type L873-882 — `impl Default for ConfidenceConfig` — ```
+-  `default` function L874-881 — `() -> Self` — ```
+-  `DelegationConfig` type L912-919 — `impl Default for DelegationConfig` — ```
+-  `default` function L913-918 — `() -> Self` — ```
+-  `CompactionConfig` type L942-952 — `impl Default for CompactionConfig` — ```
+-  `default` function L943-951 — `() -> Self` — ```
+-  `PluginsConfig` type L988-998 — `impl Default for PluginsConfig` — ```
+-  `default` function L989-997 — `() -> Self` — ```
+-  `default_enabled` function L1027-1029 — `() -> bool` — ```
+-  `PluginSubscription` type L1031-1117 — `= PluginSubscription` — ```
+-  `simple_hash` function L1120-1126 — `(s: &str) -> u64` — Simple hash function for generating stable identifiers.
+-  `PipelineSection` type L1180-1193 — `impl Default for PipelineSection` — ```
+-  `default` function L1181-1192 — `() -> Self` — ```
+-  `McpConfig` type L1229-1236 — `impl Default for McpConfig` — ```
+-  `default` function L1230-1235 — `() -> Self` — ```
+-  `McpServerEntry` type L1282-1382 — `= McpServerEntry` — ```
+-  `WorkstreamConfig` type L1406-1415 — `impl Default for WorkstreamConfig` — ```
+-  `default` function L1407-1414 — `() -> Self` — ```
+-  `CompressionConfig` type L1446-1456 — `impl Default for CompressionConfig` — ```
+-  `default` function L1447-1455 — `() -> Self` — ```
+-  `SessionConfig` type L1481-1488 — `impl Default for SessionConfig` — ```
+-  `default` function L1482-1487 — `() -> Self` — ```
+-  `SessionConfig` type L1490 — `= SessionConfig` — ```
+-  `SessionConfig` type L1492-1500 — `= SessionConfig` — ```
+-  `max_sessions` function L1493-1495 — `(&self) -> usize` — ```
+-  `cleanup_interval` function L1497-1499 — `(&self) -> std::time::Duration` — ```
+-  `ToolOutputConfig` type L1554-1564 — `impl Default for ToolOutputConfig` — ```
+-  `default` function L1555-1563 — `() -> Self` — ```
+-  `ShellToolConfig` type L1574-1578 — `impl Default for ShellToolConfig` — ```
+-  `default` function L1575-1577 — `() -> Self` — ```
+-  `WebToolConfig` type L1588-1592 — `impl Default for WebToolConfig` — ```
+-  `default` function L1589-1591 — `() -> Self` — ```
+-  `ToolsConfig` type L1594 — `= ToolsConfig` — ```
+-  `ToolsConfig` type L1596-1608 — `= ToolsConfig` — ```
+-  `shell_timeout` function L1597-1599 — `(&self) -> std::time::Duration` — ```
+-  `web_timeout` function L1601-1603 — `(&self) -> std::time::Duration` — ```
+-  `max_output_bytes` function L1605-1607 — `(&self) -> usize` — ```
+-  `tests` module L1687-3085 — `-` — ```
+-  `test_empty_config` function L1691-1697 — `()` — ```
+-  `test_parse_minimal` function L1700-1710 — `()` — ```
+-  `test_parse_named_profiles` function L1713-1737 — `()` — ```
+-  `test_parse_agents` function L1740-1763 — `()` — ```
+-  `test_resolve_llm_agent_specific` function L1766-1782 — `()` — ```
+-  `test_resolve_llm_agent_default` function L1785-1802 — `()` — ```
+-  `test_resolve_llm_global_default` function L1805-1814 — `()` — ```
+-  `test_resolve_llm_no_default` function L1817-1821 — `()` — ```
+-  `test_resolve_llm_missing_reference` function L1824-1836 — `()` — ```
+-  `test_merge_override` function L1839-1864 — `()` — ```
+-  `test_merge_adds_profiles` function L1867-1891 — `()` — ```
+-  `test_server_defaults` function L1894-1903 — `()` — ```
+-  `test_backend_env_var` function L1906-1910 — `()` — ```
+-  `test_plaintext_api_key_warning` function L1913-1922 — `()` — ```
+-  `test_llm_names` function L1925-1942 — `()` — ```
+-  `test_parse_full_example` function L1945-2005 — `()` — ```
+-  `test_roundtrip_toml` function L2008-2024 — `()` — ```
+-  `test_embedding_defaults` function L2029-2033 — `()` — ```
+-  `test_embedding_explicit_dimensions` function L2036-2043 — `()` — ```
+-  `test_embedding_openai_default_dimensions` function L2046-2054 — `()` — ```
+-  `test_embedding_openai_provider_dimensions` function L2057-2068 — `()` — ```
+-  `test_parse_embedding_config` function L2071-2089 — `()` — ```
+-  `test_parse_embedding_local_default` function L2092-2101 — `()` — ```
+-  `test_no_embedding_section_uses_default` function L2104-2115 — `()` — ```
+-  `test_merge_embedding_override` function L2118-2135 — `()` — ```
+-  `test_pipeline_defaults` function L2140-2148 — `()` — ```
+-  `test_parse_pipeline_config` function L2151-2176 — `()` — ```
+-  `test_parse_pipeline_disabled` function L2179-2187 — `()` — ```
+-  `test_no_pipeline_section_uses_default` function L2190-2200 — `()` — ```
+-  `test_recall_defaults` function L2205-2210 — `()` — ```
+-  `test_parse_recall_config` function L2213-2225 — `()` — ```
+-  `test_no_memory_section_uses_default` function L2228-2240 — `()` — ```
+-  `test_merge_memory_override` function L2243-2264 — `()` — ```
+-  `test_memory_indexing_defaults` function L2267-2276 — `()` — ```
+-  `test_memory_confidence_defaults` function L2279-2289 — `()` — ```
+-  `test_memory_indexing_override` function L2292-2304 — `()` — ```
+-  `test_memory_confidence_override` function L2307-2321 — `()` — ```
+-  `test_memory_partial_sections` function L2324-2337 — `()` — ```
+-  `test_merge_memory_with_indexing` function L2340-2359 — `()` — ```
+-  `test_merge_pipeline_override` function L2362-2381 — `()` — ```
+-  `test_plugins_defaults` function L2386-2393 — `()` — ```
+-  `test_plugin_subscription_github` function L2396-2402 — `()` — ```
+-  `test_plugin_subscription_url` function L2405-2412 — `()` — ```
+-  `test_plugin_subscription_local` function L2415-2422 — `()` — ```
+-  `test_plugin_subscription_with_ref` function L2425-2429 — `()` — ```
+-  `test_plugin_subscription_id` function L2432-2441 — `()` — ```
+-  `test_plugin_subscription_clone_url` function L2444-2459 — `()` — ```
+-  `test_parse_plugin_subscriptions` function L2462-2512 — `()` — ```
+-  `test_parse_plugins_no_subscriptions` function L2515-2524 — `()` — ```
+-  `test_delegation_defaults` function L2529-2537 — `()` — ```
+-  `test_compaction_defaults` function L2540-2547 — `()` — ```
+-  `test_parse_delegation_config` function L2550-2570 — `()` — ```
+-  `test_parse_delegation_compaction_disabled` function L2573-2588 — `()` — ```
+-  `test_no_delegation_section_uses_default` function L2591-2602 — `()` — ```
+-  `test_merge_delegation_override` function L2605-2632 — `()` — ```
+-  `test_mcp_defaults` function L2637-2641 — `()` — ```
+-  `test_mcp_server_entry_new` function L2644-2651 — `()` — ```
+-  `test_mcp_server_entry_builder` function L2654-2663 — `()` — ```
+-  `test_mcp_server_entry_env_tuples` function L2666-2678 — `()` — ```
+-  `test_parse_mcp_config` function L2681-2715 — `()` — ```
+-  `test_parse_mcp_disabled` function L2718-2727 — `()` — ```
+-  `test_no_mcp_section_uses_default` function L2730-2741 — `()` — ```
+-  `test_merge_mcp_override` function L2744-2770 — `()` — ```
+-  `test_model_config_parses_max_context_tokens` function L2775-2785 — `()` — ```
+-  `test_model_config_context_tokens_in_profile` function L2788-2807 — `()` — ```
+-  `test_require_max_context_tokens_success` function L2810-2817 — `()` — ```
+-  `test_require_max_context_tokens_error` function L2820-2831 — `()` — ```
+-  `test_model_context_roundtrip` function L2834-2848 — `()` — ```
+-  `test_parse_paths_config` function L2853-2886 — `()` — ```
+-  `test_no_paths_section_uses_default` function L2889-2901 — `()` — ```
+-  `test_merge_paths_override` function L2904-2929 — `()` — ```
+-  `test_paths_roundtrip` function L2932-2963 — `()` — ```
+-  `test_tool_output_config_per_tool_fields` function L2966-2982 — `()` — ```
+-  `test_tool_output_config_defaults_none` function L2985-2997 — `()` — ```
+-  `test_rlm_config_deserialization` function L3000-3023 — `()` — ```
+-  `test_rlm_config_defaults` function L3026-3039 — `()` — ```
+-  `test_rlm_config_partial` function L3042-3054 — `()` — ```
+-  `test_rlm_config_absent` function L3057-3060 — `()` — ```
+-  `test_rlm_config_merge` function L3063-3084 — `()` — ```
 
 ### crates/arawn-domain/src
 
@@ -6279,12 +6283,12 @@
 -  `handle_cancel` function L180-202 — `(session_id: String, conn_state: &mut ConnectionState) -> MessageResponse` — Handle cancellation request.
 -  `handle_command` function L205-278 — `( command: String, args: serde_json::Value, conn_state: &ConnectionState, app_st...` — Handle command execution.
 -  `inject_session_context` function L281-304 — `( mut args: serde_json::Value, conn_state: &ConnectionState, ) -> serde_json::Va...` — Inject session context from the connection state if not provided in args.
--  `handle_chat` function L310-522 — `( session_id: Option<String>, workstream_id: Option<String>, message: String, co...` — Handle chat message.
--  `tests` module L525-583 — `-` — WebSocket message handlers.
--  `test_inject_session_context_null_args` function L529-537 — `()` — WebSocket message handlers.
--  `test_inject_session_context_with_subscription` function L540-554 — `()` — WebSocket message handlers.
--  `test_inject_session_context_preserves_existing` function L557-568 — `()` — WebSocket message handlers.
--  `test_inject_session_context_preserves_other_args` function L571-582 — `()` — WebSocket message handlers.
+-  `handle_chat` function L310-525 — `( session_id: Option<String>, workstream_id: Option<String>, message: String, co...` — Handle chat message.
+-  `tests` module L528-586 — `-` — WebSocket message handlers.
+-  `test_inject_session_context_null_args` function L532-540 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_with_subscription` function L543-557 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_preserves_existing` function L560-571 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_preserves_other_args` function L574-585 — `()` — WebSocket message handlers.
 
 #### crates/arawn-server/src/routes/ws/mod.rs
 

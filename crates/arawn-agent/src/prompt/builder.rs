@@ -167,28 +167,44 @@ impl SystemPromptBuilder {
     /// Build the final system prompt string.
     ///
     /// Sections are assembled based on the configured mode and
-    /// joined with double newlines.
-    pub fn build(self) -> String {
+    /// joined with double newlines. This method borrows `self` so the
+    /// builder can be reused across turns (e.g., for fresh datetime).
+    pub fn build(&self) -> String {
         let mut sections: Vec<String> = Vec::new();
 
-        // Identity section (always included if set)
+        // 1. Identity — who you are
         if let Some(identity) = self.build_identity_section() {
             sections.push(identity);
         }
 
-        // Tools section
+        // 2. Behavior — how you operate
+        if self.mode.include_behavior() {
+            sections.push(Self::build_behavior_section());
+        }
+
+        // 3. Tools — what you can do
         if let Some(tools) = self.build_tools_section() {
             sections.push(tools);
         }
 
-        // Workspace section
+        // 4. Environment — where you are (workspace, OS, filesystem)
         if self.mode.include_workspace()
             && let Some(workspace) = self.build_workspace_section()
         {
             sections.push(workspace);
         }
 
-        // DateTime section
+        // 5. Memory — how to remember things
+        if self.mode.include_memory_hints() && self.memory_enabled {
+            sections.push(self.build_memory_section());
+        }
+
+        // 6. Thinking — how to reason
+        if self.mode.include_memory_hints() && self.think_enabled {
+            sections.push(Self::build_think_section());
+        }
+
+        // 7. DateTime — when it is
         if self.mode.include_datetime()
             && self.datetime_enabled
             && let Some(datetime) = self.build_datetime_section()
@@ -196,24 +212,14 @@ impl SystemPromptBuilder {
             sections.push(datetime);
         }
 
-        // Memory hints section
-        if self.mode.include_memory_hints() && self.memory_enabled {
-            sections.push(self.build_memory_section());
-        }
-
-        // Think tool guidance (auto-detected from tool list)
-        if self.mode.include_memory_hints() && self.think_enabled {
-            sections.push(Self::build_think_section());
-        }
-
-        // Bootstrap context section
+        // 8. Context Files — bootstrap files (IDENTITY.md, BEHAVIOR.md, etc.)
         if self.mode.include_bootstrap()
             && let Some(bootstrap) = self.build_bootstrap_section()
         {
             sections.push(bootstrap);
         }
 
-        // Plugin prompt fragments
+        // 9. Plugins — plugin prompt fragments
         for (plugin_name, text) in &self.plugin_prompts {
             if !text.is_empty() {
                 sections.push(format!("## Plugin: {}\n\n{}", plugin_name, text));
@@ -231,6 +237,33 @@ impl SystemPromptBuilder {
         self.identity
             .as_ref()
             .map(|(name, description)| format!("You are {}, {}.", name, description))
+    }
+
+    fn build_behavior_section() -> String {
+        r#"# Behavior
+
+## Task Approach
+- When given a task, act on it directly using your tools. Do not describe what you would do — do it.
+- Read files before modifying them. Understand existing code and context before making changes.
+- For multi-step tasks, think through your plan, then execute it step by step.
+- If your approach fails, investigate the root cause and try an alternative — do not retry the same action blindly.
+
+## Tool Usage
+- Use `file_read` to read files, `file_write` to write them. Use `glob` and `grep` to find and search files.
+- Use `shell` for system operations: git, build tools, package managers, scripts, compilers.
+- Prefer dedicated file tools over shell equivalents (e.g., use `file_read` instead of `shell` with `cat`).
+- You can run multiple tools in sequence to accomplish complex tasks.
+
+## Communication
+- Be direct and concise. Lead with the action or answer, not the reasoning.
+- When explaining, include only what is necessary. If you can say it in one sentence, do not use three.
+- Show your work through tool use, not prose. The user can see your tool calls.
+- Ask clarifying questions when the request is genuinely ambiguous, but do not over-ask — make reasonable assumptions and proceed.
+
+## Interactive vs Autonomous Mode
+- In an interactive session (user is present), ask for clarification when the task is ambiguous or has multiple valid approaches. Confirm before making large or irreversible changes.
+- In an autonomous/agentic context (no user available), make reasonable decisions and proceed. Do not block on questions — use your best judgment, document assumptions, and continue."#
+            .to_string()
     }
 
     fn build_tools_section(&self) -> Option<String> {
@@ -259,7 +292,22 @@ impl SystemPromptBuilder {
         let path = self.workspace_path.as_ref()?;
         let path_str = path.display();
 
-        Some(format!("# Workspace\n\nWorking directory: {}", path_str))
+        Some(format!(
+            r#"# Workspace
+
+Working directory: {path}
+
+## Environment
+
+You are running on the user's local machine with full filesystem and OS access.
+
+- `shell` — run any system command (git, curl, build tools, package managers, compilers, scripts)
+- `file_read` / `file_write` — read and write files
+- `glob` / `grep` — find files by name pattern or search content
+
+Act directly. If a task involves cloning repos, building code, installing packages, or manipulating files — use your tools to do it."#,
+            path = path_str
+        ))
     }
 
     fn build_datetime_section(&self) -> Option<String> {
@@ -324,9 +372,10 @@ mod tests {
     use crate::tool::MockTool;
 
     #[test]
-    fn test_builder_default_empty() {
+    fn test_builder_default_has_behavior() {
         let prompt = SystemPromptBuilder::new().build();
-        assert!(prompt.is_empty());
+        // Default Full mode includes the behavior section
+        assert!(prompt.contains("# Behavior"));
     }
 
     #[test]
@@ -380,6 +429,10 @@ mod tests {
 
         assert!(prompt.contains("# Workspace"));
         assert!(prompt.contains("/home/user/project"));
+        assert!(prompt.contains("## Environment"));
+        assert!(prompt.contains("`shell`"));
+        assert!(prompt.contains("`file_read`"));
+        assert!(prompt.contains("`file_write`"));
     }
 
     #[test]

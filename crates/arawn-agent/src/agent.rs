@@ -62,6 +62,8 @@ pub struct Agent {
     tools: Arc<ToolRegistry>,
     /// Agent configuration.
     config: AgentConfig,
+    /// System prompt builder — rebuilt per-turn for fresh datetime, plugins, etc.
+    prompt_builder: Option<SystemPromptBuilder>,
     /// Optional interaction logger for structured JSONL capture.
     interaction_logger: Option<Arc<InteractionLogger>>,
     /// Optional memory store for active recall.
@@ -85,6 +87,7 @@ impl Agent {
             backend,
             tools: Arc::new(tools),
             config,
+            prompt_builder: None,
             interaction_logger: None,
             memory_store: None,
             embedder: None,
@@ -113,6 +116,48 @@ impl Agent {
     /// Get the LLM backend.
     pub fn backend(&self) -> SharedBackend {
         self.backend.clone()
+    }
+
+    /// Get the current system prompt (built dynamically if a builder is present).
+    ///
+    /// This is the prompt that would be sent to the LLM on the next turn,
+    /// without any session context preamble.
+    pub fn system_prompt(&self) -> Option<String> {
+        self.build_system_prompt(None)
+    }
+
+    /// Build the system prompt dynamically.
+    ///
+    /// If a `SystemPromptBuilder` is stored, rebuilds the prompt fresh
+    /// (giving current datetime, etc.). Falls back to the static
+    /// `config.system_prompt` if no builder is present.
+    fn build_system_prompt(&self, context_preamble: Option<&str>) -> Option<String> {
+        // Build from dynamic builder if present
+        let base_prompt = if let Some(ref builder) = self.prompt_builder {
+            let prompt = builder.build();
+            if prompt.is_empty() {
+                None
+            } else {
+                Some(prompt)
+            }
+        } else {
+            self.config.system_prompt.clone()
+        };
+
+        // Merge with context preamble
+        match (base_prompt, context_preamble) {
+            (Some(prompt), Some(preamble)) => {
+                Some(format!(
+                    "[Session Context]\n{}\n\n---\n\n{}",
+                    preamble, prompt
+                ))
+            }
+            (Some(prompt), None) => Some(prompt),
+            (None, Some(preamble)) => {
+                Some(format!("[Session Context]\n{}", preamble))
+            }
+            (None, None) => None,
+        }
     }
 
     /// Execute a single turn of conversation.
@@ -397,10 +442,14 @@ impl Agent {
         // Build initial messages from session history
         let messages = self.build_messages(session);
 
+        // Build a config snapshot with a fresh system prompt for this turn
+        let mut config = self.config.clone();
+        config.system_prompt = self.build_system_prompt(session.context_preamble());
+
         create_turn_stream(
             self.backend.clone(),
             self.tools.clone(),
-            self.config.clone(),
+            config,
             messages,
             session_id,
             turn_id,
@@ -527,24 +576,8 @@ impl Agent {
             self.config.max_tokens,
         );
 
-        // Build system prompt with optional context preamble
-        let system_prompt = match (&self.config.system_prompt, context_preamble) {
-            (Some(prompt), Some(preamble)) => {
-                // Prepend context preamble to system prompt
-                Some(format!(
-                    "[Session Context]\n{}\n\n---\n\n{}",
-                    preamble, prompt
-                ))
-            }
-            (Some(prompt), None) => Some(prompt.clone()),
-            (None, Some(preamble)) => {
-                // Context preamble only, no base system prompt
-                Some(format!("[Session Context]\n{}", preamble))
-            }
-            (None, None) => None,
-        };
-
-        if let Some(ref prompt) = system_prompt {
+        // Build system prompt dynamically (fresh datetime, etc.)
+        if let Some(ref prompt) = self.build_system_prompt(context_preamble) {
             request = request.with_system(prompt);
         }
 
@@ -1021,8 +1054,9 @@ impl AgentBuilder {
             .backend
             .ok_or_else(|| AgentError::Config("LLM backend is required".to_string()))?;
 
-        // If we have bootstrap context, a prompt builder, or plugin prompts, generate the system prompt
-        if self.prompt_builder.is_some()
+        // Build the dynamic prompt builder if we have any prompt-related inputs.
+        // The builder is stored on the Agent and rebuilt per-turn for fresh datetime etc.
+        let prompt_builder = if self.prompt_builder.is_some()
             || self.bootstrap_context.is_some()
             || !self.plugin_prompts.is_empty()
         {
@@ -1050,13 +1084,13 @@ impl AgentBuilder {
                 builder
             };
 
-            let system_prompt = builder.build();
-            if !system_prompt.is_empty() {
-                self.config.system_prompt = Some(system_prompt);
-            }
-        }
+            Some(builder)
+        } else {
+            None
+        };
 
         let mut agent = Agent::new(backend, self.tools, self.config);
+        agent.prompt_builder = prompt_builder;
         agent.interaction_logger = self.interaction_logger;
         agent.memory_store = self.memory_store;
         agent.embedder = self.embedder;
@@ -1426,7 +1460,7 @@ mod tests {
             .unwrap();
 
         // Verify the system prompt was generated
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("You are TestAgent"));
         assert!(system_prompt.contains("test assistant"));
         assert!(system_prompt.contains("test_tool"));
@@ -1468,7 +1502,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("You are Dynamic"));
         assert!(!system_prompt.contains("This should be overridden"));
     }
@@ -1500,7 +1534,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("You are BootstrapAgent"));
         assert!(system_prompt.contains("kind and helpful"));
         assert!(system_prompt.contains("BEHAVIOR.md"));
@@ -1528,7 +1562,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("Be excellent"));
     }
 
@@ -1565,7 +1599,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("friendly personality"));
         assert!(system_prompt.contains("custom_persona.md"));
     }
@@ -1591,7 +1625,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         assert!(system_prompt.contains("helpful and kind"));
         assert!(system_prompt.contains("verify your answers"));
     }
@@ -1623,7 +1657,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let system_prompt = agent.config().system_prompt.as_ref().unwrap();
+        let system_prompt = agent.system_prompt().unwrap();
         // Should have both
         assert!(system_prompt.contains("Core values"));
         assert!(system_prompt.contains("Additional guidelines"));

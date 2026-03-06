@@ -58,6 +58,11 @@ impl PromptMode {
     pub fn include_workspace(&self) -> bool {
         matches!(self, Self::Full | Self::Minimal)
     }
+
+    /// Check if this mode includes core behavioral instructions.
+    pub fn include_behavior(&self) -> bool {
+        matches!(self, Self::Full)
+    }
 }
 
 #[cfg(test)]
@@ -77,6 +82,7 @@ mod tests {
         assert!(mode.include_memory_hints());
         assert!(mode.include_bootstrap());
         assert!(mode.include_workspace());
+        assert!(mode.include_behavior());
     }
 
     #[test]
@@ -87,6 +93,7 @@ mod tests {
         assert!(!mode.include_memory_hints());
         assert!(!mode.include_bootstrap());
         assert!(mode.include_workspace());
+        assert!(!mode.include_behavior());
     }
 
     #[test]
@@ -97,6 +104,7 @@ mod tests {
         assert!(!mode.include_memory_hints());
         assert!(!mode.include_bootstrap());
         assert!(!mode.include_workspace());
+        assert!(!mode.include_behavior());
     }
 
     #[test]

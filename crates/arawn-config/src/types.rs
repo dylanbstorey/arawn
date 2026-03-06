@@ -527,6 +527,10 @@ impl std::fmt::Display for Backend {
 pub struct AgentProfileConfig {
     /// Name of the LLM config to use (references a key in `llm_profiles`).
     pub llm: Option<String>,
+    /// Agent display name (defaults to "Arawn").
+    pub name: Option<String>,
+    /// Agent role description (defaults to a standard assistant description).
+    pub description: Option<String>,
     /// System prompt override.
     pub system_prompt: Option<String>,
     /// Max tool iterations.

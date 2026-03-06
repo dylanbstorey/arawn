@@ -368,17 +368,19 @@ async fn handle_chat(
         .await;
     let session_id_str = session_id.to_string();
 
-    // Store user message in workstream (if workstreams enabled)
-    if let Some(ws_manager) = app_state.workstreams() {
-        use arawn_domain::MessageRole;
-        if let Err(e) = ws_manager.send_message(
-            workstream_id.as_deref(),
-            Some(&session_id_str),
-            MessageRole::User,
-            &message,
-            None,
-        ) {
-            tracing::warn!("Failed to store user message in workstream: {}", e);
+    // NOTE: User message is persisted by save_turn() after the agent completes,
+    // along with tool calls, tool results, and assistant response.
+    // Do NOT store it here — that causes duplicate entries in messages.jsonl.
+
+    // Inject session context (workstream + session ID) into preamble
+    if let Some(mut session) = app_state.session_cache().get(&session_id).await {
+        if session.context_preamble().is_none() {
+            let preamble = format!(
+                "Session: {}\nWorkstream: {}",
+                session_id, ws_id
+            );
+            session.set_context_preamble(preamble);
+            app_state.update_session(session_id, session).await;
         }
     }
 
@@ -441,11 +443,11 @@ async fn handle_chat(
                         done: false,
                     };
                 }
-                StreamChunk::ToolStart { id, name } => {
+                StreamChunk::ToolStart { id, name, arguments } => {
                     tool_calls.push(ToolCall {
                         id: id.clone(),
                         name: name.clone(),
-                        arguments: serde_json::Value::Null,
+                        arguments,
                     });
                     yield ServerMessage::ToolStart {
                         session_id: session_id_for_stream.clone(),
@@ -464,8 +466,9 @@ async fn handle_chat(
                         content,
                     };
                 }
-                StreamChunk::ToolEnd { id, success, .. } => {
-                    let output = current_tool_output.remove(&id).unwrap_or_default();
+                StreamChunk::ToolEnd { id, success, content } => {
+                    // Prefer accumulated streaming output; fall back to final content
+                    let output = current_tool_output.remove(&id).unwrap_or(content);
                     tool_results.push(ToolResultRecord {
                         tool_call_id: id.clone(),
                         success,

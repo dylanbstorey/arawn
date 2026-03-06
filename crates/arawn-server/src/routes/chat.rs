@@ -298,7 +298,7 @@ pub async fn chat_stream_handler(
                         .json_data(SseTextEvent { content: content.clone() })
                         .unwrap_or_else(|_| Event::default())
                 }
-                StreamChunk::ToolStart { id, name } => {
+                StreamChunk::ToolStart { id, name, .. } => {
                     Event::default()
                         .event("tool_start")
                         .json_data(SseToolStartEvent {

@@ -30,7 +30,7 @@ use crate::types::{AgentConfig, SessionId, ToolCall, ToolResultRecord, TurnId};
 /// use arawn_agent::stream::StreamChunk;
 ///
 /// let text = StreamChunk::text("Hello ");
-/// let tool = StreamChunk::tool_start("call_1", "read_file");
+/// let tool = StreamChunk::tool_start("call_1", "read_file", serde_json::json!({}));
 /// let done = StreamChunk::done(2);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +47,8 @@ pub enum StreamChunk {
         id: String,
         /// Name of the tool being called.
         name: String,
+        /// Arguments passed to the tool (JSON).
+        arguments: serde_json::Value,
     },
     /// Partial output from a tool during execution.
     ToolOutput {
@@ -85,10 +87,15 @@ impl StreamChunk {
     }
 
     /// Create a tool start chunk.
-    pub fn tool_start(id: impl Into<String>, name: impl Into<String>) -> Self {
+    pub fn tool_start(
+        id: impl Into<String>,
+        name: impl Into<String>,
+        arguments: serde_json::Value,
+    ) -> Self {
         Self::ToolStart {
             id: id.into(),
             name: name.into(),
+            arguments,
         }
     }
 
@@ -298,7 +305,7 @@ pub fn create_turn_stream(
                     };
                     state.tool_calls.push(tool_call);
 
-                    yield StreamChunk::tool_start(&tool_use.id, &tool_use.name);
+                    yield StreamChunk::tool_start(&tool_use.id, &tool_use.name, tool_use.input.clone());
 
                     let result = match state.tools.execute(&tool_use.name, tool_use.input.clone(), &ctx).await {
                         Ok(r) => r,
@@ -412,10 +419,11 @@ mod tests {
 
     #[test]
     fn test_stream_chunk_tool_start() {
-        let chunk = StreamChunk::tool_start("call_1", "read_file");
+        let chunk =
+            StreamChunk::tool_start("call_1", "read_file", serde_json::json!({"path": "/foo"}));
         assert!(matches!(
             chunk,
-            StreamChunk::ToolStart { id, name } if id == "call_1" && name == "read_file"
+            StreamChunk::ToolStart { id, name, .. } if id == "call_1" && name == "read_file"
         ));
     }
 

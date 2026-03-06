@@ -10,7 +10,8 @@ use anyhow::Result;
 use clap::Args;
 
 use arawn_agent::{
-    Agent, IndexerConfig, McpToolAdapter, SessionIndexer, Tool, ToolRegistry, tools,
+    Agent, IndexerConfig, McpToolAdapter, PromptMode, SessionIndexer, SystemPromptBuilder, Tool,
+    ToolRegistry, tools,
 };
 #[cfg(feature = "gliner")]
 use arawn_agent::{GlinerEngine, NerConfig};
@@ -1070,19 +1071,43 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
         tool_registry = new_registry;
     }
 
+    // ── System prompt builder ────────────────────────────────────────────
+    // Build a dynamic prompt builder that gets rebuilt per-turn for fresh
+    // datetime, plugin context, etc.
+
+    let agent_profile = config.agent.get("default");
+
+    let agent_name = agent_profile
+        .and_then(|a| a.name.as_deref())
+        .unwrap_or("Arawn");
+    let agent_description = agent_profile
+        .and_then(|a| a.description.as_deref())
+        .unwrap_or("a capable AI assistant running on the user's local machine");
+
+    let prompt_builder = SystemPromptBuilder::new()
+        .with_mode(PromptMode::Full)
+        .with_identity(agent_name, agent_description)
+        .with_datetime(None)
+        .with_memory_hints();
+
+    if ctx.verbose {
+        println!("Agent identity: {} — {}", agent_name, agent_description);
+    }
+
     let mut builder = Agent::builder()
         .with_shared_backend(backend)
         .with_tools(tool_registry)
         .with_plugin_prompts(plugin_prompts)
+        .with_prompt_builder(prompt_builder)
         .with_model(&resolved.model);
 
     // Wire max_iterations from [agent.default] config (fallback to hardcoded default in AgentConfig)
-    if let Some(max_iter) = config.agent.get("default").and_then(|a| a.max_iterations) {
+    if let Some(max_iter) = agent_profile.and_then(|a| a.max_iterations) {
         builder = builder.with_max_iterations(max_iter);
     }
 
     // Wire max_tokens (per-response limit) from [agent.default] config
-    if let Some(max_tok) = config.agent.get("default").and_then(|a| a.max_tokens) {
+    if let Some(max_tok) = agent_profile.and_then(|a| a.max_tokens) {
         builder = builder.with_max_tokens(max_tok);
     }
 
@@ -1124,6 +1149,15 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
             );
         }
     }
+
+    // Wire memory store and embedder for active recall
+    if let Some(ref store) = memory_store {
+        builder = builder.with_memory_store(store.clone());
+        if ctx.verbose {
+            println!("Active recall: memory store wired");
+        }
+    }
+    builder = builder.with_embedder(embedder.clone());
 
     let agent = builder.build()?;
 
