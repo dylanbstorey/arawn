@@ -1477,8 +1477,7 @@ fn resolve_with_cli_overrides(
 /// automatically without a restart.
 fn make_api_key_provider(backend: Backend, config_value: Option<String>) -> ApiKeyProvider {
     ApiKeyProvider::dynamic(move || {
-        arawn_config::secrets::resolve_api_key(&backend, config_value.as_deref())
-            .map(|r| r.value)
+        arawn_config::secrets::resolve_api_key(&backend, config_value.as_deref()).map(|r| r.value)
     })
 }
 
@@ -1489,8 +1488,7 @@ async fn create_backend(
 ) -> Result<SharedBackend> {
     match resolved.backend {
         Backend::Anthropic => {
-            let provider =
-                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let provider = make_api_key_provider(resolved.backend, resolved.api_key.clone());
             let mut config = AnthropicConfig::new("placeholder");
             config.api_key = provider;
             if let Some(max) = resolved.retry_max {
@@ -1502,8 +1500,7 @@ async fn create_backend(
             Ok(Arc::new(AnthropicBackend::new(config)?))
         }
         Backend::Openai => {
-            let provider =
-                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let provider = make_api_key_provider(resolved.backend, resolved.api_key.clone());
             let mut config = OpenAiConfig::openai("placeholder");
             config.api_key = provider;
             if let Some(ref base_url) = resolved.base_url {
@@ -1519,8 +1516,7 @@ async fn create_backend(
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
         Backend::Groq => {
-            let provider =
-                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let provider = make_api_key_provider(resolved.backend, resolved.api_key.clone());
             let mut config = OpenAiConfig::groq("placeholder");
             config.api_key = provider;
             config = config.with_model(&resolved.model);

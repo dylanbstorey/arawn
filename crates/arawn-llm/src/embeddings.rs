@@ -254,9 +254,7 @@ impl Embedder for OpenAiEmbedder {
         };
 
         let api_key = self.config.api_key.resolve().ok_or_else(|| {
-            crate::error::LlmError::Auth(
-                "OpenAI embedding API key not available.".to_string(),
-            )
+            crate::error::LlmError::Auth("OpenAI embedding API key not available.".to_string())
         })?;
         let response = self
             .client

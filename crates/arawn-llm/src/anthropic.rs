@@ -149,7 +149,10 @@ impl AnthropicBackend {
     /// Add authentication and API headers to a request.
     fn add_headers(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> {
         let api_key = self.config.api_key.resolve().ok_or_else(|| {
-            LlmError::Auth("Anthropic API key not available. Store it with 'arawn secrets set anthropic'.".to_string())
+            LlmError::Auth(
+                "Anthropic API key not available. Store it with 'arawn secrets set anthropic'."
+                    .to_string(),
+            )
         })?;
         Ok(builder
             .header("x-api-key", api_key)
