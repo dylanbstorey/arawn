@@ -11,6 +11,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::api_key::ApiKeyProvider;
 use crate::backend::{ContentDelta, LlmBackend, ResponseStream, StreamEvent, with_retry};
 use crate::error::{LlmError, Result};
 use crate::types::{CompletionRequest, CompletionResponse, ContentBlock, Role, StopReason, Usage};
@@ -49,8 +50,8 @@ const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
 /// ```
 #[derive(Debug, Clone)]
 pub struct AnthropicConfig {
-    /// API key for authentication.
-    pub api_key: String,
+    /// API key for authentication. Supports hot-loading via `ApiKeyProvider::Dynamic`.
+    pub api_key: ApiKeyProvider,
 
     /// Base URL for the API.
     pub base_url: String,
@@ -72,7 +73,7 @@ impl AnthropicConfig {
     /// Create a new config with the given API key.
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: api_key.into(),
+            api_key: ApiKeyProvider::from_static(api_key),
             base_url: DEFAULT_API_BASE.to_string(),
             api_version: DEFAULT_API_VERSION.to_string(),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
@@ -146,11 +147,14 @@ impl AnthropicBackend {
     }
 
     /// Add authentication and API headers to a request.
-    fn add_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        builder
-            .header("x-api-key", &self.config.api_key)
+    fn add_headers(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> {
+        let api_key = self.config.api_key.resolve().ok_or_else(|| {
+            LlmError::Auth("Anthropic API key not available. Store it with 'arawn secrets set anthropic'.".to_string())
+        })?;
+        Ok(builder
+            .header("x-api-key", api_key)
             .header("anthropic-version", &self.config.api_version)
-            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_TYPE, "application/json"))
     }
 
     /// Handle a successful response.
@@ -213,7 +217,7 @@ impl LlmBackend for AnthropicBackend {
             "anthropic",
             || async {
                 let response = self
-                    .add_headers(self.client.post(self.messages_url()))
+                    .add_headers(self.client.post(self.messages_url()))?
                     .json(&request)
                     .send()
                     .await?;
@@ -230,7 +234,7 @@ impl LlmBackend for AnthropicBackend {
         request.stream = true;
 
         let response = self
-            .add_headers(self.client.post(self.messages_url()))
+            .add_headers(self.client.post(self.messages_url()))?
             .json(&request)
             .send()
             .await?;
@@ -600,7 +604,7 @@ mod tests {
     #[test]
     fn test_config_new() {
         let config = AnthropicConfig::new("test-key");
-        assert_eq!(config.api_key, "test-key");
+        assert_eq!(config.api_key.resolve(), Some("test-key".to_string()));
         assert_eq!(config.base_url, DEFAULT_API_BASE);
         assert_eq!(config.api_version, DEFAULT_API_VERSION);
     }

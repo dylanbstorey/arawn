@@ -17,7 +17,8 @@ use arawn_agent::{GlinerEngine, NerConfig};
 use arawn_config::EmbeddingProvider;
 use arawn_config::{self, Backend, LlmConfig, ResolvedLlm};
 use arawn_llm::{
-    AnthropicBackend, AnthropicConfig, EmbedderSpec, OpenAiBackend, OpenAiConfig, SharedBackend,
+    AnthropicBackend, AnthropicConfig, ApiKeyProvider, EmbedderSpec, OpenAiBackend, OpenAiConfig,
+    SharedBackend,
 };
 use arawn_mcp::{McpManager, McpServerConfig};
 use arawn_memory::{MemoryStore, init_vector_extension};
@@ -1470,6 +1471,17 @@ fn resolve_with_cli_overrides(
     Ok(resolved)
 }
 
+/// Build an `ApiKeyProvider` that re-resolves from the secret store on each request.
+///
+/// This enables hot-loading: secrets stored after server startup are picked up
+/// automatically without a restart.
+fn make_api_key_provider(backend: Backend, config_value: Option<String>) -> ApiKeyProvider {
+    ApiKeyProvider::dynamic(move || {
+        arawn_config::secrets::resolve_api_key(&backend, config_value.as_deref())
+            .map(|r| r.value)
+    })
+}
+
 /// Create an LLM backend from a resolved config.
 async fn create_backend(
     resolved: &ResolvedLlm,
@@ -1477,13 +1489,10 @@ async fn create_backend(
 ) -> Result<SharedBackend> {
     match resolved.backend {
         Backend::Anthropic => {
-            let api_key = resolved.api_key.as_deref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Anthropic API key required. Use 'arawn config set-secret anthropic', \
-                     set ANTHROPIC_API_KEY, or add api_key to config"
-                )
-            })?;
-            let mut config = AnthropicConfig::new(api_key);
+            let provider =
+                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let mut config = AnthropicConfig::new("placeholder");
+            config.api_key = provider;
             if let Some(max) = resolved.retry_max {
                 config = config.with_max_retries(max);
             }
@@ -1493,13 +1502,10 @@ async fn create_backend(
             Ok(Arc::new(AnthropicBackend::new(config)?))
         }
         Backend::Openai => {
-            let api_key = resolved.api_key.as_deref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "OpenAI API key required. Use 'arawn config set-secret openai', \
-                     set OPENAI_API_KEY, or add api_key to config"
-                )
-            })?;
-            let mut config = OpenAiConfig::openai(api_key);
+            let provider =
+                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let mut config = OpenAiConfig::openai("placeholder");
+            config.api_key = provider;
             if let Some(ref base_url) = resolved.base_url {
                 config = config.with_base_url(base_url);
             }
@@ -1513,13 +1519,10 @@ async fn create_backend(
             Ok(Arc::new(OpenAiBackend::new(config)?))
         }
         Backend::Groq => {
-            let api_key = resolved.api_key.as_deref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Groq API key required. Use 'arawn config set-secret groq', \
-                     set GROQ_API_KEY, or add api_key to config"
-                )
-            })?;
-            let mut config = OpenAiConfig::groq(api_key);
+            let provider =
+                make_api_key_provider(resolved.backend, resolved.api_key.clone());
+            let mut config = OpenAiConfig::groq("placeholder");
+            config.api_key = provider;
             config = config.with_model(&resolved.model);
             if let Some(max) = resolved.retry_max {
                 config = config.with_max_retries(max);
@@ -1552,9 +1555,9 @@ async fn create_backend(
                 .with_name("custom")
                 .with_model(&resolved.model);
             if let Some(ref api_key) = resolved.api_key {
-                config.api_key = Some(api_key.clone());
+                config.api_key = ApiKeyProvider::from_static(api_key);
             } else {
-                config.api_key = None;
+                config.api_key = ApiKeyProvider::None;
             }
             if let Some(max) = resolved.retry_max {
                 config = config.with_max_retries(max);

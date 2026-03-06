@@ -1,6 +1,6 @@
 # Code Index
 
-> Generated: 2026-03-05T05:10:20Z | 303 files | Rust
+> Generated: 2026-03-06T00:05:15Z | 304 files | Rust
 
 ## Project Structure
 
@@ -125,6 +125,7 @@
 │   ├── arawn-llm/
 │   │   └── src/
 │   │       ├── anthropic.rs
+│   │       ├── api_key.rs
 │   │       ├── backend.rs
 │   │       ├── client.rs
 │   │       ├── embeddings.rs
@@ -630,17 +631,18 @@
 
 #### crates/arawn/src/commands/start.rs
 
-- pub `StartArgs` struct L47-99 — `{ daemon: bool, port: Option<u16>, bind: Option<String>, token: Option<String>, ...` — Start command - launches the Arawn server.
-- pub `run` function L102-1418 — `(args: StartArgs, ctx: &Context) -> Result<()>` — Run the start command.
--  `resolve_with_cli_overrides` function L1421-1471 — `( config: &arawn_config::ArawnConfig, args: &StartArgs, ) -> Result<ResolvedLlm>` — Resolve LLM config, applying CLI overrides on top of config file values.
--  `create_backend` function L1474-1620 — `( resolved: &ResolvedLlm, oauth_overrides: Option<&arawn_config::OAuthConfigOver...` — Create an LLM backend from a resolved config.
--  `parse_backend` function L1622-1635 — `(s: &str) -> Result<Backend>` — Start command - launches the Arawn server.
--  `load_or_generate_server_token` function L1638-1654 — `() -> Result<String>` — Load a persisted server token, or generate and save a new one.
--  `resolve_profile` function L1657-1688 — `(name: &str, llm_config: &LlmConfig) -> Result<ResolvedLlm>` — Resolve a named LLM profile into a ResolvedLlm ready for backend creation.
--  `build_embedder_spec` function L1691-1737 — `(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec` — Build an `EmbedderSpec` from the application's `EmbeddingConfig`.
--  `default_model` function L1739-1747 — `(backend: &Backend) -> String` — Start command - launches the Arawn server.
--  `register_builtin_runtimes` function L1754-1838 — `( runtimes_src_dir: &std::path::Path, executor: &Arc<ScriptExecutor>, catalog: &...` — Compile and register built-in WASM runtimes from source crate directories.
--  `seed_test_data` function L1841-1934 — `(manager: &WorkstreamManager, verbose: bool)` — Seed the database with test workstreams and sessions for development.
+- pub `StartArgs` struct L48-100 — `{ daemon: bool, port: Option<u16>, bind: Option<String>, token: Option<String>, ...` — Start command - launches the Arawn server.
+- pub `run` function L103-1419 — `(args: StartArgs, ctx: &Context) -> Result<()>` — Run the start command.
+-  `resolve_with_cli_overrides` function L1422-1472 — `( config: &arawn_config::ArawnConfig, args: &StartArgs, ) -> Result<ResolvedLlm>` — Resolve LLM config, applying CLI overrides on top of config file values.
+-  `make_api_key_provider` function L1478-1483 — `(backend: Backend, config_value: Option<String>) -> ApiKeyProvider` — Build an `ApiKeyProvider` that re-resolves from the secret store on each request.
+-  `create_backend` function L1486-1623 — `( resolved: &ResolvedLlm, oauth_overrides: Option<&arawn_config::OAuthConfigOver...` — Create an LLM backend from a resolved config.
+-  `parse_backend` function L1625-1638 — `(s: &str) -> Result<Backend>` — Start command - launches the Arawn server.
+-  `load_or_generate_server_token` function L1641-1657 — `() -> Result<String>` — Load a persisted server token, or generate and save a new one.
+-  `resolve_profile` function L1660-1691 — `(name: &str, llm_config: &LlmConfig) -> Result<ResolvedLlm>` — Resolve a named LLM profile into a ResolvedLlm ready for backend creation.
+-  `build_embedder_spec` function L1694-1740 — `(config: &arawn_config::EmbeddingConfig) -> EmbedderSpec` — Build an `EmbedderSpec` from the application's `EmbeddingConfig`.
+-  `default_model` function L1742-1750 — `(backend: &Backend) -> String` — Start command - launches the Arawn server.
+-  `register_builtin_runtimes` function L1757-1841 — `( runtimes_src_dir: &std::path::Path, executor: &Arc<ScriptExecutor>, catalog: &...` — Compile and register built-in WASM runtimes from source crate directories.
+-  `seed_test_data` function L1844-1937 — `(manager: &WorkstreamManager, verbose: bool)` — Seed the database with test workstreams and sessions for development.
 
 #### crates/arawn/src/commands/status.rs
 
@@ -2647,26 +2649,26 @@
 - pub `load_config_file` function L118-124 — `(path: &Path) -> Result<ArawnConfig>` — Load config from a specific file path (no discovery).
 - pub `save_config` function L129-145 — `(config: &ArawnConfig, path: &Path) -> Result<()>` — Save configuration to a file.
 - pub `xdg_config_path` function L165-167 — `() -> Option<PathBuf>` — Get the XDG config directory path for arawn.
-- pub `xdg_config_dir` function L172-179 — `() -> Option<PathBuf>` — Get the XDG config directory for arawn.
+- pub `xdg_config_dir` function L173-180 — `() -> Option<PathBuf>` — Get the config directory for arawn.
 -  `PROJECT_CONFIG_FILE` variable L13 — `: &str` — Default config filename for project-local config.
 -  `USER_CONFIG_FILE` variable L16 — `: &str` — Default config filename within XDG config directory.
 -  `APP_NAME` variable L19 — `: &str` — Application name for XDG directory resolution.
 -  `LoadedConfig` type L43-52 — `= LoadedConfig` — 3.
 -  `CONFIG_DIR_ENV` variable L151 — `: &str` — Environment variable to override the config directory.
--  `load_layer` function L182-210 — `( config: &mut ArawnConfig, path: &Path, warnings: &mut Vec<String>, ) -> Result...` — Try to load a config file and merge it into the existing config.
--  `check_plaintext_keys` function L213-234 — `(config: &ArawnConfig, warnings: &mut Vec<String>)` — Check for plaintext API keys in the config and emit warnings.
--  `tests` module L241-462 — `-` — 3.
--  `test_xdg_config_path_exists` function L249-256 — `()` — 3.
--  `test_load_config_file` function L259-274 — `()` — 3.
--  `test_load_config_file_not_found` function L277-280 — `()` — 3.
--  `test_load_config_invalid_toml` function L283-290 — `()` — 3.
--  `test_load_config_project_only` function L293-320 — `()` — 3.
--  `test_load_config_no_files` function L323-331 — `()` — 3.
--  `test_load_config_layered_merge` function L334-386 — `()` — 3.
--  `test_plaintext_key_warning` function L389-412 — `()` — 3.
--  `test_no_warnings_without_keys` function L415-430 — `()` — 3.
--  `test_malformed_config_warns_but_continues` function L433-442 — `()` — 3.
--  `test_loaded_from_tracks_sources` function L445-461 — `()` — 3.
+-  `load_layer` function L183-211 — `( config: &mut ArawnConfig, path: &Path, warnings: &mut Vec<String>, ) -> Result...` — Try to load a config file and merge it into the existing config.
+-  `check_plaintext_keys` function L214-235 — `(config: &ArawnConfig, warnings: &mut Vec<String>)` — Check for plaintext API keys in the config and emit warnings.
+-  `tests` module L242-463 — `-` — 3.
+-  `test_xdg_config_path_exists` function L250-257 — `()` — 3.
+-  `test_load_config_file` function L260-275 — `()` — 3.
+-  `test_load_config_file_not_found` function L278-281 — `()` — 3.
+-  `test_load_config_invalid_toml` function L284-291 — `()` — 3.
+-  `test_load_config_project_only` function L294-321 — `()` — 3.
+-  `test_load_config_no_files` function L324-332 — `()` — 3.
+-  `test_load_config_layered_merge` function L335-387 — `()` — 3.
+-  `test_plaintext_key_warning` function L390-413 — `()` — 3.
+-  `test_no_warnings_without_keys` function L416-431 — `()` — 3.
+-  `test_malformed_config_warns_but_continues` function L434-443 — `()` — 3.
+-  `test_loaded_from_tracks_sources` function L446-462 — `()` — 3.
 
 #### crates/arawn-config/src/error.rs
 
@@ -3121,67 +3123,90 @@
 
 #### crates/arawn-llm/src/anthropic.rs
 
-- pub `AnthropicConfig` struct L51-69 — `{ api_key: String, base_url: String, api_version: String, timeout: Duration, max...` — Configuration for the Anthropic backend.
-- pub `new` function L73-82 — `(api_key: impl Into<String>) -> Self` — Create a new config with the given API key.
-- pub `from_env` function L85-90 — `() -> Result<Self>` — Create config from environment variable.
-- pub `with_base_url` function L93-96 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
-- pub `with_timeout` function L99-102 — `(mut self, timeout: Duration) -> Self` — Set request timeout.
-- pub `with_max_retries` function L105-108 — `(mut self, retries: u32) -> Self` — Set max retries.
-- pub `with_retry_backoff` function L111-114 — `(mut self, backoff: Duration) -> Self` — Set retry backoff.
-- pub `AnthropicBackend` struct L122-125 — `{ client: Client, config: AnthropicConfig }` — Anthropic API backend.
-- pub `new` function L129-136 — `(config: AnthropicConfig) -> Result<Self>` — Create a new Anthropic backend with the given configuration.
-- pub `from_env` function L139-141 — `() -> Result<Self>` — Create a backend from environment configuration.
-- pub `create_shared_backend` function L255-257 — `(config: AnthropicConfig) -> Result<Arc<dyn LlmBackend>>` — Create a shared Anthropic backend.
--  `DEFAULT_API_BASE` variable L19 — `: &str` — Default API base URL.
--  `DEFAULT_API_VERSION` variable L22 — `: &str` — Default API version.
--  `DEFAULT_TIMEOUT_SECS` variable L25 — `: u64` — Default timeout for requests.
--  `DEFAULT_MAX_RETRIES` variable L28 — `: u32` — Default maximum retries for transient errors.
--  `DEFAULT_RETRY_BACKOFF_MS` variable L31 — `: u64` — Default initial backoff between retries.
--  `AnthropicConfig` type L71-115 — `= AnthropicConfig` — Messages API for Claude completions.
--  `AnthropicBackend` type L127-201 — `= AnthropicBackend` — Messages API for Claude completions.
--  `messages_url` function L144-146 — `(&self) -> String` — Build the messages endpoint URL.
--  `add_headers` function L149-154 — `(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder` — Add authentication and API headers to a request.
--  `handle_response` function L157-167 — `(response: Response) -> Result<CompletionResponse>` — Handle a successful response.
--  `handle_error_response` function L170-200 — `(response: Response) -> LlmError` — Handle an error response.
--  `AnthropicBackend` type L204-252 — `impl LlmBackend for AnthropicBackend` — Messages API for Claude completions.
--  `complete` function L205-225 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — Messages API for Claude completions.
--  `complete_stream` function L227-243 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — Messages API for Claude completions.
--  `name` function L245-247 — `(&self) -> &str` — Messages API for Claude completions.
--  `supports_native_tools` function L249-251 — `(&self) -> bool` — Messages API for Claude completions.
--  `ApiResponse` struct L265-273 — `{ id: String, response_type: String, content: Vec<ApiContentBlock>, model: Strin...` — Internal API response structure.
--  `CompletionResponse` type L275-317 — `= CompletionResponse` — Messages API for Claude completions.
--  `from` function L276-316 — `(api: ApiResponse) -> Self` — Messages API for Claude completions.
--  `ApiContentBlock` enum L321-330 — `Text | ToolUse` — Messages API for Claude completions.
--  `ApiUsage` struct L333-338 — `{ input_tokens: u32, output_tokens: u32, cache_creation_input_tokens: Option<u32...` — Messages API for Claude completions.
--  `ApiError` struct L341-343 — `{ error: ApiErrorDetail }` — Messages API for Claude completions.
--  `ApiErrorDetail` struct L346-348 — `{ message: String }` — Messages API for Claude completions.
--  `parse_sse_stream` function L355-421 — `( byte_stream: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static, ) ->...` — Parse SSE events from a byte stream and convert to StreamEvents.
--  `SseState` struct L423-428 — `{ byte_stream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>, buffe...` — Messages API for Claude completions.
--  `parse_sse_line` function L430-438 — `(line: &str) -> Option<(&str, &str)>` — Messages API for Claude completions.
--  `parse_stream_event` function L440-519 — `(event_type: &str, data: &str) -> Option<StreamEvent>` — Messages API for Claude completions.
--  `MessageStartEvent` struct L526-528 — `{ message: MessageStartMessage }` — Messages API for Claude completions.
--  `MessageStartMessage` struct L531-534 — `{ id: String, model: String }` — Messages API for Claude completions.
--  `ContentBlockStartEvent` struct L537-540 — `{ index: usize, content_block: ContentBlockType }` — Messages API for Claude completions.
--  `ContentBlockType` struct L543-546 — `{ block_type: String }` — Messages API for Claude completions.
--  `ContentBlockDeltaEvent` struct L549-552 — `{ index: usize, delta: DeltaContent }` — Messages API for Claude completions.
--  `DeltaContent` enum L556-559 — `TextDelta | InputJsonDelta` — Messages API for Claude completions.
--  `ContentBlockStopEvent` struct L562-564 — `{ index: usize }` — Messages API for Claude completions.
--  `MessageDeltaEvent` struct L567-570 — `{ delta: MessageDelta, usage: MessageDeltaUsage }` — Messages API for Claude completions.
--  `MessageDelta` struct L573-575 — `{ stop_reason: Option<String> }` — Messages API for Claude completions.
--  `MessageDeltaUsage` struct L578-580 — `{ output_tokens: u32 }` — Messages API for Claude completions.
--  `StreamErrorEvent` struct L583-585 — `{ error: StreamErrorDetail }` — Messages API for Claude completions.
--  `StreamErrorDetail` struct L588-590 — `{ message: String }` — Messages API for Claude completions.
--  `tests` module L597-725 — `-` — Messages API for Claude completions.
--  `test_config_new` function L601-606 — `()` — Messages API for Claude completions.
--  `test_config_with_base_url` function L609-612 — `()` — Messages API for Claude completions.
--  `test_config_with_timeout` function L615-618 — `()` — Messages API for Claude completions.
--  `test_parse_sse_line` function L621-631 — `()` — Messages API for Claude completions.
--  `test_api_response_conversion` function L634-657 — `()` — Messages API for Claude completions.
--  `test_api_response_with_tool_use` function L660-693 — `()` — Messages API for Claude completions.
--  `test_messages_url` function L696-703 — `()` — Messages API for Claude completions.
--  `test_messages_url_custom_base` function L706-710 — `()` — Messages API for Claude completions.
--  `test_backend_name` function L713-717 — `()` — Messages API for Claude completions.
--  `test_supports_native_tools` function L720-724 — `()` — Messages API for Claude completions.
+- pub `AnthropicConfig` struct L52-70 — `{ api_key: ApiKeyProvider, base_url: String, api_version: String, timeout: Durat...` — Configuration for the Anthropic backend.
+- pub `new` function L74-83 — `(api_key: impl Into<String>) -> Self` — Create a new config with the given API key.
+- pub `from_env` function L86-91 — `() -> Result<Self>` — Create config from environment variable.
+- pub `with_base_url` function L94-97 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
+- pub `with_timeout` function L100-103 — `(mut self, timeout: Duration) -> Self` — Set request timeout.
+- pub `with_max_retries` function L106-109 — `(mut self, retries: u32) -> Self` — Set max retries.
+- pub `with_retry_backoff` function L112-115 — `(mut self, backoff: Duration) -> Self` — Set retry backoff.
+- pub `AnthropicBackend` struct L123-126 — `{ client: Client, config: AnthropicConfig }` — Anthropic API backend.
+- pub `new` function L130-137 — `(config: AnthropicConfig) -> Result<Self>` — Create a new Anthropic backend with the given configuration.
+- pub `from_env` function L140-142 — `() -> Result<Self>` — Create a backend from environment configuration.
+- pub `create_shared_backend` function L259-261 — `(config: AnthropicConfig) -> Result<Arc<dyn LlmBackend>>` — Create a shared Anthropic backend.
+-  `DEFAULT_API_BASE` variable L20 — `: &str` — Default API base URL.
+-  `DEFAULT_API_VERSION` variable L23 — `: &str` — Default API version.
+-  `DEFAULT_TIMEOUT_SECS` variable L26 — `: u64` — Default timeout for requests.
+-  `DEFAULT_MAX_RETRIES` variable L29 — `: u32` — Default maximum retries for transient errors.
+-  `DEFAULT_RETRY_BACKOFF_MS` variable L32 — `: u64` — Default initial backoff between retries.
+-  `AnthropicConfig` type L72-116 — `= AnthropicConfig` — Messages API for Claude completions.
+-  `AnthropicBackend` type L128-205 — `= AnthropicBackend` — Messages API for Claude completions.
+-  `messages_url` function L145-147 — `(&self) -> String` — Build the messages endpoint URL.
+-  `add_headers` function L150-158 — `(&self, builder: reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder>` — Add authentication and API headers to a request.
+-  `handle_response` function L161-171 — `(response: Response) -> Result<CompletionResponse>` — Handle a successful response.
+-  `handle_error_response` function L174-204 — `(response: Response) -> LlmError` — Handle an error response.
+-  `AnthropicBackend` type L208-256 — `impl LlmBackend for AnthropicBackend` — Messages API for Claude completions.
+-  `complete` function L209-229 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — Messages API for Claude completions.
+-  `complete_stream` function L231-247 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — Messages API for Claude completions.
+-  `name` function L249-251 — `(&self) -> &str` — Messages API for Claude completions.
+-  `supports_native_tools` function L253-255 — `(&self) -> bool` — Messages API for Claude completions.
+-  `ApiResponse` struct L269-277 — `{ id: String, response_type: String, content: Vec<ApiContentBlock>, model: Strin...` — Internal API response structure.
+-  `CompletionResponse` type L279-321 — `= CompletionResponse` — Messages API for Claude completions.
+-  `from` function L280-320 — `(api: ApiResponse) -> Self` — Messages API for Claude completions.
+-  `ApiContentBlock` enum L325-334 — `Text | ToolUse` — Messages API for Claude completions.
+-  `ApiUsage` struct L337-342 — `{ input_tokens: u32, output_tokens: u32, cache_creation_input_tokens: Option<u32...` — Messages API for Claude completions.
+-  `ApiError` struct L345-347 — `{ error: ApiErrorDetail }` — Messages API for Claude completions.
+-  `ApiErrorDetail` struct L350-352 — `{ message: String }` — Messages API for Claude completions.
+-  `parse_sse_stream` function L359-425 — `( byte_stream: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static, ) ->...` — Parse SSE events from a byte stream and convert to StreamEvents.
+-  `SseState` struct L427-432 — `{ byte_stream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>, buffe...` — Messages API for Claude completions.
+-  `parse_sse_line` function L434-442 — `(line: &str) -> Option<(&str, &str)>` — Messages API for Claude completions.
+-  `parse_stream_event` function L444-523 — `(event_type: &str, data: &str) -> Option<StreamEvent>` — Messages API for Claude completions.
+-  `MessageStartEvent` struct L530-532 — `{ message: MessageStartMessage }` — Messages API for Claude completions.
+-  `MessageStartMessage` struct L535-538 — `{ id: String, model: String }` — Messages API for Claude completions.
+-  `ContentBlockStartEvent` struct L541-544 — `{ index: usize, content_block: ContentBlockType }` — Messages API for Claude completions.
+-  `ContentBlockType` struct L547-550 — `{ block_type: String }` — Messages API for Claude completions.
+-  `ContentBlockDeltaEvent` struct L553-556 — `{ index: usize, delta: DeltaContent }` — Messages API for Claude completions.
+-  `DeltaContent` enum L560-563 — `TextDelta | InputJsonDelta` — Messages API for Claude completions.
+-  `ContentBlockStopEvent` struct L566-568 — `{ index: usize }` — Messages API for Claude completions.
+-  `MessageDeltaEvent` struct L571-574 — `{ delta: MessageDelta, usage: MessageDeltaUsage }` — Messages API for Claude completions.
+-  `MessageDelta` struct L577-579 — `{ stop_reason: Option<String> }` — Messages API for Claude completions.
+-  `MessageDeltaUsage` struct L582-584 — `{ output_tokens: u32 }` — Messages API for Claude completions.
+-  `StreamErrorEvent` struct L587-589 — `{ error: StreamErrorDetail }` — Messages API for Claude completions.
+-  `StreamErrorDetail` struct L592-594 — `{ message: String }` — Messages API for Claude completions.
+-  `tests` module L601-729 — `-` — Messages API for Claude completions.
+-  `test_config_new` function L605-610 — `()` — Messages API for Claude completions.
+-  `test_config_with_base_url` function L613-616 — `()` — Messages API for Claude completions.
+-  `test_config_with_timeout` function L619-622 — `()` — Messages API for Claude completions.
+-  `test_parse_sse_line` function L625-635 — `()` — Messages API for Claude completions.
+-  `test_api_response_conversion` function L638-661 — `()` — Messages API for Claude completions.
+-  `test_api_response_with_tool_use` function L664-697 — `()` — Messages API for Claude completions.
+-  `test_messages_url` function L700-707 — `()` — Messages API for Claude completions.
+-  `test_messages_url_custom_base` function L710-714 — `()` — Messages API for Claude completions.
+-  `test_backend_name` function L717-721 — `()` — Messages API for Claude completions.
+-  `test_supports_native_tools` function L724-728 — `()` — Messages API for Claude completions.
+
+#### crates/arawn-llm/src/api_key.rs
+
+- pub `ApiKeyProvider` enum L14-21 — `None | Static | Dynamic` — Provides API keys for LLM backends.
+- pub `resolve` function L25-31 — `(&self) -> Option<String>` — Resolve the current API key value.
+- pub `from_static` function L34-36 — `(key: impl Into<String>) -> Self` — Create a static provider from a string.
+- pub `dynamic` function L39-41 — `(resolver: impl Fn() -> Option<String> + Send + Sync + 'static) -> Self` — Create a dynamic provider from a closure.
+-  `ApiKeyProvider` type L23-42 — `= ApiKeyProvider` — on each request, enabling hot-loading of secrets without server restart.
+-  `ApiKeyProvider` type L44-52 — `= ApiKeyProvider` — on each request, enabling hot-loading of secrets without server restart.
+-  `fmt` function L45-51 — `(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result` — on each request, enabling hot-loading of secrets without server restart.
+-  `ApiKeyProvider` type L54-58 — `= ApiKeyProvider` — on each request, enabling hot-loading of secrets without server restart.
+-  `from` function L55-57 — `(s: String) -> Self` — on each request, enabling hot-loading of secrets without server restart.
+-  `ApiKeyProvider` type L60-67 — `= ApiKeyProvider` — on each request, enabling hot-loading of secrets without server restart.
+-  `from` function L61-66 — `(opt: Option<String>) -> Self` — on each request, enabling hot-loading of secrets without server restart.
+-  `tests` module L70-129 — `-` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_static_provider` function L74-77 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_none_provider` function L80-83 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_dynamic_provider` function L86-95 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_from_string` function L98-101 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_from_option_some` function L104-107 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_from_option_none` function L110-113 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_debug_redacts` function L116-121 — `()` — on each request, enabling hot-loading of secrets without server restart.
+-  `test_clone` function L124-128 — `()` — on each request, enabling hot-loading of secrets without server restart.
 
 #### crates/arawn-llm/src/backend.rs
 
@@ -3293,76 +3318,76 @@
 
 #### crates/arawn-llm/src/embeddings.rs
 
-- pub `Embedder` interface L29-50 — `{ fn embed(), fn embed_batch(), fn dimensions(), fn name() }` — Trait for generating text embeddings.
-- pub `SharedEmbedder` type L53 — `= Arc<dyn Embedder>` — A shared embedder that can be used across threads.
-- pub `MockEmbedder` struct L64-66 — `{ dimensions: usize }` — A mock embedder for testing purposes.
-- pub `new` function L70-72 — `(dimensions: usize) -> Self` — Create a new mock embedder with the specified dimensions.
-- pub `default_dimensions` function L75-77 — `() -> Self` — Create a mock embedder with 384 dimensions (same as all-MiniLM-L6-v2).
-- pub `OpenAiEmbedderConfig` struct L139-152 — `{ api_key: String, base_url: String, model: String, timeout: Duration, dimension...` — Configuration for OpenAI embeddings.
-- pub `new` function L156-164 — `(api_key: impl Into<String>) -> Self` — Create a new config with the given API key.
-- pub `from_env` function L167-174 — `() -> Result<Self>` — Create config from environment variable.
-- pub `with_base_url` function L177-180 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
-- pub `with_model` function L183-186 — `(mut self, model: impl Into<String>) -> Self` — Set the model to use.
-- pub `with_dimensions` function L189-192 — `(mut self, dimensions: usize) -> Self` — Override output dimensions.
-- pub `OpenAiEmbedder` struct L196-200 — `{ client: Client, config: OpenAiEmbedderConfig, dimensions: usize }` — OpenAI embeddings API client.
-- pub `new` function L204-227 — `(config: OpenAiEmbedderConfig) -> Result<Self>` — Create a new OpenAI embedder.
-- pub `from_env` function L230-232 — `() -> Result<Self>` — Create from environment configuration.
-- pub `local` module L315-564 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
-- pub `LocalEmbedder` struct L333-338 — `{ session: Mutex<Session>, tokenizer: Tokenizer, dimensions: usize, name: String...` — Local embedder using ONNX Runtime.
-- pub `load` function L347-389 — `( model_path: impl AsRef<Path>, tokenizer_path: impl AsRef<Path>, dimensions: us...` — Load a local embedder from model files.
-- pub `EmbedderSpec` struct L575-594 — `{ provider: String, openai_api_key: Option<String>, openai_model: Option<String>...` — Configuration for building an embedder from application config.
-- pub `build_embedder` function L603-683 — `(spec: &EmbedderSpec) -> Result<SharedEmbedder>` — Build a `SharedEmbedder` from a spec.
-- pub `DEFAULT_EMBEDDING_MODEL_URL` variable L696-697 — `: &str` — Default HuggingFace model URL for all-MiniLM-L6-v2 ONNX model.
-- pub `DEFAULT_EMBEDDING_TOKENIZER_URL` variable L699-700 — `: &str` — Default HuggingFace tokenizer URL for all-MiniLM-L6-v2.
-- pub `DEFAULT_NER_MODEL_URL` variable L703-704 — `: &str` — Default HuggingFace model URL for GLiNER small v2.1 (span mode).
-- pub `DEFAULT_NER_TOKENIZER_URL` variable L706-707 — `: &str` — Default HuggingFace tokenizer URL for GLiNER small v2.1.
-- pub `default_ner_model_dir` function L763-765 — `() -> Option<std::path::PathBuf>` — Default directory for NER (GLiNER) model files.
-- pub `ensure_ner_model_files` function L771-816 — `( model_url: Option<&str>, tokenizer_url: Option<&str>, ) -> Option<(std::path::...` — Download NER (GLiNER) model files if they don't exist.
-- pub `download_file` function L819-856 — `(url: &str, path: &std::path::Path) -> Result<()>` — Download a file from URL to path.
-- pub `cosine_similarity` function L863-877 — `(a: &[f32], b: &[f32]) -> f32` — Calculate cosine similarity between two embeddings.
-- pub `euclidean_distance` function L880-890 — `(a: &[f32], b: &[f32]) -> f32` — Calculate Euclidean distance between two embeddings.
--  `embed_batch` function L37-43 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — Generate embeddings for multiple texts in a batch.
--  `MockEmbedder` type L68-78 — `= MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `MockEmbedder` type L80-84 — `impl Default for MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `default` function L81-83 — `() -> Self` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `MockEmbedder` type L87-119 — `impl Embedder for MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embed` function L88-110 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `dimensions` function L112-114 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `name` function L116-118 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `simple_hash` function L122-128 — `(s: &str) -> u64` — Simple hash function for deterministic embedding generation.
--  `OpenAiEmbedderConfig` type L154-193 — `= OpenAiEmbedderConfig` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `OpenAiEmbedder` type L202-237 — `= OpenAiEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embeddings_url` function L234-236 — `(&self) -> String` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `OpenAiEmbedder` type L240-291 — `impl Embedder for OpenAiEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embed` function L241-247 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embed_batch` function L249-282 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `dimensions` function L284-286 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `name` function L288-290 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `EmbeddingRequest` struct L294-297 — `{ model: String, input: Vec<String> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `EmbeddingResponse` struct L300-302 — `{ data: Vec<EmbeddingData> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `EmbeddingData` struct L305-308 — `{ index: usize, embedding: Vec<f32> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `LocalEmbedder` type L340-390 — `= LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `LocalEmbedder` type L393-435 — `impl Embedder for LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embed` function L394-399 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `embed_batch` function L401-426 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `dimensions` function L428-430 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `name` function L432-434 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `LocalEmbedder` type L437-563 — `= LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `run_batch` function L442-562 — `(&self, encodings: &[tokenizers::Encoding]) -> Result<Vec<Vec<f32>>>` — Run ONNX inference on a batch of encodings.
--  `default_local_model_dir` function L687-689 — `() -> Option<std::path::PathBuf>` — Default directory for local embedding model files.
--  `ensure_model_files` function L714-760 — `( model_url: Option<&str>, tokenizer_url: Option<&str>, ) -> Option<std::path::P...` — Download embedding model files if they don't exist.
--  `tests` module L897-1022 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_mock_embedder` function L901-912 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_mock_embedder_deterministic` function L915-923 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_mock_embedder_different_texts` function L926-934 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_embed_batch` function L937-947 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_cosine_similarity` function L950-960 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_euclidean_distance` function L963-970 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_openai_embedder_config` function L973-977 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_openai_embedder_config_builder` function L980-988 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_openai_embedder_dimensions_from_model_lookup` function L991-1001 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_openai_embedder_dimensions_override` function L1004-1011 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
--  `test_openai_embedder_dimensions_override_unknown_model` function L1014-1021 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+- pub `Embedder` interface L30-51 — `{ fn embed(), fn embed_batch(), fn dimensions(), fn name() }` — Trait for generating text embeddings.
+- pub `SharedEmbedder` type L54 — `= Arc<dyn Embedder>` — A shared embedder that can be used across threads.
+- pub `MockEmbedder` struct L65-67 — `{ dimensions: usize }` — A mock embedder for testing purposes.
+- pub `new` function L71-73 — `(dimensions: usize) -> Self` — Create a new mock embedder with the specified dimensions.
+- pub `default_dimensions` function L76-78 — `() -> Self` — Create a mock embedder with 384 dimensions (same as all-MiniLM-L6-v2).
+- pub `OpenAiEmbedderConfig` struct L140-153 — `{ api_key: ApiKeyProvider, base_url: String, model: String, timeout: Duration, d...` — Configuration for OpenAI embeddings.
+- pub `new` function L157-165 — `(api_key: impl Into<String>) -> Self` — Create a new config with the given API key.
+- pub `from_env` function L168-175 — `() -> Result<Self>` — Create config from environment variable.
+- pub `with_base_url` function L178-181 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
+- pub `with_model` function L184-187 — `(mut self, model: impl Into<String>) -> Self` — Set the model to use.
+- pub `with_dimensions` function L190-193 — `(mut self, dimensions: usize) -> Self` — Override output dimensions.
+- pub `OpenAiEmbedder` struct L197-201 — `{ client: Client, config: OpenAiEmbedderConfig, dimensions: usize }` — OpenAI embeddings API client.
+- pub `new` function L205-228 — `(config: OpenAiEmbedderConfig) -> Result<Self>` — Create a new OpenAI embedder.
+- pub `from_env` function L231-233 — `() -> Result<Self>` — Create from environment configuration.
+- pub `local` module L321-570 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+- pub `LocalEmbedder` struct L339-344 — `{ session: Mutex<Session>, tokenizer: Tokenizer, dimensions: usize, name: String...` — Local embedder using ONNX Runtime.
+- pub `load` function L353-395 — `( model_path: impl AsRef<Path>, tokenizer_path: impl AsRef<Path>, dimensions: us...` — Load a local embedder from model files.
+- pub `EmbedderSpec` struct L581-600 — `{ provider: String, openai_api_key: Option<String>, openai_model: Option<String>...` — Configuration for building an embedder from application config.
+- pub `build_embedder` function L609-689 — `(spec: &EmbedderSpec) -> Result<SharedEmbedder>` — Build a `SharedEmbedder` from a spec.
+- pub `DEFAULT_EMBEDDING_MODEL_URL` variable L702-703 — `: &str` — Default HuggingFace model URL for all-MiniLM-L6-v2 ONNX model.
+- pub `DEFAULT_EMBEDDING_TOKENIZER_URL` variable L705-706 — `: &str` — Default HuggingFace tokenizer URL for all-MiniLM-L6-v2.
+- pub `DEFAULT_NER_MODEL_URL` variable L709-710 — `: &str` — Default HuggingFace model URL for GLiNER small v2.1 (span mode).
+- pub `DEFAULT_NER_TOKENIZER_URL` variable L712-713 — `: &str` — Default HuggingFace tokenizer URL for GLiNER small v2.1.
+- pub `default_ner_model_dir` function L769-771 — `() -> Option<std::path::PathBuf>` — Default directory for NER (GLiNER) model files.
+- pub `ensure_ner_model_files` function L777-822 — `( model_url: Option<&str>, tokenizer_url: Option<&str>, ) -> Option<(std::path::...` — Download NER (GLiNER) model files if they don't exist.
+- pub `download_file` function L825-862 — `(url: &str, path: &std::path::Path) -> Result<()>` — Download a file from URL to path.
+- pub `cosine_similarity` function L869-883 — `(a: &[f32], b: &[f32]) -> f32` — Calculate cosine similarity between two embeddings.
+- pub `euclidean_distance` function L886-896 — `(a: &[f32], b: &[f32]) -> f32` — Calculate Euclidean distance between two embeddings.
+-  `embed_batch` function L38-44 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — Generate embeddings for multiple texts in a batch.
+-  `MockEmbedder` type L69-79 — `= MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `MockEmbedder` type L81-85 — `impl Default for MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `default` function L82-84 — `() -> Self` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `MockEmbedder` type L88-120 — `impl Embedder for MockEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embed` function L89-111 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `dimensions` function L113-115 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `name` function L117-119 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `simple_hash` function L123-129 — `(s: &str) -> u64` — Simple hash function for deterministic embedding generation.
+-  `OpenAiEmbedderConfig` type L155-194 — `= OpenAiEmbedderConfig` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `OpenAiEmbedder` type L203-238 — `= OpenAiEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embeddings_url` function L235-237 — `(&self) -> String` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `OpenAiEmbedder` type L241-297 — `impl Embedder for OpenAiEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embed` function L242-248 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embed_batch` function L250-288 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `dimensions` function L290-292 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `name` function L294-296 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `EmbeddingRequest` struct L300-303 — `{ model: String, input: Vec<String> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `EmbeddingResponse` struct L306-308 — `{ data: Vec<EmbeddingData> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `EmbeddingData` struct L311-314 — `{ index: usize, embedding: Vec<f32> }` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `LocalEmbedder` type L346-396 — `= LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `LocalEmbedder` type L399-441 — `impl Embedder for LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embed` function L400-405 — `(&self, text: &str) -> Result<Vec<f32>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `embed_batch` function L407-432 — `(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `dimensions` function L434-436 — `(&self) -> usize` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `name` function L438-440 — `(&self) -> &str` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `LocalEmbedder` type L443-569 — `= LocalEmbedder` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `run_batch` function L448-568 — `(&self, encodings: &[tokenizers::Encoding]) -> Result<Vec<Vec<f32>>>` — Run ONNX inference on a batch of encodings.
+-  `default_local_model_dir` function L693-695 — `() -> Option<std::path::PathBuf>` — Default directory for local embedding model files.
+-  `ensure_model_files` function L720-766 — `( model_url: Option<&str>, tokenizer_url: Option<&str>, ) -> Option<std::path::P...` — Download embedding model files if they don't exist.
+-  `tests` module L903-1028 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder` function L907-918 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder_deterministic` function L921-929 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder_different_texts` function L932-940 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_embed_batch` function L943-953 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_cosine_similarity` function L956-966 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_euclidean_distance` function L969-976 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_config` function L979-983 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_config_builder` function L986-994 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_dimensions_from_model_lookup` function L997-1007 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_dimensions_override` function L1010-1017 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_dimensions_override_unknown_model` function L1020-1027 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 
 #### crates/arawn-llm/src/error.rs
 
@@ -3452,86 +3477,87 @@
 
 #### crates/arawn-llm/src/lib.rs
 
-- pub `backend` module L25 — `-` — This crate provides a unified interface for interacting with various LLM providers
-- pub `client` module L26 — `-` — ```
-- pub `embeddings` module L27 — `-` — ```
-- pub `error` module L28 — `-` — ```
-- pub `interaction_log` module L29 — `-` — ```
-- pub `types` module L30 — `-` — ```
-- pub `anthropic` module L33 — `-` — ```
-- pub `openai` module L34 — `-` — ```
+- pub `api_key` module L25 — `-` — This crate provides a unified interface for interacting with various LLM providers
+- pub `backend` module L26 — `-` — ```
+- pub `client` module L27 — `-` — ```
+- pub `embeddings` module L28 — `-` — ```
+- pub `error` module L29 — `-` — ```
+- pub `interaction_log` module L30 — `-` — ```
+- pub `types` module L31 — `-` — ```
+- pub `anthropic` module L34 — `-` — ```
+- pub `openai` module L35 — `-` — ```
 
 #### crates/arawn-llm/src/openai.rs
 
-- pub `OpenAiConfig` struct L53-74 — `{ api_key: Option<String>, base_url: String, model: Option<String>, timeout: Dur...` — Configuration for the OpenAI-compatible backend.
-- pub `openai` function L78-88 — `(api_key: impl Into<String>) -> Self` — Create a new config for OpenAI.
-- pub `groq` function L91-101 — `(api_key: impl Into<String>) -> Self` — Create a new config for Groq.
-- pub `ollama` function L104-114 — `() -> Self` — Create a new config for Ollama (local).
-- pub `openai_from_env` function L117-122 — `() -> Result<Self>` — Create config from environment for OpenAI.
-- pub `groq_from_env` function L125-130 — `() -> Result<Self>` — Create config from environment for Groq.
-- pub `with_base_url` function L133-136 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
-- pub `with_model` function L139-142 — `(mut self, model: impl Into<String>) -> Self` — Set the default model.
-- pub `with_name` function L145-148 — `(mut self, name: impl Into<String>) -> Self` — Set the backend name.
-- pub `with_timeout` function L151-154 — `(mut self, timeout: Duration) -> Self` — Set request timeout.
-- pub `with_max_retries` function L157-160 — `(mut self, retries: u32) -> Self` — Set max retries.
-- pub `with_retry_backoff` function L163-166 — `(mut self, backoff: Duration) -> Self` — Set retry backoff.
-- pub `OpenAiBackend` struct L174-177 — `{ client: Client, config: OpenAiConfig }` — OpenAI-compatible API backend.
-- pub `new` function L181-188 — `(config: OpenAiConfig) -> Result<Self>` — Create a new OpenAI-compatible backend with the given configuration.
-- pub `openai_from_env` function L191-193 — `() -> Result<Self>` — Create an OpenAI backend from environment.
-- pub `groq_from_env` function L196-198 — `() -> Result<Self>` — Create a Groq backend from environment.
-- pub `ollama` function L201-203 — `() -> Result<Self>` — Create an Ollama backend with default local settings.
-- pub `create_shared_backend` function L495-497 — `(config: OpenAiConfig) -> Result<Arc<dyn LlmBackend>>` — Create a shared OpenAI-compatible backend.
--  `DEFAULT_OPENAI_BASE` variable L21 — `: &str` — Default OpenAI API base URL.
--  `DEFAULT_TIMEOUT_SECS` variable L24 — `: u64` — Default timeout for requests.
--  `DEFAULT_MAX_RETRIES` variable L27 — `: u32` — Default maximum retries for transient errors.
--  `DEFAULT_RETRY_BACKOFF_MS` variable L30 — `: u64` — Default initial backoff between retries.
--  `OpenAiConfig` type L76-167 — `= OpenAiConfig` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiBackend` type L179-431 — `= OpenAiBackend` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `completions_url` function L206-208 — `(&self) -> String` — Build the chat completions endpoint URL.
--  `add_headers` function L211-219 — `(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder` — Add authentication headers to a request.
--  `to_openai_request` function L222-376 — `(&self, request: &CompletionRequest) -> OpenAiChatRequest` — Convert our CompletionRequest to OpenAI-compatible format.
--  `handle_response` function L379-389 — `(response: Response) -> Result<CompletionResponse>` — Handle a successful response.
--  `handle_error_response` function L392-430 — `(response: Response) -> LlmError` — Handle an error response.
--  `OpenAiBackend` type L434-492 — `impl LlmBackend for OpenAiBackend` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `complete` function L435-464 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `complete_stream` function L466-483 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `name` function L485-487 — `(&self) -> &str` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `supports_native_tools` function L489-491 — `(&self) -> bool` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiChatRequest` struct L504-519 — `{ model: String, messages: Vec<OpenAiMessage>, max_tokens: Option<u32>, temperat...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiMessage` struct L522-530 — `{ role: String, content: Option<OpenAiContent>, tool_calls: Option<Vec<OpenAiToo...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiContent` enum L534-536 — `Text` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiTool` struct L539-543 — `{ tool_type: String, function: OpenAiFunction }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiFunction` struct L546-551 — `{ name: String, description: Option<String>, parameters: serde_json::Value }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiToolCall` struct L554-559 — `{ id: String, call_type: String, function: OpenAiFunctionCall }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiFunctionCall` struct L562-565 — `{ name: String, arguments: String }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiChatResponse` struct L568-573 — `{ id: String, choices: Vec<OpenAiChoice>, model: String, usage: Option<OpenAiUsa...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `CompletionResponse` type L575-638 — `= CompletionResponse` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `from` function L576-637 — `(resp: OpenAiChatResponse) -> Self` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiChoice` struct L641-644 — `{ message: OpenAiResponseMessage, finish_reason: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiResponseMessage` struct L647-650 — `{ content: Option<String>, tool_calls: Option<Vec<OpenAiToolCall>> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiUsage` struct L653-656 — `{ prompt_tokens: u32, completion_tokens: u32 }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiErrorResponse` struct L659-661 — `{ error: OpenAiError }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiError` struct L664-666 — `{ message: String }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `parse_openai_sse_stream` function L672-793 — `( byte_stream: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static, ) ->...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiSseState` struct L795-802 — `{ byte_stream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>, buffe...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiStreamChunk` struct L805-809 — `{ id: String, model: String, choices: Vec<OpenAiStreamChoice> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiStreamChoice` struct L812-815 — `{ delta: Option<OpenAiStreamDelta>, finish_reason: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiStreamDelta` struct L818-821 — `{ content: Option<String>, tool_calls: Option<Vec<OpenAiStreamToolCall>> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiStreamToolCall` struct L824-827 — `{ index: Option<usize>, function: Option<OpenAiStreamFunction> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `OpenAiStreamFunction` struct L830-832 — `{ arguments: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `tests` module L839-1001 — `-` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_openai_config` function L844-849 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_groq_config` function L852-858 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_ollama_config` function L861-867 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_config_builder` function L870-881 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_completions_url` function L884-891 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_groq_completions_url` function L894-901 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_ollama_completions_url` function L904-911 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_backend_name` function L914-918 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_supports_native_tools` function L921-925 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_openai_response_conversion` function L928-951 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_openai_response_with_tool_calls` function L954-985 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
--  `test_to_openai_request` function L988-1000 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+- pub `OpenAiConfig` struct L54-75 — `{ api_key: ApiKeyProvider, base_url: String, model: Option<String>, timeout: Dur...` — Configuration for the OpenAI-compatible backend.
+- pub `openai` function L79-89 — `(api_key: impl Into<String>) -> Self` — Create a new config for OpenAI.
+- pub `groq` function L92-102 — `(api_key: impl Into<String>) -> Self` — Create a new config for Groq.
+- pub `ollama` function L105-115 — `() -> Self` — Create a new config for Ollama (local).
+- pub `openai_from_env` function L118-123 — `() -> Result<Self>` — Create config from environment for OpenAI.
+- pub `groq_from_env` function L126-131 — `() -> Result<Self>` — Create config from environment for Groq.
+- pub `with_base_url` function L134-137 — `(mut self, url: impl Into<String>) -> Self` — Set a custom base URL.
+- pub `with_model` function L140-143 — `(mut self, model: impl Into<String>) -> Self` — Set the default model.
+- pub `with_name` function L146-149 — `(mut self, name: impl Into<String>) -> Self` — Set the backend name.
+- pub `with_timeout` function L152-155 — `(mut self, timeout: Duration) -> Self` — Set request timeout.
+- pub `with_max_retries` function L158-161 — `(mut self, retries: u32) -> Self` — Set max retries.
+- pub `with_retry_backoff` function L164-167 — `(mut self, backoff: Duration) -> Self` — Set retry backoff.
+- pub `OpenAiBackend` struct L175-178 — `{ client: Client, config: OpenAiConfig }` — OpenAI-compatible API backend.
+- pub `new` function L182-189 — `(config: OpenAiConfig) -> Result<Self>` — Create a new OpenAI-compatible backend with the given configuration.
+- pub `openai_from_env` function L192-194 — `() -> Result<Self>` — Create an OpenAI backend from environment.
+- pub `groq_from_env` function L197-199 — `() -> Result<Self>` — Create a Groq backend from environment.
+- pub `ollama` function L202-204 — `() -> Result<Self>` — Create an Ollama backend with default local settings.
+- pub `create_shared_backend` function L496-498 — `(config: OpenAiConfig) -> Result<Arc<dyn LlmBackend>>` — Create a shared OpenAI-compatible backend.
+-  `DEFAULT_OPENAI_BASE` variable L22 — `: &str` — Default OpenAI API base URL.
+-  `DEFAULT_TIMEOUT_SECS` variable L25 — `: u64` — Default timeout for requests.
+-  `DEFAULT_MAX_RETRIES` variable L28 — `: u32` — Default maximum retries for transient errors.
+-  `DEFAULT_RETRY_BACKOFF_MS` variable L31 — `: u64` — Default initial backoff between retries.
+-  `OpenAiConfig` type L77-168 — `= OpenAiConfig` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiBackend` type L180-432 — `= OpenAiBackend` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `completions_url` function L207-209 — `(&self) -> String` — Build the chat completions endpoint URL.
+-  `add_headers` function L212-220 — `(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder` — Add authentication headers to a request.
+-  `to_openai_request` function L223-377 — `(&self, request: &CompletionRequest) -> OpenAiChatRequest` — Convert our CompletionRequest to OpenAI-compatible format.
+-  `handle_response` function L380-390 — `(response: Response) -> Result<CompletionResponse>` — Handle a successful response.
+-  `handle_error_response` function L393-431 — `(response: Response) -> LlmError` — Handle an error response.
+-  `OpenAiBackend` type L435-493 — `impl LlmBackend for OpenAiBackend` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `complete` function L436-465 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `complete_stream` function L467-484 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `name` function L486-488 — `(&self) -> &str` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `supports_native_tools` function L490-492 — `(&self) -> bool` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiChatRequest` struct L505-520 — `{ model: String, messages: Vec<OpenAiMessage>, max_tokens: Option<u32>, temperat...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiMessage` struct L523-531 — `{ role: String, content: Option<OpenAiContent>, tool_calls: Option<Vec<OpenAiToo...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiContent` enum L535-537 — `Text` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiTool` struct L540-544 — `{ tool_type: String, function: OpenAiFunction }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiFunction` struct L547-552 — `{ name: String, description: Option<String>, parameters: serde_json::Value }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiToolCall` struct L555-560 — `{ id: String, call_type: String, function: OpenAiFunctionCall }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiFunctionCall` struct L563-566 — `{ name: String, arguments: String }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiChatResponse` struct L569-574 — `{ id: String, choices: Vec<OpenAiChoice>, model: String, usage: Option<OpenAiUsa...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `CompletionResponse` type L576-639 — `= CompletionResponse` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `from` function L577-638 — `(resp: OpenAiChatResponse) -> Self` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiChoice` struct L642-645 — `{ message: OpenAiResponseMessage, finish_reason: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiResponseMessage` struct L648-651 — `{ content: Option<String>, tool_calls: Option<Vec<OpenAiToolCall>> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiUsage` struct L654-657 — `{ prompt_tokens: u32, completion_tokens: u32 }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiErrorResponse` struct L660-662 — `{ error: OpenAiError }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiError` struct L665-667 — `{ message: String }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `parse_openai_sse_stream` function L673-794 — `( byte_stream: impl Stream<Item = reqwest::Result<Bytes>> + Send + 'static, ) ->...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiSseState` struct L796-803 — `{ byte_stream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>, buffe...` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiStreamChunk` struct L806-810 — `{ id: String, model: String, choices: Vec<OpenAiStreamChoice> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiStreamChoice` struct L813-816 — `{ delta: Option<OpenAiStreamDelta>, finish_reason: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiStreamDelta` struct L819-822 — `{ content: Option<String>, tool_calls: Option<Vec<OpenAiStreamToolCall>> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiStreamToolCall` struct L825-828 — `{ index: Option<usize>, function: Option<OpenAiStreamFunction> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `OpenAiStreamFunction` struct L831-833 — `{ arguments: Option<String> }` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `tests` module L840-1002 — `-` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_openai_config` function L845-850 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_groq_config` function L853-859 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_ollama_config` function L862-868 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_config_builder` function L871-882 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_completions_url` function L885-892 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_groq_completions_url` function L895-902 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_ollama_completions_url` function L905-912 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_backend_name` function L915-919 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_supports_native_tools` function L922-926 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_openai_response_conversion` function L929-952 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_openai_response_with_tool_calls` function L955-986 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
+-  `test_to_openai_request` function L989-1001 — `()` — or any OpenAI-compatible service (Groq, Ollama, local LLMs, etc.).
 
 #### crates/arawn-llm/src/types.rs
 
@@ -7313,18 +7339,18 @@
 - pub `WorkstreamFsGate` struct L23-29 — `{ path_validator: PathValidator, sandbox_manager: Arc<SandboxManager>, working_d...` — Filesystem gate scoped to a workstream.
 - pub `new` function L37-59 — `( dm: &DirectoryManager, sandbox: Arc<SandboxManager>, workstream_id: &str, sess...` — Create a gate for a specific workstream and session.
 -  `WorkstreamFsGate` type L31-60 — `= WorkstreamFsGate` — boundaries for all agent tool execution.
--  `WorkstreamFsGate` type L63-136 — `impl FsGate for WorkstreamFsGate` — boundaries for all agent tool execution.
+-  `WorkstreamFsGate` type L63-142 — `impl FsGate for WorkstreamFsGate` — boundaries for all agent tool execution.
 -  `validate_read` function L64-84 — `(&self, path: &Path) -> Result<PathBuf, FsGateError>` — boundaries for all agent tool execution.
 -  `validate_write` function L86-104 — `(&self, path: &Path) -> Result<PathBuf, FsGateError>` — boundaries for all agent tool execution.
 -  `working_dir` function L106-108 — `(&self) -> &Path` — boundaries for all agent tool execution.
--  `sandbox_execute` function L110-135 — `( &self, command: &str, timeout: Option<Duration>, ) -> Result<SandboxOutput, Fs...` — boundaries for all agent tool execution.
--  `tests` module L139-255 — `-` — boundaries for all agent tool execution.
--  `test_named_workstream_gate_allows_workstream_paths` function L144-165 — `()` — boundaries for all agent tool execution.
--  `test_named_workstream_gate_allows_production_paths` function L168-181 — `()` — boundaries for all agent tool execution.
--  `test_named_workstream_gate_denies_outside_paths` function L184-197 — `()` — boundaries for all agent tool execution.
--  `test_scratch_gate_isolates_sessions` function L200-229 — `()` — boundaries for all agent tool execution.
--  `test_working_dir_named_workstream` function L232-240 — `()` — boundaries for all agent tool execution.
--  `test_working_dir_scratch` function L243-254 — `()` — boundaries for all agent tool execution.
+-  `sandbox_execute` function L110-141 — `( &self, command: &str, timeout: Option<Duration>, ) -> Result<SandboxOutput, Fs...` — boundaries for all agent tool execution.
+-  `tests` module L145-261 — `-` — boundaries for all agent tool execution.
+-  `test_named_workstream_gate_allows_workstream_paths` function L150-171 — `()` — boundaries for all agent tool execution.
+-  `test_named_workstream_gate_allows_production_paths` function L174-187 — `()` — boundaries for all agent tool execution.
+-  `test_named_workstream_gate_denies_outside_paths` function L190-203 — `()` — boundaries for all agent tool execution.
+-  `test_scratch_gate_isolates_sessions` function L206-235 — `()` — boundaries for all agent tool execution.
+-  `test_working_dir_named_workstream` function L238-246 — `()` — boundaries for all agent tool execution.
+-  `test_working_dir_scratch` function L249-260 — `()` — boundaries for all agent tool execution.
 
 #### crates/arawn-workstream/src/lib.rs
 

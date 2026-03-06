@@ -15,6 +15,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
+use crate::api_key::ApiKeyProvider;
 use crate::error::Result;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,8 +138,8 @@ use std::time::Duration;
 /// Configuration for OpenAI embeddings.
 #[derive(Debug, Clone)]
 pub struct OpenAiEmbedderConfig {
-    /// API key for authentication.
-    pub api_key: String,
+    /// API key for authentication. Supports hot-loading via `ApiKeyProvider::Dynamic`.
+    pub api_key: ApiKeyProvider,
     /// Base URL for the API.
     pub base_url: String,
     /// Model to use for embeddings.
@@ -155,7 +156,7 @@ impl OpenAiEmbedderConfig {
     /// Create a new config with the given API key.
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: api_key.into(),
+            api_key: ApiKeyProvider::from_static(api_key),
             base_url: "https://api.openai.com/v1".to_string(),
             model: "text-embedding-3-small".to_string(),
             timeout: Duration::from_secs(60),
@@ -252,10 +253,15 @@ impl Embedder for OpenAiEmbedder {
             input: texts.iter().map(|s| s.to_string()).collect(),
         };
 
+        let api_key = self.config.api_key.resolve().ok_or_else(|| {
+            crate::error::LlmError::Auth(
+                "OpenAI embedding API key not available.".to_string(),
+            )
+        })?;
         let response = self
             .client
             .post(self.embeddings_url())
-            .header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
@@ -972,7 +978,7 @@ mod tests {
     #[test]
     fn test_openai_embedder_config() {
         let config = OpenAiEmbedderConfig::new("test-key");
-        assert_eq!(config.api_key, "test-key");
+        assert_eq!(config.api_key.resolve(), Some("test-key".to_string()));
         assert_eq!(config.model, "text-embedding-3-small");
     }
 

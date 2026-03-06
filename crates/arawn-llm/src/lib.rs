@@ -22,6 +22,7 @@
 //! └────────┘   └──────────┘   └────────┘
 //! ```
 
+pub mod api_key;
 pub mod backend;
 pub mod client;
 pub mod embeddings;
@@ -33,6 +34,7 @@ pub mod types;
 pub mod anthropic;
 pub mod openai;
 
+pub use api_key::ApiKeyProvider;
 pub use backend::{ContentDelta, LlmBackend, ResponseStream, SharedBackend, StreamEvent};
 #[cfg(any(test, feature = "testing"))]
 pub use backend::{MockBackend, MockResponse};

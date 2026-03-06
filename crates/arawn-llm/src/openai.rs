@@ -11,6 +11,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::api_key::ApiKeyProvider;
 use crate::backend::{ContentDelta, LlmBackend, ResponseStream, StreamEvent, with_retry};
 use crate::error::{LlmError, Result};
 use crate::types::{
@@ -51,8 +52,8 @@ const DEFAULT_RETRY_BACKOFF_MS: u64 = 500;
 /// ```
 #[derive(Debug, Clone)]
 pub struct OpenAiConfig {
-    /// API key for authentication (optional for local services like Ollama).
-    pub api_key: Option<String>,
+    /// API key for authentication. Supports hot-loading via `ApiKeyProvider::Dynamic`.
+    pub api_key: ApiKeyProvider,
 
     /// Base URL for the API.
     pub base_url: String,
@@ -77,7 +78,7 @@ impl OpenAiConfig {
     /// Create a new config for OpenAI.
     pub fn openai(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: Some(api_key.into()),
+            api_key: ApiKeyProvider::from_static(api_key),
             base_url: DEFAULT_OPENAI_BASE.to_string(),
             model: None,
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
@@ -90,7 +91,7 @@ impl OpenAiConfig {
     /// Create a new config for Groq.
     pub fn groq(api_key: impl Into<String>) -> Self {
         Self {
-            api_key: Some(api_key.into()),
+            api_key: ApiKeyProvider::from_static(api_key),
             base_url: "https://api.groq.com/openai/v1".to_string(),
             model: Some("llama-3.1-70b-versatile".to_string()),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
@@ -103,7 +104,7 @@ impl OpenAiConfig {
     /// Create a new config for Ollama (local).
     pub fn ollama() -> Self {
         Self {
-            api_key: None,
+            api_key: ApiKeyProvider::None,
             base_url: "http://localhost:11434/v1".to_string(),
             model: None,
             timeout: Duration::from_secs(600), // Longer timeout for local inference
@@ -211,7 +212,7 @@ impl OpenAiBackend {
     fn add_headers(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         let builder = builder.header(header::CONTENT_TYPE, "application/json");
 
-        if let Some(ref api_key) = self.config.api_key {
+        if let Some(api_key) = self.config.api_key.resolve() {
             builder.header(header::AUTHORIZATION, format!("Bearer {}", api_key))
         } else {
             builder
@@ -843,7 +844,7 @@ mod tests {
     #[test]
     fn test_openai_config() {
         let config = OpenAiConfig::openai("test-key");
-        assert_eq!(config.api_key, Some("test-key".to_string()));
+        assert_eq!(config.api_key.resolve(), Some("test-key".to_string()));
         assert_eq!(config.base_url, DEFAULT_OPENAI_BASE);
         assert_eq!(config.name, "openai");
     }
@@ -851,7 +852,7 @@ mod tests {
     #[test]
     fn test_groq_config() {
         let config = OpenAiConfig::groq("test-key");
-        assert_eq!(config.api_key, Some("test-key".to_string()));
+        assert_eq!(config.api_key.resolve(), Some("test-key".to_string()));
         assert!(config.base_url.contains("groq.com"));
         assert_eq!(config.name, "groq");
         assert!(config.model.is_some());
@@ -860,7 +861,7 @@ mod tests {
     #[test]
     fn test_ollama_config() {
         let config = OpenAiConfig::ollama();
-        assert!(config.api_key.is_none());
+        assert!(config.api_key.resolve().is_none());
         assert!(config.base_url.contains("localhost"));
         assert_eq!(config.name, "ollama");
         assert_eq!(config.timeout, Duration::from_secs(600));
