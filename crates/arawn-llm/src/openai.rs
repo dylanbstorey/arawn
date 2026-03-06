@@ -986,6 +986,94 @@ mod tests {
     }
 
     #[test]
+    fn test_add_headers_static_key() {
+        let config = OpenAiConfig::groq("gsk_test_key_123");
+        let backend = OpenAiBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .build()
+            .unwrap();
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, "Bearer gsk_test_key_123");
+    }
+
+    #[test]
+    fn test_add_headers_dynamic_provider() {
+        let mut config = OpenAiConfig::groq("placeholder");
+        config.api_key = ApiKeyProvider::dynamic(|| Some("gsk_dynamic_key".to_string()));
+        let backend = OpenAiBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .build()
+            .unwrap();
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, "Bearer gsk_dynamic_key");
+    }
+
+    #[test]
+    fn test_add_headers_no_key() {
+        let config = OpenAiConfig::ollama();
+        let backend = OpenAiBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .build()
+            .unwrap();
+        assert!(req.headers().get("authorization").is_none());
+    }
+
+    #[test]
+    fn test_add_headers_preserves_special_chars() {
+        let key = "gsk+test/key=with+special/chars==";
+        let config = OpenAiConfig::groq(key);
+        let backend = OpenAiBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .build()
+            .unwrap();
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, format!("Bearer {}", key));
+    }
+
+    #[test]
+    fn test_add_headers_real_groq_key_format() {
+        // Exact format of a real 56-char Groq key
+        let key = "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";
+        let mut config = OpenAiConfig::groq("placeholder");
+        config.api_key = ApiKeyProvider::dynamic(move || Some(key.to_string()));
+        let backend = OpenAiBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .build()
+            .unwrap();
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, format!("Bearer {}", key));
+        // Verify no truncation or padding
+        let bearer_value = auth.strip_prefix("Bearer ").unwrap();
+        assert_eq!(bearer_value.len(), 56);
+        assert_eq!(bearer_value, key);
+    }
+
+    #[test]
     fn test_to_openai_request() {
         let config = OpenAiConfig::openai("key").with_model("gpt-4");
         let backend = OpenAiBackend::new(config).unwrap();

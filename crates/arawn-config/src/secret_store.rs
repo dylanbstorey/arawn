@@ -302,6 +302,94 @@ mod tests {
     }
 
     #[test]
+    fn test_groq_key_roundtrip_exact() {
+        // Simulate the exact path the server uses:
+        // store_named_secret("groq_api_key", key) → reopen → get("groq_api_key")
+        let dir = tempfile::tempdir().unwrap();
+        let identity_path = dir.path().join("identity.age");
+        let secrets_path = dir.path().join("secrets.age");
+
+        let key = "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";
+
+        // Store
+        {
+            let store = AgeSecretStore::open(&identity_path, &secrets_path).unwrap();
+            store.set("groq_api_key", key).unwrap();
+        }
+
+        // Reopen and retrieve — simulates server startup reading the store
+        {
+            let store = AgeSecretStore::open(&identity_path, &secrets_path).unwrap();
+            let retrieved = store.get("groq_api_key").unwrap();
+            assert_eq!(
+                retrieved, key,
+                "Key must survive age encrypt/decrypt round-trip exactly"
+            );
+            assert_eq!(retrieved.len(), 56);
+            assert!(retrieved.starts_with("gsk_"));
+        }
+    }
+
+    #[test]
+    fn test_all_backend_key_names_roundtrip() {
+        // Verify every backend's store name is just env_var lowercased,
+        // consistent everywhere: store, resolve, env var lookup.
+        use crate::Backend;
+
+        let dir = tempfile::tempdir().unwrap();
+        let identity_path = dir.path().join("identity.age");
+        let secrets_path = dir.path().join("secrets.age");
+
+        let store = AgeSecretStore::open(&identity_path, &secrets_path).unwrap();
+
+        let cases = vec![
+            (Backend::Groq, "groq_api_key", "gsk_test123"),
+            (Backend::Anthropic, "anthropic_api_key", "sk-ant-test456"),
+            (Backend::Openai, "openai_api_key", "sk-test789"),
+        ];
+
+        for (backend, expected_name, key) in &cases {
+            // The canonical name is env_var().to_lowercase()
+            let name = backend.env_var().to_lowercase();
+            assert_eq!(&name, expected_name, "Name derivation for {:?}", backend);
+            store.set(&name, key).unwrap();
+        }
+
+        // Verify all retrievable by the same name
+        for (_backend, name, key) in &cases {
+            let retrieved = store.get(name).unwrap();
+            assert_eq!(&retrieved, key);
+        }
+    }
+
+    #[test]
+    fn test_key_no_trailing_newline() {
+        // Ensure age store doesn't append newlines to values
+        let dir = tempfile::tempdir().unwrap();
+        let identity_path = dir.path().join("identity.age");
+        let secrets_path = dir.path().join("secrets.age");
+
+        let key = "gsk_test1234567890";
+        {
+            let store = AgeSecretStore::open(&identity_path, &secrets_path).unwrap();
+            store.set("test_key", key).unwrap();
+        }
+        {
+            let store = AgeSecretStore::open(&identity_path, &secrets_path).unwrap();
+            let retrieved = store.get("test_key").unwrap();
+            assert!(
+                !retrieved.ends_with('\n'),
+                "Value must not have trailing newline"
+            );
+            assert!(
+                !retrieved.ends_with('\r'),
+                "Value must not have trailing CR"
+            );
+            assert_eq!(retrieved, key);
+        }
+    }
+
+    #[test]
     fn test_debug_hides_values() {
         let (_dir, store) = setup();
         store.set("secret_key", "very_secret_value").unwrap();

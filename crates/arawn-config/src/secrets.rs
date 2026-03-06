@@ -181,8 +181,10 @@ pub fn delete_from_keyring(backend: &Backend) -> std::result::Result<(), String>
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The secret name used for backend API keys in the age store.
+///
+/// Uses the env var name lowercased (e.g., `GROQ_API_KEY` → `groq_api_key`).
 fn age_store_name(backend: &Backend) -> String {
-    format!("{}_api_key", backend.env_var().to_lowercase())
+    backend.env_var().to_lowercase()
 }
 
 fn get_from_age_store(backend: &Backend) -> Option<ResolvedSecret> {
@@ -214,7 +216,7 @@ const KEYRING_SERVICE: &str = "arawn";
 
 /// Keyring user name for a backend (legacy).
 fn keyring_user(backend: &Backend) -> String {
-    format!("{}_api_key", backend.env_var().to_lowercase())
+    backend.env_var().to_lowercase()
 }
 
 #[cfg(feature = "keyring")]

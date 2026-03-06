@@ -126,4 +126,29 @@ mod tests {
         let cloned = provider.clone();
         assert_eq!(cloned.resolve(), Some("key".to_string()));
     }
+
+    #[test]
+    fn test_dynamic_preserves_exact_value() {
+        // Simulate a real Groq key format — must round-trip exactly
+        let key = "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";
+        let owned = key.to_string();
+        let provider = ApiKeyProvider::dynamic(move || Some(owned.clone()));
+        assert_eq!(provider.resolve().unwrap(), key);
+        assert_eq!(provider.resolve().unwrap().len(), 56);
+    }
+
+    #[test]
+    fn test_no_whitespace_trimming() {
+        // ApiKeyProvider must NOT trim — consumers decide about trimming
+        let key_with_spaces = "  sk-ant-abc123  ";
+        let provider = ApiKeyProvider::from_static(key_with_spaces);
+        assert_eq!(provider.resolve().unwrap(), key_with_spaces);
+    }
+
+    #[test]
+    fn test_special_chars_preserved() {
+        let key = "sk+test/key=with+special/chars==";
+        let provider = ApiKeyProvider::from_static(key);
+        assert_eq!(provider.resolve().unwrap(), key);
+    }
 }

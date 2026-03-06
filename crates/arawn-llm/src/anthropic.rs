@@ -700,6 +700,62 @@ mod tests {
     }
 
     #[test]
+    fn test_add_headers_static_key() {
+        let config = AnthropicConfig::new("sk-ant-test-key-123");
+        let backend = AnthropicBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .unwrap()
+            .build()
+            .unwrap();
+        let api_key = req.headers().get("x-api-key").unwrap().to_str().unwrap();
+        assert_eq!(api_key, "sk-ant-test-key-123");
+    }
+
+    #[test]
+    fn test_add_headers_dynamic_provider() {
+        let mut config = AnthropicConfig::new("placeholder");
+        config.api_key = ApiKeyProvider::dynamic(|| Some("sk-ant-dynamic".to_string()));
+        let backend = AnthropicBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .unwrap()
+            .build()
+            .unwrap();
+        let api_key = req.headers().get("x-api-key").unwrap().to_str().unwrap();
+        assert_eq!(api_key, "sk-ant-dynamic");
+    }
+
+    #[test]
+    fn test_add_headers_none_returns_error() {
+        let mut config = AnthropicConfig::new("placeholder");
+        config.api_key = ApiKeyProvider::None;
+        let backend = AnthropicBackend::new(config).unwrap();
+        let result = backend.add_headers(backend.client.get("https://example.com"));
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, LlmError::Auth(_)));
+    }
+
+    #[test]
+    fn test_add_headers_preserves_api_version() {
+        let config = AnthropicConfig::new("test-key");
+        let backend = AnthropicBackend::new(config).unwrap();
+        let req = backend
+            .add_headers(backend.client.get("https://example.com"))
+            .unwrap()
+            .build()
+            .unwrap();
+        let version = req
+            .headers()
+            .get("anthropic-version")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(version, DEFAULT_API_VERSION);
+    }
+
+    #[test]
     fn test_messages_url() {
         let config = AnthropicConfig::new("key");
         let backend = AnthropicBackend::new(config).unwrap();

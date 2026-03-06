@@ -1023,4 +1023,53 @@ mod tests {
         let embedder = OpenAiEmbedder::new(config).unwrap();
         assert_eq!(embedder.dimensions(), 768);
     }
+
+    #[test]
+    fn test_embed_auth_header() {
+        let key = "sk-embed-test-key-12345";
+        let config = OpenAiEmbedderConfig::new(key);
+        let embedder = OpenAiEmbedder::new(config).unwrap();
+
+        // Build a request manually the same way embed_batch does
+        let api_key = embedder.config.api_key.resolve().unwrap();
+        let req = embedder
+            .client
+            .post(embedder.embeddings_url())
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json")
+            .build()
+            .unwrap();
+
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, format!("Bearer {}", key));
+    }
+
+    #[test]
+    fn test_embed_auth_header_dynamic_provider() {
+        let key = "sk-embed-dynamic-key";
+        let mut config = OpenAiEmbedderConfig::new("placeholder");
+        config.api_key = crate::api_key::ApiKeyProvider::dynamic(move || Some(key.to_string()));
+        let embedder = OpenAiEmbedder::new(config).unwrap();
+
+        let api_key = embedder.config.api_key.resolve().unwrap();
+        let req = embedder
+            .client
+            .post(embedder.embeddings_url())
+            .header("Authorization", format!("Bearer {}", api_key))
+            .build()
+            .unwrap();
+
+        let auth = req
+            .headers()
+            .get("authorization")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(auth, format!("Bearer {}", key));
+    }
 }
