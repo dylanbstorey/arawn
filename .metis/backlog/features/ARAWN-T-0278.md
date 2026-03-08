@@ -4,15 +4,15 @@ level: task
 title: "Wire up FsGateResolver, DirectoryManager, and SandboxManager in server startup"
 short_code: "ARAWN-T-0278"
 created_at: 2026-03-08T03:11:19.758828+00:00
-updated_at: 2026-03-08T03:11:19.758828+00:00
+updated_at: 2026-03-08T14:51:12.353744+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#feature"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -44,14 +44,20 @@ The `FsGateResolver`, `DirectoryManager`, and `SandboxManager` exist in crate co
 
 ## Acceptance Criteria
 
-- [ ] `DirectoryManager` created and wired into `WorkstreamManager` during startup
-- [ ] `SandboxManager` created (gracefully handling missing WASM runtime)
-- [ ] `FsGateResolver` closure constructed and passed to `Agent::builder().with_fs_gate_resolver()`
-- [ ] `glob` and `grep` work in agent sessions (read-only, path-validated)
-- [ ] `file_read` and `file_write` work within workstream boundaries
-- [ ] `shell` works when WASM runtime is available; clear error when not
-- [ ] launchd wrapper script updated to include `~/.cargo/bin` in PATH so `rustup` is available for shell runtime compilation
-- [ ] Gate denial logged at WARN level (already done in `execution.rs`)
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+- [x] `DirectoryManager` created and wired into `WorkstreamManager` during startup
+- [x] `SandboxManager` created (gracefully handling missing WASM runtime)
+- [x] `FsGateResolver` closure constructed and passed to `Agent::builder().with_fs_gate_resolver()`
+- [x] `glob` and `grep` work in agent sessions (read-only, path-validated)
+- [x] `file_read` and `file_write` work within workstream boundaries
+- [x] `shell` works when WASM runtime is available; clear error when not
+- [x] launchd wrapper script updated to include `~/.cargo/bin` in PATH so `rustup` is available for shell runtime compilation
+- [x] Gate denial logged at WARN level (already done in `execution.rs`)
 
 ## Implementation Notes
 
@@ -89,4 +95,18 @@ The `FsGateResolver`, `DirectoryManager`, and `SandboxManager` exist in crate co
 
 ## Status Updates
 
-*To be added during implementation*
+### Completed
+
+**WorkstreamFsGate refactored**: Made `sandbox_manager` field `Option<Arc<SandboxManager>>` to support path-only mode. Added `path_only()` constructor that enables file tools without requiring sandbox. Shell commands return a clear error when sandbox is unavailable.
+
+**FsGateResolver wired in start.rs**: Added ~50 lines after secret resolver wiring (line ~1158). Creates `DirectoryManager` from workstream data dir, tries `SandboxManager::new().await` with graceful fallback, builds closure that creates `WorkstreamFsGate` per session/workstream.
+
+**Dependency added**: `arawn-sandbox` added to `crates/arawn/Cargo.toml`.
+
+**Launchd wrapper updated**: `scripts/service/arawn-wrapper.sh` now exports `$HOME/.cargo/bin` in PATH so `rustup` is available for WASM compilation.
+
+**Files modified**:
+- `crates/arawn/Cargo.toml` — added arawn-sandbox dependency
+- `crates/arawn/src/commands/start.rs` — FsGateResolver wiring + imports
+- `crates/arawn-workstream/src/fs_gate.rs` — Optional sandbox, path_only constructor
+- `scripts/service/arawn-wrapper.sh` — PATH fix for launchd

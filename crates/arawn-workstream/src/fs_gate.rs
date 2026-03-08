@@ -22,7 +22,7 @@ use crate::path_validator::PathValidator;
 /// For scratch, tools are isolated to `scratch/sessions/<id>/work/`.
 pub struct WorkstreamFsGate {
     path_validator: PathValidator,
-    sandbox_manager: Arc<SandboxManager>,
+    sandbox_manager: Option<Arc<SandboxManager>>,
     working_dir: PathBuf,
     /// The allowed paths for sandbox write access.
     allowed_paths: Vec<PathBuf>,
@@ -37,6 +37,28 @@ impl WorkstreamFsGate {
     pub fn new(
         dm: &DirectoryManager,
         sandbox: Arc<SandboxManager>,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Self {
+        Self::build(dm, Some(sandbox), workstream_id, session_id)
+    }
+
+    /// Create a path-only gate (no sandbox for shell execution).
+    ///
+    /// File tools (file_read, file_write, glob, grep) work normally with
+    /// path validation. Shell commands return a clear error explaining that
+    /// the sandbox is unavailable.
+    pub fn path_only(
+        dm: &DirectoryManager,
+        workstream_id: &str,
+        session_id: &str,
+    ) -> Self {
+        Self::build(dm, None, workstream_id, session_id)
+    }
+
+    fn build(
+        dm: &DirectoryManager,
+        sandbox: Option<Arc<SandboxManager>>,
         workstream_id: &str,
         session_id: &str,
     ) -> Self {
@@ -112,6 +134,17 @@ impl FsGate for WorkstreamFsGate {
         command: &str,
         timeout: Option<Duration>,
     ) -> Result<SandboxOutput, FsGateError> {
+        let manager = match &self.sandbox_manager {
+            Some(m) => m.clone(),
+            None => {
+                return Err(FsGateError::SandboxError(
+                    "Shell execution is unavailable: sandbox runtime not initialized. \
+                     File tools (file_read, file_write, glob, grep) still work."
+                        .to_string(),
+                ));
+            }
+        };
+
         let mut config = arawn_sandbox::SandboxConfig::default()
             .with_write_paths(self.allowed_paths.clone())
             .with_working_dir(&self.working_dir);
@@ -125,7 +158,6 @@ impl FsGate for WorkstreamFsGate {
         // internal awaits. This prevents the future from being Send, which
         // async_trait requires. block_in_place lets us drive the future on the
         // current thread without requiring Send.
-        let manager = self.sandbox_manager.clone();
         let command = command.to_string();
         let output = tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(manager.execute(&command, &config))

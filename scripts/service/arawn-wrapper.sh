@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Ensure cargo/rustup are in PATH for sandbox WASM runtime compilation
+export PATH="$HOME/.cargo/bin:$PATH"
+
 ENV_FILE="$HOME/.config/arawn/env"
 
 if [ -f "$ENV_FILE" ]; then

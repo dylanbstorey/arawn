@@ -31,7 +31,7 @@ use arawn_pipeline::{
 };
 use arawn_plugin::{HookDispatcher, PluginManager, PluginWatcher, SubscriptionManager, SyncAction};
 use arawn_server::{AppState, Server, ServerConfig};
-use arawn_workstream::{WorkstreamConfig as WsConfig, WorkstreamManager};
+use arawn_workstream::{WorkstreamConfig as WsConfig, WorkstreamFsGate, WorkstreamManager};
 use tokio::sync::RwLock;
 
 use super::Context;
@@ -1153,6 +1153,61 @@ pub async fn run(args: StartArgs, ctx: &Context) -> Result<()> {
                 e
             );
         }
+    }
+
+    // Wire filesystem gate resolver for workstream-scoped tool execution
+    {
+        use arawn_workstream::DirectoryManager;
+
+        let ws_data_dir = config
+            .workstream
+            .as_ref()
+            .and_then(|w| w.data_dir.clone())
+            .map(|p| if p.is_relative() { data_dir.join(p) } else { p })
+            .unwrap_or_else(|| data_dir.join("workstreams"));
+
+        let dm = Arc::new(DirectoryManager::new(&ws_data_dir));
+
+        // Try to initialize the sandbox manager (may fail if dependencies missing)
+        let sandbox: Option<Arc<arawn_sandbox::SandboxManager>> =
+            match arawn_sandbox::SandboxManager::new().await {
+                Ok(mgr) => {
+                    if ctx.verbose {
+                        println!("Sandbox: {} platform detected", mgr.platform());
+                    }
+                    Some(Arc::new(mgr))
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Sandbox unavailable (shell tool disabled, file tools still work): {}",
+                        e
+                    );
+                    if ctx.verbose {
+                        println!("Sandbox: unavailable — {}", e);
+                    }
+                    None
+                }
+            };
+
+        let resolver: arawn_types::FsGateResolver =
+            Arc::new(move |session_id: &str, workstream_id: &str| {
+                let gate: Arc<dyn arawn_types::FsGate> = match &sandbox {
+                    Some(sandbox) => Arc::new(WorkstreamFsGate::new(
+                        &dm,
+                        Arc::clone(sandbox),
+                        workstream_id,
+                        session_id,
+                    )),
+                    None => Arc::new(WorkstreamFsGate::path_only(
+                        &dm,
+                        workstream_id,
+                        session_id,
+                    )),
+                };
+                Some(gate)
+            });
+
+        builder = builder.with_fs_gate_resolver(resolver);
     }
 
     // Wire memory store and embedder for active recall
