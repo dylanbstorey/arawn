@@ -1,6 +1,6 @@
 # Code Index
 
-> Generated: 2026-03-08T02:29:19Z | 308 files | Rust
+> Generated: 2026-03-08T03:10:58Z | 308 files | Rust
 
 ## Project Structure
 
@@ -1618,25 +1618,25 @@
 #### crates/arawn-agent/src/tool/execution.rs
 
 - pub `execute` function L25-33 — `( &self, name: &str, params: serde_json::Value, ctx: &ToolContext, ) -> Result<T...` — Execute a tool by name.
-- pub `execute_with_config` function L45-88 — `( &self, name: &str, params: serde_json::Value, ctx: &ToolContext, output_config...` — Execute a tool by name with custom output configuration.
-- pub `execute_raw` function L94-135 — `( &self, name: &str, params: serde_json::Value, ctx: &ToolContext, ) -> Result<T...` — Execute a tool by name without sanitization.
--  `ToolRegistry` type L12-155 — `= ToolRegistry` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `resolve_secret_handles` function L142-154 — `( &self, params: serde_json::Value, ctx: &ToolContext, ) -> serde_json::Value` — Resolve `${{secrets.*}}` handles in tool parameters.
--  `tests` module L158-332 — `-` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `MockSecretResolver` struct L166-168 — `{ secrets: std::collections::HashMap<String, String> }` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `MockSecretResolver` type L170-179 — `= MockSecretResolver` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `new` function L171-178 — `(pairs: &[(&str, &str)]) -> Self` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `MockSecretResolver` type L181-188 — `= MockSecretResolver` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `resolve` function L182-184 — `(&self, name: &str) -> Option<String>` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `names` function L185-187 — `(&self) -> Vec<String>` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `ctx_with_resolver` function L190-195 — `(resolver: MockSecretResolver) -> ToolContext` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_registry_execute_sanitizes` function L198-217 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_registry_execute_raw_no_sanitize` function L220-238 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_secret_handles_resolved_in_params` function L245-259 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_secret_handles_no_resolver_passes_through` function L262-275 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_secret_handles_no_handles_in_params` function L278-291 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_secret_handles_resolved_in_execute_with_config` function L294-311 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
--  `test_secret_handles_unknown_secret_left_as_is` function L314-327 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+- pub `execute_with_config` function L45-89 — `( &self, name: &str, params: serde_json::Value, ctx: &ToolContext, output_config...` — Execute a tool by name with custom output configuration.
+- pub `execute_raw` function L95-137 — `( &self, name: &str, params: serde_json::Value, ctx: &ToolContext, ) -> Result<T...` — Execute a tool by name without sanitization.
+-  `ToolRegistry` type L12-157 — `= ToolRegistry` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `resolve_secret_handles` function L144-156 — `( &self, params: serde_json::Value, ctx: &ToolContext, ) -> serde_json::Value` — Resolve `${{secrets.*}}` handles in tool parameters.
+-  `tests` module L160-334 — `-` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `MockSecretResolver` struct L168-170 — `{ secrets: std::collections::HashMap<String, String> }` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `MockSecretResolver` type L172-181 — `= MockSecretResolver` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `new` function L173-180 — `(pairs: &[(&str, &str)]) -> Self` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `MockSecretResolver` type L183-190 — `= MockSecretResolver` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `resolve` function L184-186 — `(&self, name: &str) -> Option<String>` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `names` function L187-189 — `(&self) -> Vec<String>` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `ctx_with_resolver` function L192-197 — `(resolver: MockSecretResolver) -> ToolContext` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_registry_execute_sanitizes` function L200-219 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_registry_execute_raw_no_sanitize` function L222-240 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_secret_handles_resolved_in_params` function L247-261 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_secret_handles_no_resolver_passes_through` function L264-277 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_secret_handles_no_handles_in_params` function L280-293 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_secret_handles_resolved_in_execute_with_config` function L296-313 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
+-  `test_secret_handles_unknown_secret_left_as_is` function L316-329 — `()` — Implements execute, execute_with_config, execute_raw, and secret handle resolution.
 
 #### crates/arawn-agent/src/tool/gate.rs
 
@@ -5813,123 +5813,128 @@
 - pub `new` function L68-73 — `(token: String, grace_period: std::time::Duration) -> Self` — Create a new pending reconnect with the given grace period.
 - pub `is_expired` function L76-78 — `(&self) -> bool` — Check if this pending reconnect has expired.
 - pub `PendingReconnects` type L82 — `= Arc<RwLock<HashMap<SessionId, PendingReconnect>>>` — Pending reconnects storage - maps session IDs to pending reconnect entries.
-- pub `SharedMcpManager` type L85 — `= Arc<RwLock<McpManager>>` — Thread-safe MCP manager.
-- pub `TaskStatus` enum L94-105 — `Pending | Running | Completed | Failed | Cancelled` — Task status.
-- pub `TrackedTask` struct L109-130 — `{ id: String, task_type: String, status: TaskStatus, progress: Option<u8>, messa...` — A tracked task/operation.
-- pub `new` function L134-147 — `(id: impl Into<String>, task_type: impl Into<String>) -> Self` — Create a new pending task.
-- pub `with_session` function L150-153 — `(mut self, session_id: impl Into<String>) -> Self` — Set the session ID.
-- pub `start` function L156-159 — `(&mut self)` — Mark the task as running.
-- pub `update_progress` function L162-165 — `(&mut self, progress: u8, message: Option<String>)` — Update progress.
-- pub `complete` function L168-173 — `(&mut self, message: Option<String>)` — Mark the task as completed.
-- pub `fail` function L176-180 — `(&mut self, error: impl Into<String>)` — Mark the task as failed.
-- pub `cancel` function L183-186 — `(&mut self)` — Mark the task as cancelled.
-- pub `TaskStore` type L190 — `= Arc<RwLock<HashMap<String, TrackedTask>>>` — In-memory task store.
-- pub `WsConnectionTracker` struct L201-204 — `{ connections: Arc<RwLock<HashMap<IpAddr, Vec<Instant>>>> }` — Tracks WebSocket connection attempts per IP address.
-- pub `new` function L208-212 — `() -> Self` — Create a new connection tracker.
-- pub `check_rate` function L218-250 — `(&self, ip: IpAddr, max_per_minute: u32) -> Result<(), Response>` — Check if a new connection from this IP should be allowed.
-- pub `cleanup` function L253-265 — `(&self)` — Cleanup old entries from all IPs.
-- pub `SharedServices` struct L283-322 — `{ agent: Arc<Agent>, config: Arc<ServerConfig>, rate_limiter: SharedRateLimiter,...` — Immutable services created at startup.
-- pub `new` function L326-344 — `(agent: Agent, config: ServerConfig) -> Self` — Create new shared services with the given agent and config.
-- pub `with_workstreams` function L347-350 — `(mut self, manager: WorkstreamManager) -> Self` — Configure workstream support.
-- pub `with_indexer` function L353-356 — `(mut self, indexer: SessionIndexer) -> Self` — Configure session indexer.
-- pub `with_hook_dispatcher` function L359-362 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Configure hook dispatcher for lifecycle events.
-- pub `with_mcp_manager` function L365-368 — `(mut self, manager: McpManager) -> Self` — Configure MCP manager.
-- pub `with_directory_manager` function L371-374 — `(mut self, manager: DirectoryManager) -> Self` — Configure directory manager for path management.
-- pub `with_sandbox_manager` function L377-380 — `(mut self, manager: SandboxManager) -> Self` — Configure sandbox manager for shell execution.
-- pub `with_file_watcher` function L383-386 — `(mut self, watcher: WatcherHandle) -> Self` — Configure file watcher for filesystem monitoring.
-- pub `with_memory_store` function L389-392 — `(mut self, store: Arc<MemoryStore>) -> Self` — Configure memory store for persistent notes and memories.
-- pub `with_compressor` function L395-398 — `(mut self, compressor: Compressor) -> Self` — Configure session/workstream compressor.
-- pub `build_domain_services` function L404-415 — `(mut self) -> Self` — Build domain services from the configured components.
-- pub `domain` function L420-422 — `(&self) -> Option<&Arc<DomainServices>>` — Get the domain services facade.
-- pub `allowed_paths` function L427-435 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<Vec<std::path::PathB...` — Get allowed paths for a session based on its workstream.
-- pub `path_validator` function L440-448 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<arawn_domain::PathVa...` — Get a PathValidator for a session.
-- pub `RuntimeState` struct L468-492 — `{ session_cache: SessionCache, tasks: TaskStore, session_owners: SessionOwners, ...` — Mutable state that changes during operation.
-- pub `new` function L496-504 — `() -> Self` — Create new runtime state.
-- pub `with_workstream_cache` function L507-515 — `(workstreams: Arc<WorkstreamManager>) -> Self` — Create runtime state with workstream-backed session cache.
-- pub `with_session_config` function L518-525 — `( mut self, workstreams: Option<Arc<WorkstreamManager>>, config: &C, ) -> Self` — Configure session cache using a config provider.
-- pub `AppState` struct L546-552 — `{ services: SharedServices, runtime: RuntimeState }` — Application state shared across all handlers.
-- pub `new` function L556-561 — `(agent: Agent, config: ServerConfig) -> Self` — Create a new application state.
-- pub `with_workstreams` function L564-569 — `(mut self, manager: WorkstreamManager) -> Self` — Create application state with workstream support.
-- pub `with_indexer` function L572-575 — `(mut self, indexer: SessionIndexer) -> Self` — Create application state with session indexer.
-- pub `with_hook_dispatcher` function L578-581 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Create application state with hook dispatcher for lifecycle events.
-- pub `with_mcp_manager` function L584-587 — `(mut self, manager: McpManager) -> Self` — Create application state with MCP manager.
-- pub `with_directory_manager` function L590-593 — `(mut self, manager: DirectoryManager) -> Self` — Create application state with directory manager for path management.
-- pub `with_sandbox_manager` function L596-599 — `(mut self, manager: SandboxManager) -> Self` — Create application state with sandbox manager for shell execution.
-- pub `with_file_watcher` function L602-605 — `(mut self, watcher: WatcherHandle) -> Self` — Create application state with file watcher for filesystem monitoring.
-- pub `with_compressor` function L608-611 — `(mut self, compressor: Compressor) -> Self` — Create application state with session/workstream compressor.
-- pub `with_session_config` function L614-618 — `(mut self, config: &C) -> Self` — Configure session cache using a config provider.
-- pub `build_domain_services` function L624-627 — `(mut self) -> Self` — Build domain services from the configured components.
-- pub `agent` function L633-635 — `(&self) -> &Arc<Agent>` — Get the agent.
-- pub `config` function L639-641 — `(&self) -> &Arc<ServerConfig>` — Get the server config.
-- pub `rate_limiter` function L645-647 — `(&self) -> &SharedRateLimiter` — Get the rate limiter.
-- pub `workstreams` function L651-653 — `(&self) -> Option<&Arc<WorkstreamManager>>` — Get the workstream manager.
-- pub `indexer` function L657-659 — `(&self) -> Option<&Arc<SessionIndexer>>` — Get the session indexer.
-- pub `hook_dispatcher` function L663-665 — `(&self) -> Option<&SharedHookDispatcher>` — Get the hook dispatcher.
-- pub `mcp_manager` function L669-671 — `(&self) -> Option<&SharedMcpManager>` — Get the MCP manager.
-- pub `directory_manager` function L675-677 — `(&self) -> Option<&Arc<DirectoryManager>>` — Get the directory manager.
-- pub `sandbox_manager` function L681-683 — `(&self) -> Option<&Arc<SandboxManager>>` — Get the sandbox manager.
-- pub `file_watcher` function L687-689 — `(&self) -> Option<&Arc<WatcherHandle>>` — Get the file watcher.
-- pub `memory_store` function L693-695 — `(&self) -> Option<&Arc<MemoryStore>>` — Get the memory store.
-- pub `domain` function L699-701 — `(&self) -> Option<&Arc<DomainServices>>` — Get the domain services facade.
-- pub `compressor` function L705-707 — `(&self) -> Option<&Arc<Compressor>>` — Get the compressor.
-- pub `session_cache` function L711-713 — `(&self) -> &SessionCache` — Get the session cache.
-- pub `tasks` function L717-719 — `(&self) -> &TaskStore` — Get the task store.
-- pub `session_owners` function L723-725 — `(&self) -> &SessionOwners` — Get the session owners.
-- pub `pending_reconnects` function L729-731 — `(&self) -> &PendingReconnects` — Get the pending reconnects.
-- pub `ws_connection_tracker` function L735-737 — `(&self) -> &WsConnectionTracker` — Get the WebSocket connection tracker.
-- pub `check_ws_connection_rate` function L742-747 — `(&self, ip: IpAddr) -> Result<(), Response>` — Check WebSocket connection rate for an IP address.
-- pub `allowed_paths` function L755-761 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<Vec<std::path::PathB...` — Get allowed paths for a session based on its workstream.
-- pub `path_validator` function L766-772 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<arawn_domain::PathVa...` — Get a PathValidator for a session.
-- pub `get_or_create_session` function L780-783 — `(&self, session_id: Option<SessionId>) -> SessionId` — Get or create a session by ID.
-- pub `get_or_create_session_in_workstream` function L789-830 — `( &self, session_id: Option<SessionId>, workstream_id: &str, ) -> SessionId` — Get or create a session in a specific workstream.
-- pub `close_session` function L836-948 — `(&self, session_id: SessionId) -> bool` — Close a session: remove it from the cache and trigger background indexing/compression.
-- pub `get_session` function L951-961 — `(&self, session_id: SessionId, workstream_id: &str) -> Option<Session>` — Get session from cache (loading from workstream if needed).
-- pub `update_session` function L964-966 — `(&self, session_id: SessionId, session: Session)` — Update session in cache.
-- pub `invalidate_session` function L969-971 — `(&self, session_id: SessionId)` — Invalidate a cached session (e.g., after workstream reassignment).
-- pub `try_claim_session_ownership` function L981-1015 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Try to claim ownership of a session for a connection.
-- pub `is_session_owner` function L1018-1025 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Check if a connection owns a session.
-- pub `release_session_ownership` function L1031-1044 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Release ownership of a session.
-- pub `release_all_session_ownerships` function L1053-1092 — `( &self, connection_id: ConnectionId, reconnect_tokens: &HashMap<SessionId, Stri...` — Release all session ownerships held by a connection, creating pending reconnects.
-- pub `try_reclaim_with_token` function L1098-1142 — `( &self, session_id: SessionId, token: &str, connection_id: ConnectionId, ) -> O...` — Try to reclaim session ownership using a reconnect token.
-- pub `cleanup_expired_pending_reconnects` function L1147-1168 — `(&self) -> usize` — Clean up expired pending reconnects.
-- pub `has_pending_reconnect` function L1171-1178 — `(&self, session_id: SessionId) -> bool` — Check if a session has a pending reconnect (ownership held for reconnection).
+- pub `ActiveConnections` type L86 — `= Arc<RwLock<HashSet<ConnectionId>>>` — Active WebSocket connections — tracks which connection IDs are currently alive.
+- pub `SharedMcpManager` type L89 — `= Arc<RwLock<McpManager>>` — Thread-safe MCP manager.
+- pub `TaskStatus` enum L98-109 — `Pending | Running | Completed | Failed | Cancelled` — Task status.
+- pub `TrackedTask` struct L113-134 — `{ id: String, task_type: String, status: TaskStatus, progress: Option<u8>, messa...` — A tracked task/operation.
+- pub `new` function L138-151 — `(id: impl Into<String>, task_type: impl Into<String>) -> Self` — Create a new pending task.
+- pub `with_session` function L154-157 — `(mut self, session_id: impl Into<String>) -> Self` — Set the session ID.
+- pub `start` function L160-163 — `(&mut self)` — Mark the task as running.
+- pub `update_progress` function L166-169 — `(&mut self, progress: u8, message: Option<String>)` — Update progress.
+- pub `complete` function L172-177 — `(&mut self, message: Option<String>)` — Mark the task as completed.
+- pub `fail` function L180-184 — `(&mut self, error: impl Into<String>)` — Mark the task as failed.
+- pub `cancel` function L187-190 — `(&mut self)` — Mark the task as cancelled.
+- pub `TaskStore` type L194 — `= Arc<RwLock<HashMap<String, TrackedTask>>>` — In-memory task store.
+- pub `WsConnectionTracker` struct L205-208 — `{ connections: Arc<RwLock<HashMap<IpAddr, Vec<Instant>>>> }` — Tracks WebSocket connection attempts per IP address.
+- pub `new` function L212-216 — `() -> Self` — Create a new connection tracker.
+- pub `check_rate` function L222-254 — `(&self, ip: IpAddr, max_per_minute: u32) -> Result<(), Response>` — Check if a new connection from this IP should be allowed.
+- pub `cleanup` function L257-269 — `(&self)` — Cleanup old entries from all IPs.
+- pub `SharedServices` struct L287-326 — `{ agent: Arc<Agent>, config: Arc<ServerConfig>, rate_limiter: SharedRateLimiter,...` — Immutable services created at startup.
+- pub `new` function L330-348 — `(agent: Agent, config: ServerConfig) -> Self` — Create new shared services with the given agent and config.
+- pub `with_workstreams` function L351-354 — `(mut self, manager: WorkstreamManager) -> Self` — Configure workstream support.
+- pub `with_indexer` function L357-360 — `(mut self, indexer: SessionIndexer) -> Self` — Configure session indexer.
+- pub `with_hook_dispatcher` function L363-366 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Configure hook dispatcher for lifecycle events.
+- pub `with_mcp_manager` function L369-372 — `(mut self, manager: McpManager) -> Self` — Configure MCP manager.
+- pub `with_directory_manager` function L375-378 — `(mut self, manager: DirectoryManager) -> Self` — Configure directory manager for path management.
+- pub `with_sandbox_manager` function L381-384 — `(mut self, manager: SandboxManager) -> Self` — Configure sandbox manager for shell execution.
+- pub `with_file_watcher` function L387-390 — `(mut self, watcher: WatcherHandle) -> Self` — Configure file watcher for filesystem monitoring.
+- pub `with_memory_store` function L393-396 — `(mut self, store: Arc<MemoryStore>) -> Self` — Configure memory store for persistent notes and memories.
+- pub `with_compressor` function L399-402 — `(mut self, compressor: Compressor) -> Self` — Configure session/workstream compressor.
+- pub `build_domain_services` function L408-419 — `(mut self) -> Self` — Build domain services from the configured components.
+- pub `domain` function L424-426 — `(&self) -> Option<&Arc<DomainServices>>` — Get the domain services facade.
+- pub `allowed_paths` function L431-439 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<Vec<std::path::PathB...` — Get allowed paths for a session based on its workstream.
+- pub `path_validator` function L444-452 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<arawn_domain::PathVa...` — Get a PathValidator for a session.
+- pub `RuntimeState` struct L472-501 — `{ session_cache: SessionCache, tasks: TaskStore, session_owners: SessionOwners, ...` — Mutable state that changes during operation.
+- pub `new` function L505-514 — `() -> Self` — Create new runtime state.
+- pub `with_workstream_cache` function L517-526 — `(workstreams: Arc<WorkstreamManager>) -> Self` — Create runtime state with workstream-backed session cache.
+- pub `with_session_config` function L529-536 — `( mut self, workstreams: Option<Arc<WorkstreamManager>>, config: &C, ) -> Self` — Configure session cache using a config provider.
+- pub `AppState` struct L557-563 — `{ services: SharedServices, runtime: RuntimeState }` — Application state shared across all handlers.
+- pub `new` function L567-572 — `(agent: Agent, config: ServerConfig) -> Self` — Create a new application state.
+- pub `with_workstreams` function L575-580 — `(mut self, manager: WorkstreamManager) -> Self` — Create application state with workstream support.
+- pub `with_indexer` function L583-586 — `(mut self, indexer: SessionIndexer) -> Self` — Create application state with session indexer.
+- pub `with_hook_dispatcher` function L589-592 — `(mut self, dispatcher: SharedHookDispatcher) -> Self` — Create application state with hook dispatcher for lifecycle events.
+- pub `with_mcp_manager` function L595-598 — `(mut self, manager: McpManager) -> Self` — Create application state with MCP manager.
+- pub `with_directory_manager` function L601-604 — `(mut self, manager: DirectoryManager) -> Self` — Create application state with directory manager for path management.
+- pub `with_sandbox_manager` function L607-610 — `(mut self, manager: SandboxManager) -> Self` — Create application state with sandbox manager for shell execution.
+- pub `with_file_watcher` function L613-616 — `(mut self, watcher: WatcherHandle) -> Self` — Create application state with file watcher for filesystem monitoring.
+- pub `with_compressor` function L619-622 — `(mut self, compressor: Compressor) -> Self` — Create application state with session/workstream compressor.
+- pub `with_session_config` function L625-629 — `(mut self, config: &C) -> Self` — Configure session cache using a config provider.
+- pub `build_domain_services` function L635-638 — `(mut self) -> Self` — Build domain services from the configured components.
+- pub `agent` function L644-646 — `(&self) -> &Arc<Agent>` — Get the agent.
+- pub `config` function L650-652 — `(&self) -> &Arc<ServerConfig>` — Get the server config.
+- pub `rate_limiter` function L656-658 — `(&self) -> &SharedRateLimiter` — Get the rate limiter.
+- pub `workstreams` function L662-664 — `(&self) -> Option<&Arc<WorkstreamManager>>` — Get the workstream manager.
+- pub `indexer` function L668-670 — `(&self) -> Option<&Arc<SessionIndexer>>` — Get the session indexer.
+- pub `hook_dispatcher` function L674-676 — `(&self) -> Option<&SharedHookDispatcher>` — Get the hook dispatcher.
+- pub `mcp_manager` function L680-682 — `(&self) -> Option<&SharedMcpManager>` — Get the MCP manager.
+- pub `directory_manager` function L686-688 — `(&self) -> Option<&Arc<DirectoryManager>>` — Get the directory manager.
+- pub `sandbox_manager` function L692-694 — `(&self) -> Option<&Arc<SandboxManager>>` — Get the sandbox manager.
+- pub `file_watcher` function L698-700 — `(&self) -> Option<&Arc<WatcherHandle>>` — Get the file watcher.
+- pub `memory_store` function L704-706 — `(&self) -> Option<&Arc<MemoryStore>>` — Get the memory store.
+- pub `domain` function L710-712 — `(&self) -> Option<&Arc<DomainServices>>` — Get the domain services facade.
+- pub `compressor` function L716-718 — `(&self) -> Option<&Arc<Compressor>>` — Get the compressor.
+- pub `session_cache` function L722-724 — `(&self) -> &SessionCache` — Get the session cache.
+- pub `tasks` function L728-730 — `(&self) -> &TaskStore` — Get the task store.
+- pub `session_owners` function L734-736 — `(&self) -> &SessionOwners` — Get the session owners.
+- pub `pending_reconnects` function L740-742 — `(&self) -> &PendingReconnects` — Get the pending reconnects.
+- pub `active_connections` function L746-748 — `(&self) -> &ActiveConnections` — Get the active connections set.
+- pub `register_connection` function L751-757 — `(&self, connection_id: ConnectionId)` — Register a WebSocket connection as active.
+- pub `unregister_connection` function L760-766 — `(&self, connection_id: ConnectionId)` — Unregister a WebSocket connection (called on disconnect).
+- pub `is_connection_active` function L769-775 — `(&self, connection_id: ConnectionId) -> bool` — Check if a connection is still active.
+- pub `ws_connection_tracker` function L779-781 — `(&self) -> &WsConnectionTracker` — Get the WebSocket connection tracker.
+- pub `check_ws_connection_rate` function L786-791 — `(&self, ip: IpAddr) -> Result<(), Response>` — Check WebSocket connection rate for an IP address.
+- pub `allowed_paths` function L799-805 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<Vec<std::path::PathB...` — Get allowed paths for a session based on its workstream.
+- pub `path_validator` function L810-816 — `( &self, workstream_id: &str, session_id: &str, ) -> Option<arawn_domain::PathVa...` — Get a PathValidator for a session.
+- pub `get_or_create_session` function L824-827 — `(&self, session_id: Option<SessionId>) -> SessionId` — Get or create a session by ID.
+- pub `get_or_create_session_in_workstream` function L833-874 — `( &self, session_id: Option<SessionId>, workstream_id: &str, ) -> SessionId` — Get or create a session in a specific workstream.
+- pub `close_session` function L880-992 — `(&self, session_id: SessionId) -> bool` — Close a session: remove it from the cache and trigger background indexing/compression.
+- pub `get_session` function L995-1005 — `(&self, session_id: SessionId, workstream_id: &str) -> Option<Session>` — Get session from cache (loading from workstream if needed).
+- pub `update_session` function L1008-1010 — `(&self, session_id: SessionId, session: Session)` — Update session in cache.
+- pub `invalidate_session` function L1013-1015 — `(&self, session_id: SessionId)` — Invalidate a cached session (e.g., after workstream reassignment).
+- pub `try_claim_session_ownership` function L1025-1074 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Try to claim ownership of a session for a connection.
+- pub `is_session_owner` function L1077-1084 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Check if a connection owns a session.
+- pub `release_session_ownership` function L1090-1103 — `( &self, session_id: SessionId, connection_id: ConnectionId, ) -> bool` — Release ownership of a session.
+- pub `release_all_session_ownerships` function L1112-1151 — `( &self, connection_id: ConnectionId, reconnect_tokens: &HashMap<SessionId, Stri...` — Release all session ownerships held by a connection, creating pending reconnects.
+- pub `try_reclaim_with_token` function L1157-1201 — `( &self, session_id: SessionId, token: &str, connection_id: ConnectionId, ) -> O...` — Try to reclaim session ownership using a reconnect token.
+- pub `cleanup_expired_pending_reconnects` function L1206-1227 — `(&self) -> usize` — Clean up expired pending reconnects.
+- pub `has_pending_reconnect` function L1230-1237 — `(&self, session_id: SessionId) -> bool` — Check if a session has a pending reconnect (ownership held for reconnection).
 -  `PendingReconnect` type L66-79 — `= PendingReconnect` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `TrackedTask` type L132-187 — `= TrackedTask` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `WS_RATE_WINDOW` variable L197 — `: std::time::Duration` — Sliding window duration for WebSocket rate limiting.
--  `WsConnectionTracker` type L206-266 — `= WsConnectionTracker` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `WsConnectionTracker` type L268-272 — `impl Default for WsConnectionTracker` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `default` function L269-271 — `() -> Self` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `SharedServices` type L324-449 — `= SharedServices` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `RuntimeState` type L494-526 — `= RuntimeState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `RuntimeState` type L528-532 — `impl Default for RuntimeState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `default` function L529-531 — `() -> Self` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `AppState` type L554-1179 — `= AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `session_to_messages` function L1186-1195 — `(session: &Session) -> Vec<(String, String)>` — Convert a session's turns into owned `(role, content)` pairs.
--  `messages_as_refs` function L1198-1203 — `(messages: &[(String, String)]) -> Vec<(&str, &str)>` — Convert owned message pairs to borrowed slices for the indexer API.
--  `tests` module L1206-1612 — `-` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `create_test_state` function L1211-1219 — `() -> AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_to_messages_empty` function L1222-1226 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_to_messages_with_turns` function L1229-1251 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_to_messages_incomplete_turn` function L1254-1262 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_messages_as_refs` function L1265-1272 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_close_session_removes_session` function L1275-1287 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_close_session_nonexistent_returns_false` function L1290-1294 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_close_session_without_indexer` function L1297-1314 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_default_state_has_no_indexer` function L1317-1320 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_ownership_first_claimer_wins` function L1323-1339 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_ownership_release` function L1342-1362 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_ownership_release_all_on_disconnect` function L1365-1407 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_session_ownership_same_connection_reclaim` function L1410-1421 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_reconnect_token_wrong_token_rejected` function L1424-1446 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_reconnect_token_new_connection_can_reclaim` function L1449-1470 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_reconnect_cleanup_expired` function L1473-1511 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_shared_services_builder` function L1514-1528 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_runtime_state_defaults` function L1531-1536 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_convenience_accessors` function L1539-1550 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_ws_connection_tracker_allows_under_limit` function L1555-1564 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_ws_connection_tracker_rate_limits` function L1567-1579 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_ws_connection_tracker_per_ip` function L1582-1597 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
--  `test_ws_connection_tracker_cleanup` function L1600-1611 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `TrackedTask` type L136-191 — `= TrackedTask` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `WS_RATE_WINDOW` variable L201 — `: std::time::Duration` — Sliding window duration for WebSocket rate limiting.
+-  `WsConnectionTracker` type L210-270 — `= WsConnectionTracker` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `WsConnectionTracker` type L272-276 — `impl Default for WsConnectionTracker` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `default` function L273-275 — `() -> Self` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `SharedServices` type L328-453 — `= SharedServices` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `RuntimeState` type L503-537 — `= RuntimeState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `RuntimeState` type L539-543 — `impl Default for RuntimeState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `default` function L540-542 — `() -> Self` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `AppState` type L565-1238 — `= AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `session_to_messages` function L1245-1254 — `(session: &Session) -> Vec<(String, String)>` — Convert a session's turns into owned `(role, content)` pairs.
+-  `messages_as_refs` function L1257-1262 — `(messages: &[(String, String)]) -> Vec<(&str, &str)>` — Convert owned message pairs to borrowed slices for the indexer API.
+-  `tests` module L1265-1671 — `-` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `create_test_state` function L1270-1278 — `() -> AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_to_messages_empty` function L1281-1285 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_to_messages_with_turns` function L1288-1310 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_to_messages_incomplete_turn` function L1313-1321 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_messages_as_refs` function L1324-1331 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_close_session_removes_session` function L1334-1346 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_close_session_nonexistent_returns_false` function L1349-1353 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_close_session_without_indexer` function L1356-1373 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_default_state_has_no_indexer` function L1376-1379 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_ownership_first_claimer_wins` function L1382-1398 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_ownership_release` function L1401-1421 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_ownership_release_all_on_disconnect` function L1424-1466 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_session_ownership_same_connection_reclaim` function L1469-1480 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_reconnect_token_wrong_token_rejected` function L1483-1505 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_reconnect_token_new_connection_can_reclaim` function L1508-1529 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_reconnect_cleanup_expired` function L1532-1570 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_shared_services_builder` function L1573-1587 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_runtime_state_defaults` function L1590-1595 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_convenience_accessors` function L1598-1609 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_ws_connection_tracker_allows_under_limit` function L1614-1623 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_ws_connection_tracker_rate_limits` function L1626-1638 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_ws_connection_tracker_per_ip` function L1641-1656 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_ws_connection_tracker_cleanup` function L1659-1670 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 
 ### crates/arawn-server/src/routes
 
@@ -6311,8 +6316,8 @@
 - pub `IDLE_TIMEOUT` variable L43 — `: Duration` — Idle timeout for WebSocket connections (5 minutes).
 - pub `ConnectionState` struct L46-58 — `{ id: ConnectionId, authenticated: bool, subscriptions: std::collections::HashSe...` — State for a WebSocket connection.
 - pub `new` function L62-70 — `() -> Self` — Create a new connection state.
-- pub `handle_socket` function L86-217 — `(socket: WebSocket, state: AppState, addr: SocketAddr)` — Handle a WebSocket connection.
-- pub `send_message` function L220-229 — `( sender: &mut futures::stream::SplitSink<WebSocket, Message>, msg: ServerMessag...` — Send a message over the WebSocket.
+- pub `handle_socket` function L86-223 — `(socket: WebSocket, state: AppState, addr: SocketAddr)` — Handle a WebSocket connection.
+- pub `send_message` function L226-235 — `( sender: &mut futures::stream::SplitSink<WebSocket, Message>, msg: ServerMessag...` — Send a message over the WebSocket.
 -  `ConnectionId` type L22-27 — `= ConnectionId` — WebSocket connection lifecycle and state management.
 -  `ConnectionId` type L29-33 — `impl Default for ConnectionId` — WebSocket connection lifecycle and state management.
 -  `default` function L30-32 — `() -> Self` — WebSocket connection lifecycle and state management.
@@ -6334,12 +6339,12 @@
 -  `handle_cancel` function L180-202 — `(session_id: String, conn_state: &mut ConnectionState) -> MessageResponse` — Handle cancellation request.
 -  `handle_command` function L205-278 — `( command: String, args: serde_json::Value, conn_state: &ConnectionState, app_st...` — Handle command execution.
 -  `inject_session_context` function L281-304 — `( mut args: serde_json::Value, conn_state: &ConnectionState, ) -> serde_json::Va...` — Inject session context from the connection state if not provided in args.
--  `handle_chat` function L310-522 — `( session_id: Option<String>, workstream_id: Option<String>, message: String, co...` — Handle chat message.
--  `tests` module L525-583 — `-` — WebSocket message handlers.
--  `test_inject_session_context_null_args` function L529-537 — `()` — WebSocket message handlers.
--  `test_inject_session_context_with_subscription` function L540-554 — `()` — WebSocket message handlers.
--  `test_inject_session_context_preserves_existing` function L557-568 — `()` — WebSocket message handlers.
--  `test_inject_session_context_preserves_other_args` function L571-582 — `()` — WebSocket message handlers.
+-  `handle_chat` function L310-525 — `( session_id: Option<String>, workstream_id: Option<String>, message: String, co...` — Handle chat message.
+-  `tests` module L528-586 — `-` — WebSocket message handlers.
+-  `test_inject_session_context_null_args` function L532-540 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_with_subscription` function L543-557 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_preserves_existing` function L560-571 — `()` — WebSocket message handlers.
+-  `test_inject_session_context_preserves_other_args` function L574-585 — `()` — WebSocket message handlers.
 
 #### crates/arawn-server/src/routes/ws/mod.rs
 
@@ -6675,59 +6680,59 @@
 - pub `InputMode` enum L50-58 — `Chat | NewWorkstream | RenameWorkstream` — Input mode determines what the input field is being used for.
 - pub `ChatMessage` struct L63-70 — `{ is_user: bool, content: String, streaming: bool }` — A chat message for display.
 - pub `ToolExecution` struct L74-91 — `{ id: String, name: String, args: String, output: String, running: bool, success...` — A tool execution for display.
-- pub `App` struct L94-181 — `{ server_url: String, ws_client: WsClient, api: ArawnClient, connection_status: ...` — Main application state.
-- pub `PanelAreas` struct L185-194 — `{ chat: Option<ratatui::layout::Rect>, tool_pane: Option<ratatui::layout::Rect>,...` — Cached layout rectangles for mouse hit-testing.
-- pub `ContextState` struct L198-207 — `{ current_tokens: usize, max_tokens: usize, percent: u8, status: String }` — Context usage state for display in status bar.
-- pub `UsageStats` struct L211-228 — `{ workstream_id: String, workstream_name: String, is_scratch: bool, production_b...` — Disk usage statistics for a workstream.
-- pub `format_size` function L232-242 — `(bytes: u64) -> String` — Format size as human-readable string.
-- pub `production_size` function L245-247 — `(&self) -> String` — Get formatted production size.
-- pub `work_size` function L250-252 — `(&self) -> String` — Get formatted work size.
-- pub `total_size` function L255-257 — `(&self) -> String` — Get formatted total size.
-- pub `limit_size` function L260-266 — `(&self) -> String` — Get formatted limit.
-- pub `DiskWarning` struct L271-284 — `{ workstream: String, level: String, usage_bytes: u64, limit_bytes: u64, percent...` — A disk usage warning.
-- pub `new` function L291-346 — `(server_url: String, log_buffer: LogBuffer) -> Result<Self>` — Create a new App instance.
-- pub `run` function L359-406 — `(&mut self, terminal: &mut Tui) -> Result<()>` — Run the main application loop.
+- pub `App` struct L94-183 — `{ server_url: String, ws_client: WsClient, api: ArawnClient, connection_status: ...` — Main application state.
+- pub `PanelAreas` struct L187-196 — `{ chat: Option<ratatui::layout::Rect>, tool_pane: Option<ratatui::layout::Rect>,...` — Cached layout rectangles for mouse hit-testing.
+- pub `ContextState` struct L200-209 — `{ current_tokens: usize, max_tokens: usize, percent: u8, status: String }` — Context usage state for display in status bar.
+- pub `UsageStats` struct L213-230 — `{ workstream_id: String, workstream_name: String, is_scratch: bool, production_b...` — Disk usage statistics for a workstream.
+- pub `format_size` function L234-244 — `(bytes: u64) -> String` — Format size as human-readable string.
+- pub `production_size` function L247-249 — `(&self) -> String` — Get formatted production size.
+- pub `work_size` function L252-254 — `(&self) -> String` — Get formatted work size.
+- pub `total_size` function L257-259 — `(&self) -> String` — Get formatted total size.
+- pub `limit_size` function L262-268 — `(&self) -> String` — Get formatted limit.
+- pub `DiskWarning` struct L273-286 — `{ workstream: String, level: String, usage_bytes: u64, limit_bytes: u64, percent...` — A disk usage warning.
+- pub `new` function L293-349 — `(server_url: String, log_buffer: LogBuffer) -> Result<Self>` — Create a new App instance.
+- pub `run` function L362-421 — `(&mut self, terminal: &mut Tui) -> Result<()>` — Run the main application loop.
 -  `MAX_MESSAGES` variable L8 — `: usize` — Maximum number of chat messages to retain (prevents unbounded memory growth).
 -  `MAX_TOOLS` variable L11 — `: usize` — Maximum number of tool executions to retain per response.
--  `UsageStats` type L230-267 — `= UsageStats` — Application state and main loop.
--  `App` type L286-2204 — `= App` — Application state and main loop.
--  `push_message` function L349-351 — `(&mut self, message: ChatMessage)` — Push a message (BoundedVec handles eviction automatically).
--  `push_tool` function L354-356 — `(&mut self, tool: ToolExecution)` — Push a tool execution (BoundedVec handles eviction automatically).
--  `process_pending_actions` function L409-451 — `(&mut self)` — Process pending async actions.
--  `do_create_workstream` function L454-490 — `(&mut self, title: &str)` — Create a workstream via API.
--  `do_rename_workstream` function L493-521 — `(&mut self, id: &str, new_title: &str)` — Rename a workstream via API.
--  `do_delete_session` function L524-548 — `(&mut self, id: &str)` — Delete a session via API.
--  `do_delete_workstream` function L551-576 — `(&mut self, id: &str)` — Delete a workstream via API.
--  `do_fetch_workstream_sessions` function L579-635 — `(&mut self, workstream_id: &str)` — Fetch sessions for a specific workstream.
--  `do_fetch_session_messages` function L638-668 — `(&mut self, session_id: &str)` — Fetch message history for a session.
--  `do_move_session_to_workstream` function L671-708 — `(&mut self, session_id: &str, workstream_id: &str)` — Move a session to a different workstream via API.
--  `refresh_sidebar_data` function L711-760 — `(&mut self)` — Refresh sidebar data from the server API.
--  `handle_server_message` function L763-994 — `(&mut self, msg: ServerMessage)` — Handle a message from the server.
--  `handle_key` function L997-1091 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle keyboard input.
--  `handle_input_key` function L1094-1292 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle input-focused key events.
--  `scroll_chat_up` function L1299-1302 — `(&mut self, lines: usize)` — Scroll chat up by the given number of lines.
--  `scroll_chat_down` function L1308-1312 — `(&mut self, lines: usize)` — Scroll chat down by the given number of lines.
--  `handle_mouse` function L1315-1355 — `(&mut self, mouse: crossterm::event::MouseEvent)` — Handle mouse events (scroll wheel on panels).
--  `panel_at` function L1358-1388 — `(&self, col: u16, row: u16) -> Option<FocusTarget>` — Determine which panel contains the given screen coordinates.
--  `update_command_popup` function L1391-1401 — `(&mut self)` — Update the command popup based on current input.
--  `send_command` function L1404-1441 — `(&mut self)` — Send the current input as a command.
--  `build_command_args` function L1444-1468 — `(&self, cmd: &crate::input::ParsedCommand) -> serde_json::Value` — Build command arguments JSON from parsed command.
--  `get_help_text` function L1471-1477 — `(&self) -> String` — Get help text for available commands.
--  `send_message` function L1480-1514 — `(&mut self)` — Send the current input as a chat message.
--  `handle_sessions_key` function L1517-1561 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle sessions overlay key events.
--  `handle_palette_key` function L1564-1602 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle command palette key events.
--  `execute_action` function L1605-1652 — `(&mut self, action_id: ActionId)` — Execute a palette action.
--  `switch_to_session` function L1655-1685 — `(&mut self, session_id: &str)` — Switch to a different session.
--  `create_new_session` function L1688-1695 — `(&mut self)` — Create a new session.
--  `open_sessions_panel` function L1698-1704 — `(&mut self)` — Open the sessions panel.
--  `handle_overlay_key` function L1707-1743 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle workstreams overlay key events.
--  `handle_tool_pane_key` function L1746-1815 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle tool pane key events.
--  `open_tool_in_editor` function L1821-1850 — `(&mut self)` — Open the selected tool's output in an external pager.
--  `run_pager` function L1853-1887 — `(&self, pager: &str, content: &str) -> std::io::Result<()>` — Run a pager with the given content, suspending and restoring the TUI.
--  `handle_logs_key` function L1890-1922 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle logs panel key events.
--  `clear_pending_deletes` function L1925-1928 — `(&mut self)` — Clear any pending delete confirmations.
--  `handle_sidebar_key` function L1931-2166 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle sidebar key events.
--  `switch_to_workstream` function L2169-2203 — `(&mut self, workstream_name: &str)` — Switch to a different workstream.
+-  `UsageStats` type L232-269 — `= UsageStats` — Application state and main loop.
+-  `App` type L288-2219 — `= App` — Application state and main loop.
+-  `push_message` function L352-354 — `(&mut self, message: ChatMessage)` — Push a message (BoundedVec handles eviction automatically).
+-  `push_tool` function L357-359 — `(&mut self, tool: ToolExecution)` — Push a tool execution (BoundedVec handles eviction automatically).
+-  `process_pending_actions` function L424-466 — `(&mut self)` — Process pending async actions.
+-  `do_create_workstream` function L469-505 — `(&mut self, title: &str)` — Create a workstream via API.
+-  `do_rename_workstream` function L508-536 — `(&mut self, id: &str, new_title: &str)` — Rename a workstream via API.
+-  `do_delete_session` function L539-563 — `(&mut self, id: &str)` — Delete a session via API.
+-  `do_delete_workstream` function L566-591 — `(&mut self, id: &str)` — Delete a workstream via API.
+-  `do_fetch_workstream_sessions` function L594-650 — `(&mut self, workstream_id: &str)` — Fetch sessions for a specific workstream.
+-  `do_fetch_session_messages` function L653-683 — `(&mut self, session_id: &str)` — Fetch message history for a session.
+-  `do_move_session_to_workstream` function L686-723 — `(&mut self, session_id: &str, workstream_id: &str)` — Move a session to a different workstream via API.
+-  `refresh_sidebar_data` function L726-775 — `(&mut self)` — Refresh sidebar data from the server API.
+-  `handle_server_message` function L778-1009 — `(&mut self, msg: ServerMessage)` — Handle a message from the server.
+-  `handle_key` function L1012-1106 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle keyboard input.
+-  `handle_input_key` function L1109-1307 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle input-focused key events.
+-  `scroll_chat_up` function L1314-1317 — `(&mut self, lines: usize)` — Scroll chat up by the given number of lines.
+-  `scroll_chat_down` function L1323-1327 — `(&mut self, lines: usize)` — Scroll chat down by the given number of lines.
+-  `handle_mouse` function L1330-1370 — `(&mut self, mouse: crossterm::event::MouseEvent)` — Handle mouse events (scroll wheel on panels).
+-  `panel_at` function L1373-1403 — `(&self, col: u16, row: u16) -> Option<FocusTarget>` — Determine which panel contains the given screen coordinates.
+-  `update_command_popup` function L1406-1416 — `(&mut self)` — Update the command popup based on current input.
+-  `send_command` function L1419-1456 — `(&mut self)` — Send the current input as a command.
+-  `build_command_args` function L1459-1483 — `(&self, cmd: &crate::input::ParsedCommand) -> serde_json::Value` — Build command arguments JSON from parsed command.
+-  `get_help_text` function L1486-1492 — `(&self) -> String` — Get help text for available commands.
+-  `send_message` function L1495-1529 — `(&mut self)` — Send the current input as a chat message.
+-  `handle_sessions_key` function L1532-1576 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle sessions overlay key events.
+-  `handle_palette_key` function L1579-1617 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle command palette key events.
+-  `execute_action` function L1620-1667 — `(&mut self, action_id: ActionId)` — Execute a palette action.
+-  `switch_to_session` function L1670-1700 — `(&mut self, session_id: &str)` — Switch to a different session.
+-  `create_new_session` function L1703-1710 — `(&mut self)` — Create a new session.
+-  `open_sessions_panel` function L1713-1719 — `(&mut self)` — Open the sessions panel.
+-  `handle_overlay_key` function L1722-1758 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle workstreams overlay key events.
+-  `handle_tool_pane_key` function L1761-1830 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle tool pane key events.
+-  `open_tool_in_editor` function L1836-1865 — `(&mut self)` — Open the selected tool's output in an external pager.
+-  `run_pager` function L1868-1902 — `(&self, pager: &str, content: &str) -> std::io::Result<()>` — Run a pager with the given content, suspending and restoring the TUI.
+-  `handle_logs_key` function L1905-1937 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle logs panel key events.
+-  `clear_pending_deletes` function L1940-1943 — `(&mut self)` — Clear any pending delete confirmations.
+-  `handle_sidebar_key` function L1946-2181 — `(&mut self, key: crossterm::event::KeyEvent)` — Handle sidebar key events.
+-  `switch_to_workstream` function L2184-2218 — `(&mut self, workstream_name: &str)` — Switch to a different workstream.
 
 #### crates/arawn-tui/src/bounded.rs
 

@@ -75,6 +75,7 @@ impl ToolRegistry {
                 return Ok(result.sanitize(output_config));
             } else {
                 // Deny by default: no gate configured for a gated tool
+                tracing::warn!(tool = %name, "Gated tool denied: no filesystem gate configured");
                 return Ok(ToolResult::error(format!(
                     "Tool '{}' requires a filesystem gate but none is configured. \
                      This tool can only be used within a workstream context.",
@@ -124,6 +125,7 @@ impl ToolRegistry {
                 };
                 return tool.execute(params, ctx).await;
             } else {
+                tracing::warn!(tool = %name, "Gated tool denied (raw): no filesystem gate configured");
                 return Ok(ToolResult::error(format!(
                     "Tool '{}' requires a filesystem gate but none is configured.",
                     name
