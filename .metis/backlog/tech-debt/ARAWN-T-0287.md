@@ -4,15 +4,15 @@ level: task
 title: "Integrate code coverage tooling (llvm-cov) into CI"
 short_code: "ARAWN-T-0287"
 created_at: 2026-03-08T03:17:32.131835+00:00
-updated_at: 2026-03-08T03:17:32.131835+00:00
+updated_at: 2026-03-08T19:17:42.486895+00:00
 parent: 
 blocked_by: []
 archived: false
 
 tags:
   - "#task"
-  - "#phase/backlog"
   - "#tech-debt"
+  - "#phase/completed"
 
 
 exit_criteria_met: false
@@ -34,6 +34,12 @@ There is no code coverage measurement in the project. We have ~1,600 test functi
 - No coverage diff on PRs — regressions go unnoticed
 - Can't set coverage thresholds or gates
 - No per-crate coverage breakdown
+
+## Acceptance Criteria
+
+## Acceptance Criteria
+
+## Acceptance Criteria
 
 ## Acceptance Criteria
 
@@ -96,4 +102,13 @@ Add to `.github/workflows/ci.yml`:
 
 ## Status Updates
 
-*To be added during implementation*
+### Session 1
+- Added `coverage/` to `.gitignore`
+- Added `angreal test coverage [--open]` task to `.angreal/task_test.py`
+- Added `coverage` job to `.github/workflows/ci.yml`:
+  - Installs `llvm-tools-preview` and `cargo-llvm-cov`
+  - Runs tests with instrumentation (`--no-report`)
+  - Generates HTML report, LCOV file, and per-crate summary
+  - Uploads `coverage/` as CI artifact
+- CI pattern: `--no-report` → `report --html` → `report --lcov` → `report` (summary)
+- Baseline coverage will be established on first CI run

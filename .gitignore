@@ -41,6 +41,9 @@ __pycache__/
 .venv/
 venv/
 
+# Coverage
+coverage/
+
 # WASM binaries
 *.wasm
 /openclaw/

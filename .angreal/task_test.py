@@ -45,6 +45,36 @@ def test_integration():
         )
 
 
+@test()
+@angreal.command(name="coverage", about="Generate code coverage report")
+@angreal.argument(
+    name="open_report",
+    long="open",
+    is_flag=True,
+    takes_value=False,
+    help="Open HTML report in browser after generation",
+)
+def test_coverage(open_report=False):
+    """Generate code coverage report using cargo-llvm-cov."""
+    with Flox("."):
+        subprocess.run(
+            [
+                "cargo",
+                "llvm-cov",
+                "--workspace",
+                "--html",
+                "--output-dir",
+                "coverage/",
+                "--",
+                "--test-threads=1",
+            ],
+            check=True,
+        )
+        print("\nCoverage report generated in coverage/html/index.html")
+        if open_report:
+            subprocess.run(["open", "coverage/html/index.html"], check=False)
+
+
 def _run_unit():
     subprocess.run(
         ["cargo", "test", "--workspace", "--", "--test-threads=1"],
