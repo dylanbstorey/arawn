@@ -355,4 +355,101 @@ mod tests {
         assert_eq!(results[0].memory_id, memory_id);
         assert!(results[0].distance < 0.01);
     }
+
+    #[test]
+    fn test_search_similar_filtered_empty_ids() {
+        let conn = create_test_connection();
+        let query = vec![1.0f32, 0.0, 0.0, 0.0];
+        let results = search_similar_filtered(&conn, &query, &[], 10).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_similar_filtered_basic() {
+        let conn = create_test_connection();
+
+        let id1 = MemoryId::new();
+        let id2 = MemoryId::new();
+        let id3 = MemoryId::new();
+
+        store_embedding(&conn, id1, &[1.0f32, 0.0, 0.0, 0.0]).unwrap();
+        store_embedding(&conn, id2, &[0.9f32, 0.1, 0.0, 0.0]).unwrap();
+        store_embedding(&conn, id3, &[0.0f32, 0.0, 1.0, 0.0]).unwrap();
+
+        // Filter to only id1 and id3
+        let query = vec![1.0f32, 0.0, 0.0, 0.0];
+        let results = search_similar_filtered(&conn, &query, &[id1, id3], 10).unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].memory_id, id1); // closest
+        assert_eq!(results[1].memory_id, id3);
+    }
+
+    #[test]
+    fn test_search_similar_filtered_with_limit() {
+        let conn = create_test_connection();
+
+        let id1 = MemoryId::new();
+        let id2 = MemoryId::new();
+        let id3 = MemoryId::new();
+
+        store_embedding(&conn, id1, &[1.0f32, 0.0, 0.0, 0.0]).unwrap();
+        store_embedding(&conn, id2, &[0.9f32, 0.1, 0.0, 0.0]).unwrap();
+        store_embedding(&conn, id3, &[0.0f32, 0.0, 1.0, 0.0]).unwrap();
+
+        // Filter to all three but limit to 1
+        let query = vec![1.0f32, 0.0, 0.0, 0.0];
+        let results = search_similar_filtered(&conn, &query, &[id1, id2, id3], 1).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].memory_id, id1); // closest match
+    }
+
+    #[test]
+    fn test_drop_vector_table() {
+        let conn = create_test_connection();
+
+        let id = MemoryId::new();
+        store_embedding(&conn, id, &[1.0f32, 0.0, 0.0, 0.0]).unwrap();
+        assert_eq!(count_embeddings(&conn).unwrap(), 1);
+
+        drop_vector_table(&conn).unwrap();
+
+        // Recreate and verify empty
+        create_vector_table(&conn, 4).unwrap();
+        assert_eq!(count_embeddings(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_delete_nonexistent_embedding() {
+        let conn = create_test_connection();
+        let id = MemoryId::new();
+        let deleted = delete_embedding(&conn, id).unwrap();
+        assert!(!deleted);
+    }
+
+    #[test]
+    fn test_has_embedding_nonexistent() {
+        let conn = create_test_connection();
+        let id = MemoryId::new();
+        assert!(!has_embedding(&conn, id).unwrap());
+    }
+
+    #[test]
+    fn test_search_similar_empty_table() {
+        let conn = create_test_connection();
+        let query = vec![1.0f32, 0.0, 0.0, 0.0];
+        let results = search_similar(&conn, &query, 10).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_similarity_result_fields() {
+        let id = MemoryId::new();
+        let result = SimilarityResult {
+            memory_id: id,
+            distance: 0.42,
+        };
+        assert_eq!(result.memory_id, id);
+        assert!((result.distance - 0.42).abs() < f32::EPSILON);
+    }
 }

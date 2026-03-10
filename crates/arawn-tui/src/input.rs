@@ -535,6 +535,294 @@ mod tests {
     }
 
     #[test]
+    fn test_move_right() {
+        let mut input = InputState::new();
+        input.set_text("abc");
+        input.move_to_start();
+        input.move_right();
+        assert_eq!(input.cursor(), 1);
+        input.move_right();
+        assert_eq!(input.cursor(), 2);
+        input.move_right();
+        assert_eq!(input.cursor(), 3);
+        // At end, should not move
+        input.move_right();
+        assert_eq!(input.cursor(), 3);
+    }
+
+    #[test]
+    fn test_move_left_at_start() {
+        let mut input = InputState::new();
+        input.set_text("abc");
+        input.move_to_start();
+        input.move_left();
+        assert_eq!(input.cursor(), 0); // Should stay at 0
+    }
+
+    #[test]
+    fn test_delete_char_at() {
+        let mut input = InputState::new();
+        input.set_text("abc");
+        input.move_to_start();
+        input.delete_char_at();
+        assert_eq!(input.content(), "bc");
+        assert_eq!(input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_delete_char_at_end_noop() {
+        let mut input = InputState::new();
+        input.set_text("abc");
+        // cursor is at end
+        input.delete_char_at();
+        assert_eq!(input.content(), "abc");
+    }
+
+    #[test]
+    fn test_delete_char_before_at_start_noop() {
+        let mut input = InputState::new();
+        input.set_text("abc");
+        input.move_to_start();
+        input.delete_char_before();
+        assert_eq!(input.content(), "abc");
+    }
+
+    #[test]
+    fn test_move_to_line_start_and_end() {
+        let mut input = InputState::new();
+        input.set_text("hello\nworld");
+        // cursor is at end of "world"
+        input.move_to_line_start();
+        assert_eq!(input.cursor(), 6); // start of "world"
+        input.move_to_line_end();
+        assert_eq!(input.cursor(), 11); // end of "world"
+    }
+
+    #[test]
+    fn test_move_to_line_start_first_line() {
+        let mut input = InputState::new();
+        input.set_text("hello\nworld");
+        input.move_to_start();
+        input.move_right(); // at 'e'
+        input.move_to_line_start();
+        assert_eq!(input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_move_to_line_end_first_line() {
+        let mut input = InputState::new();
+        input.set_text("hello\nworld");
+        input.move_to_start();
+        input.move_to_line_end();
+        assert_eq!(input.cursor(), 5); // before '\n'
+    }
+
+    #[test]
+    fn test_move_up_down() {
+        let mut input = InputState::new();
+        input.set_text("abc\ndef\nghi");
+        // cursor at end (line 2, col 3)
+
+        input.move_up();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 1);
+        assert_eq!(col, 3);
+
+        input.move_up();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 0);
+        assert_eq!(col, 3);
+
+        // At top, should not move
+        input.move_up();
+        let (line, _) = input.cursor_position();
+        assert_eq!(line, 0);
+
+        input.move_down();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 1);
+        assert_eq!(col, 3);
+
+        input.move_down();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 2);
+        assert_eq!(col, 3);
+
+        // At bottom, should not move
+        input.move_down();
+        let (line, _) = input.cursor_position();
+        assert_eq!(line, 2);
+    }
+
+    #[test]
+    fn test_move_up_clamps_column_to_shorter_line() {
+        let mut input = InputState::new();
+        input.set_text("abcdef\nhi\nxyz");
+        // cursor at end of "xyz" (line 2, col 3)
+        // Move up to "hi" — column should clamp to 2
+        input.move_up();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 1);
+        assert_eq!(col, 2); // "hi" is only 2 chars
+    }
+
+    #[test]
+    fn test_move_down_clamps_column_to_shorter_line() {
+        let mut input = InputState::new();
+        input.set_text("abcdef\nhi");
+        input.move_to_start();
+        // move to column 5 on first line
+        for _ in 0..5 {
+            input.move_right();
+        }
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 0);
+        assert_eq!(col, 5);
+
+        input.move_down();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 1);
+        assert_eq!(col, 2); // "hi" only 2 chars
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut input = InputState::new();
+        input.set_text("hello");
+        input.clear();
+        assert!(input.is_empty());
+        assert_eq!(input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_set_text() {
+        let mut input = InputState::new();
+        input.set_text("hello world");
+        assert_eq!(input.content(), "hello world");
+        assert_eq!(input.cursor(), 11);
+    }
+
+    #[test]
+    fn test_submit_adds_to_history_and_clears() {
+        let mut input = InputState::new();
+        input.set_text("hello");
+        let submitted = input.submit();
+        assert_eq!(submitted, "hello");
+        assert!(input.is_empty());
+        assert_eq!(input.cursor(), 0);
+    }
+
+    #[test]
+    fn test_submit_empty_not_added_to_history() {
+        let mut input = InputState::new();
+        input.submit(); // empty submit
+        assert!(!input.history_prev()); // no history
+    }
+
+    #[test]
+    fn test_submit_whitespace_not_added_to_history() {
+        let mut input = InputState::new();
+        input.set_text("   ");
+        input.submit();
+        assert!(!input.history_prev()); // not added
+    }
+
+    #[test]
+    fn test_submit_dedup_consecutive() {
+        let mut input = InputState::new();
+        input.set_text("foo");
+        input.submit();
+        input.set_text("foo");
+        input.submit();
+        // Should only have one history entry
+        assert!(input.history_prev());
+        assert_eq!(input.content(), "foo");
+        assert!(!input.history_prev()); // no more
+    }
+
+    #[test]
+    fn test_history_prev_on_empty_history() {
+        let mut input = InputState::new();
+        assert!(!input.history_prev());
+    }
+
+    #[test]
+    fn test_history_next_without_browsing() {
+        let mut input = InputState::new();
+        assert!(!input.history_next());
+    }
+
+    #[test]
+    fn test_history_at_oldest_returns_false() {
+        let mut input = InputState::new();
+        input.set_text("only");
+        input.submit();
+        assert!(input.history_prev()); // go to "only"
+        assert!(!input.history_prev()); // already at oldest
+    }
+
+    #[test]
+    fn test_insert_char_exits_history_mode() {
+        let mut input = InputState::new();
+        input.set_text("old");
+        input.submit();
+        input.history_prev();
+        assert!(input.is_browsing_history());
+        input.insert_char('x');
+        assert!(!input.is_browsing_history());
+    }
+
+    #[test]
+    fn test_name_lower() {
+        let cmd = ParsedCommand::parse("/Help").unwrap();
+        assert_eq!(cmd.name_lower(), "help");
+    }
+
+    #[test]
+    fn test_cursor_position_empty() {
+        let input = InputState::new();
+        let (line, col) = input.cursor_position();
+        assert_eq!(line, 0);
+        assert_eq!(col, 0);
+    }
+
+    #[test]
+    fn test_line_count_empty() {
+        let input = InputState::new();
+        assert_eq!(input.line_count(), 1); // at least 1
+    }
+
+    #[test]
+    fn test_line_count_multiline() {
+        let mut input = InputState::new();
+        input.set_text("a\nb\nc");
+        assert_eq!(input.line_count(), 3);
+    }
+
+    #[test]
+    fn test_insert_in_middle() {
+        let mut input = InputState::new();
+        input.set_text("ac");
+        input.move_to_start();
+        input.move_right(); // between 'a' and 'c'
+        input.insert_char('b');
+        assert_eq!(input.content(), "abc");
+        assert_eq!(input.cursor(), 2);
+    }
+
+    #[test]
+    fn test_unicode_cursor_movement() {
+        let mut input = InputState::new();
+        input.insert_char('é'); // 2-byte UTF-8
+        input.insert_char('x');
+        assert_eq!(input.cursor(), 3); // 2 + 1
+        input.move_left();
+        assert_eq!(input.cursor(), 2); // back to after 'é'
+        input.move_left();
+        assert_eq!(input.cursor(), 0);
+    }
+
+    #[test]
     fn test_command_prefix() {
         let mut input = InputState::new();
 

@@ -317,4 +317,84 @@ mod tests {
         let fetched = backend.get(memory.id).unwrap().unwrap();
         assert_eq!(fetched.access_count, 2);
     }
+
+    #[test]
+    fn test_mock_backend_update_nonexistent() {
+        let backend = MockMemoryBackend::new();
+        let memory = Memory::new(ContentType::Note, "Ghost");
+        let err = backend.update(&memory).unwrap_err();
+        assert!(matches!(err, crate::error::MemoryError::NotFound(_)));
+    }
+
+    #[test]
+    fn test_mock_backend_touch_nonexistent() {
+        let backend = MockMemoryBackend::new();
+        let id = MemoryId::new();
+        let err = backend.touch(id).unwrap_err();
+        assert!(matches!(err, crate::error::MemoryError::NotFound(_)));
+    }
+
+    #[test]
+    fn test_mock_backend_get_nonexistent() {
+        let backend = MockMemoryBackend::new();
+        let id = MemoryId::new();
+        assert!(backend.get(id).unwrap().is_none());
+    }
+
+    #[test]
+    fn test_mock_backend_utility_methods() {
+        let backend = MockMemoryBackend::new();
+        assert!(backend.is_empty());
+        assert_eq!(backend.len(), 0);
+
+        let memory = Memory::new(ContentType::Note, "Test");
+        backend.insert(&memory).unwrap();
+
+        assert!(!backend.is_empty());
+        assert_eq!(backend.len(), 1);
+
+        backend.clear();
+        assert!(backend.is_empty());
+    }
+
+    #[test]
+    fn test_mock_backend_list_pagination_beyond_range() {
+        let backend = MockMemoryBackend::new();
+        for i in 0..3 {
+            backend
+                .insert(&Memory::new(ContentType::Note, format!("n{}", i)))
+                .unwrap();
+        }
+
+        // Offset beyond total should return empty
+        let page = backend.list(None, 10, 100).unwrap();
+        assert!(page.is_empty());
+    }
+
+    #[test]
+    fn test_mock_backend_list_empty_type_filter() {
+        let backend = MockMemoryBackend::new();
+        backend
+            .insert(&Memory::new(ContentType::Note, "note"))
+            .unwrap();
+
+        let facts = backend.list(Some(ContentType::Fact), 10, 0).unwrap();
+        assert!(facts.is_empty());
+        assert_eq!(backend.count(Some(ContentType::Fact)).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_memory_backend_ext_defaults() {
+        let backend = MockMemoryBackend::new();
+
+        // Default implementations should return Ok(empty/no-op)
+        let contradictions = backend.find_contradictions("subject", "predicate").unwrap();
+        assert!(contradictions.is_empty());
+
+        let id1 = MemoryId::new();
+        let id2 = MemoryId::new();
+        backend.supersede(id1, id2).unwrap();
+        backend.reinforce(id1).unwrap();
+        backend.update_last_accessed(id1).unwrap();
+    }
 }

@@ -166,6 +166,7 @@ mod tests {
         (dir, manager)
     }
 
+    #[test]
     fn test_repo_name_from_url_https() {
         assert_eq!(
             DirectoryManager::repo_name_from_url("https://github.com/user/repo.git"),
@@ -310,5 +311,207 @@ mod tests {
             .unwrap_err();
 
         assert!(matches!(err, DirectoryError::CloneFailed { .. }));
+    }
+
+    // ── get_head_commit Tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_get_head_commit_on_local_repo() {
+        if !DirectoryManager::is_git_available() {
+            return;
+        }
+
+        let tmp = tempfile::tempdir().unwrap();
+        let repo_path = tmp.path().join("test-repo");
+        fs::create_dir_all(&repo_path).unwrap();
+
+        // Initialize a git repo with a commit
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        fs::write(repo_path.join("README.md"), "# Test\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "initial"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+
+        let commit = DirectoryManager::get_head_commit(&repo_path).unwrap();
+        assert!(!commit.is_empty());
+        assert_ne!(commit, "unknown");
+        // SHA-1 hex hash is 40 chars
+        assert_eq!(commit.len(), 40);
+        assert!(commit.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn test_get_head_commit_empty_repo() {
+        if !DirectoryManager::is_git_available() {
+            return;
+        }
+
+        let tmp = tempfile::tempdir().unwrap();
+        let repo_path = tmp.path().join("empty-repo");
+        fs::create_dir_all(&repo_path).unwrap();
+
+        // Init but don't commit
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_path)
+            .output()
+            .unwrap();
+
+        // HEAD doesn't exist yet, should return "unknown"
+        let commit = DirectoryManager::get_head_commit(&repo_path).unwrap();
+        assert_eq!(commit, "unknown");
+    }
+
+    // ── Local Clone Success Path ───────────────────────────────────────
+
+    #[test]
+    fn test_clone_local_repo_success() {
+        if !DirectoryManager::is_git_available() {
+            return;
+        }
+
+        // Create a local git repo to clone from
+        let source_tmp = tempfile::tempdir().unwrap();
+        let source_path = source_tmp.path().join("source-repo");
+        fs::create_dir_all(&source_path).unwrap();
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        fs::write(source_path.join("hello.txt"), "Hello, world!\n").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "initial commit"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+
+        // Now clone it via the DirectoryManager
+        let (_dir, manager) = setup();
+        manager.create_workstream("my-ws").unwrap();
+
+        let result = manager
+            .clone_repo(
+                "my-ws",
+                source_path.to_str().unwrap(),
+                Some("cloned"),
+            )
+            .unwrap();
+
+        assert!(result.path.exists());
+        assert!(result.path.join(".git").is_dir());
+        assert!(result.path.join("hello.txt").exists());
+        assert!(!result.commit.is_empty());
+        assert_ne!(result.commit, "unknown");
+        assert_eq!(result.commit.len(), 40);
+    }
+
+    #[test]
+    fn test_clone_local_repo_derives_name_from_url() {
+        if !DirectoryManager::is_git_available() {
+            return;
+        }
+
+        // Create a local git repo
+        let source_tmp = tempfile::tempdir().unwrap();
+        let source_path = source_tmp.path().join("my-project");
+        fs::create_dir_all(&source_path).unwrap();
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        fs::write(source_path.join("f.txt"), "x").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&source_path)
+            .output()
+            .unwrap();
+
+        let (_dir, manager) = setup();
+        manager.create_workstream("ws").unwrap();
+
+        // Clone without custom name — should derive "my-project" from the path
+        let result = manager
+            .clone_repo("ws", source_path.to_str().unwrap(), None)
+            .unwrap();
+
+        assert!(result.path.ends_with("production/my-project"));
+        assert!(result.path.exists());
+    }
+
+    // ── repo_name_from_url edge cases ──────────────────────────────────
+
+    #[test]
+    fn test_repo_name_from_url_trailing_slash() {
+        assert_eq!(
+            DirectoryManager::repo_name_from_url("https://github.com/user/repo/"),
+            "repo" // last segment is empty, falls back; actually "/" splits to ["", "repo", ""]
+        );
+    }
+
+    #[test]
+    fn test_repo_name_from_url_bare_name() {
+        assert_eq!(
+            DirectoryManager::repo_name_from_url("my-repo.git"),
+            "my-repo"
+        );
+        assert_eq!(
+            DirectoryManager::repo_name_from_url("my-repo"),
+            "my-repo"
+        );
     }
 }

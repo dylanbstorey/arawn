@@ -870,6 +870,214 @@ fn main() {
             .unwrap();
     }
 
+    #[test]
+    fn test_sha256_empty_string() {
+        let hash = sha256_hex("");
+        assert_eq!(hash.len(), 64);
+        // SHA-256 of empty string is well-known
+        assert_eq!(
+            hash,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+    }
+
+    #[test]
+    fn test_sha256_unicode() {
+        let hash = sha256_hex("こんにちは");
+        assert_eq!(hash.len(), 64);
+        // Different from ASCII
+        assert_ne!(hash, sha256_hex("hello"));
+    }
+
+    #[test]
+    fn test_script_config_custom_values() {
+        let config = ScriptConfig {
+            capabilities: Capabilities {
+                filesystem: vec!["/tmp".to_string(), "/data".to_string()],
+                network: true,
+            },
+            timeout: Some(Duration::from_secs(60)),
+            max_memory_bytes: Some(128 * 1024 * 1024),
+        };
+        assert_eq!(config.capabilities.filesystem.len(), 2);
+        assert!(config.capabilities.network);
+        assert_eq!(config.timeout, Some(Duration::from_secs(60)));
+        assert_eq!(config.max_memory_bytes, Some(128 * 1024 * 1024));
+    }
+
+    #[test]
+    fn test_script_config_no_memory_limit() {
+        let config = ScriptConfig {
+            max_memory_bytes: None,
+            ..Default::default()
+        };
+        assert!(config.max_memory_bytes.is_none());
+    }
+
+    #[test]
+    fn test_compile_result_debug() {
+        let result = CompileResult {
+            source_hash: "abc123".to_string(),
+            wasm_path: PathBuf::from("/tmp/abc123.wasm"),
+            cached: true,
+            compile_time: Duration::ZERO,
+        };
+        let debug = format!("{:?}", result);
+        assert!(debug.contains("abc123"));
+        assert!(debug.contains("cached: true"));
+    }
+
+    #[test]
+    fn test_script_output_debug() {
+        let output = ScriptOutput {
+            stdout: "hello".to_string(),
+            stderr: String::new(),
+            exit_code: 0,
+            elapsed: Duration::from_millis(42),
+        };
+        let debug = format!("{:?}", output);
+        assert!(debug.contains("hello"));
+        assert!(debug.contains("exit_code: 0"));
+    }
+
+    #[tokio::test]
+    async fn test_compile_crate_missing_cargo_toml() {
+        let (executor, tmp) = test_executor();
+        let empty_dir = tmp.path().join("no_crate");
+        std::fs::create_dir_all(&empty_dir).unwrap();
+
+        let result = executor.compile_crate(&empty_dir).await;
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("No Cargo.toml"),
+            "Expected missing Cargo.toml error, got: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_executor_creates_cache_dir() {
+        let tmp = TempDir::new().unwrap();
+        let nested = tmp.path().join("deep").join("nested").join("cache");
+        assert!(!nested.exists());
+        let _executor = ScriptExecutor::new(nested.clone(), Duration::from_secs(10)).unwrap();
+        assert!(nested.exists());
+    }
+
+    #[tokio::test]
+    async fn test_executor_default_timeout_used() {
+        let tmp = TempDir::new().unwrap();
+        let timeout = Duration::from_secs(45);
+        let executor = ScriptExecutor::new(tmp.path().join("cache"), timeout).unwrap();
+        assert_eq!(executor.default_timeout, timeout);
+    }
+
+    #[tokio::test]
+    async fn test_compile_hash_matches_sha256() {
+        let (executor, _tmp) = test_executor();
+        let source = "fn main() {}";
+        let expected_hash = sha256_hex(source);
+
+        let result = executor.compile(source).await;
+        match result {
+            Ok(cr) => {
+                assert_eq!(cr.source_hash, expected_hash);
+                // Wasm path should contain the hash
+                assert!(
+                    cr.wasm_path.to_string_lossy().contains(&expected_hash),
+                    "wasm_path should contain hash: {:?}",
+                    cr.wasm_path
+                );
+            }
+            Err(PipelineError::CompilationFailed(msg)) if msg.contains("wasm32-wasip1") => {
+                eprintln!("Skipping: wasm32-wasip1 target not installed");
+            }
+            Err(e) => panic!("Unexpected error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compile_and_execute_combined() {
+        let (executor, _tmp) = test_executor();
+        let source = r#"fn main() { print!("ok"); }"#;
+
+        let result = executor
+            .compile_and_execute(source, "{}", &ScriptConfig::default())
+            .await;
+        match result {
+            Ok((cr, output)) => {
+                assert!(!cr.source_hash.is_empty());
+                assert_eq!(output.exit_code, 0);
+                assert_eq!(output.stdout, "ok");
+            }
+            Err(PipelineError::CompilationFailed(msg)) if msg.contains("wasm32-wasip1") => {
+                eprintln!("Skipping: wasm32-wasip1 target not installed");
+            }
+            Err(e) => panic!("Unexpected error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_with_custom_timeout() {
+        let (executor, _tmp) = test_executor();
+        let source = r#"fn main() { print!("timeout_test"); }"#;
+
+        let compile = executor.compile(source).await;
+        match compile {
+            Ok(cr) => {
+                let config = ScriptConfig {
+                    timeout: Some(Duration::from_secs(5)),
+                    ..Default::default()
+                };
+                let output = executor
+                    .execute(&cr.source_hash, "{}", &config)
+                    .await
+                    .unwrap();
+                assert_eq!(output.exit_code, 0);
+                assert_eq!(output.stdout, "timeout_test");
+            }
+            Err(PipelineError::CompilationFailed(msg)) if msg.contains("wasm32-wasip1") => {
+                eprintln!("Skipping: wasm32-wasip1 target not installed");
+            }
+            Err(e) => panic!("Unexpected error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_captures_stderr() {
+        let (executor, _tmp) = test_executor();
+        let source = r#"fn main() { eprintln!("warning: something"); }"#;
+
+        let compile = executor.compile(source).await;
+        match compile {
+            Ok(cr) => {
+                let output = executor
+                    .execute(&cr.source_hash, "{}", &ScriptConfig::default())
+                    .await
+                    .unwrap();
+                assert_eq!(output.exit_code, 0);
+                assert!(
+                    output.stderr.contains("warning: something"),
+                    "stderr was: {}",
+                    output.stderr
+                );
+            }
+            Err(PipelineError::CompilationFailed(msg)) if msg.contains("wasm32-wasip1") => {
+                eprintln!("Skipping: wasm32-wasip1 target not installed");
+            }
+            Err(e) => panic!("Unexpected error: {e}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_clear_cache_on_empty() {
+        let (executor, _tmp) = test_executor();
+        // Clearing an already-empty cache should not panic
+        assert!(executor.module_cache.read().await.is_empty());
+        executor.clear_cache().await;
+        assert!(executor.module_cache.read().await.is_empty());
+    }
+
     #[tokio::test]
     async fn test_clear_cache() {
         let (executor, _tmp) = test_executor();

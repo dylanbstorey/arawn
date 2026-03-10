@@ -161,6 +161,7 @@ mod tests {
         (dir, manager)
     }
 
+    #[test]
     fn test_attach_session_basic() {
         let (_dir, manager) = setup();
 

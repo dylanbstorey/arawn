@@ -113,4 +113,70 @@ mod tests {
         let err = AgentError::ToolNotFound("unknown_tool".to_string());
         assert!(err.to_string().contains("Tool not found"));
     }
+
+    #[test]
+    fn test_is_rate_limit_true_for_rate_limit_error() {
+        let llm_err = arawn_llm::LlmError::rate_limit("too many requests");
+        let err = AgentError::Llm(llm_err);
+        assert!(err.is_rate_limit());
+    }
+
+    #[test]
+    fn test_is_rate_limit_false_for_other_llm_errors() {
+        let llm_err = arawn_llm::LlmError::Network("timeout".to_string());
+        let err = AgentError::Llm(llm_err);
+        assert!(!err.is_rate_limit());
+    }
+
+    #[test]
+    fn test_is_rate_limit_false_for_non_llm_errors() {
+        assert!(!AgentError::tool("fail").is_rate_limit());
+        assert!(!AgentError::session("fail").is_rate_limit());
+        assert!(!AgentError::context("fail").is_rate_limit());
+        assert!(!AgentError::internal("fail").is_rate_limit());
+        assert!(!AgentError::Cancelled.is_rate_limit());
+        assert!(!AgentError::MaxIterations(10).is_rate_limit());
+    }
+
+    #[test]
+    fn test_llm_error_returns_some_for_llm_variant() {
+        let llm_err = arawn_llm::LlmError::Network("timeout".to_string());
+        let err = AgentError::Llm(llm_err);
+        assert!(err.llm_error().is_some());
+    }
+
+    #[test]
+    fn test_llm_error_returns_none_for_non_llm_variants() {
+        assert!(AgentError::tool("fail").llm_error().is_none());
+        assert!(AgentError::Cancelled.llm_error().is_none());
+    }
+
+    #[test]
+    fn test_retry_after_with_duration() {
+        let llm_err =
+            arawn_llm::LlmError::rate_limit_with_retry("limited", Duration::from_secs(5));
+        let err = AgentError::Llm(llm_err);
+        assert_eq!(err.retry_after(), Some(Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn test_retry_after_rate_limit_without_duration() {
+        let llm_err = arawn_llm::LlmError::rate_limit("limited");
+        let err = AgentError::Llm(llm_err);
+        assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn test_retry_after_non_llm_error() {
+        assert_eq!(AgentError::tool("fail").retry_after(), None);
+        assert_eq!(AgentError::Cancelled.retry_after(), None);
+    }
+
+    #[test]
+    fn test_constructor_helpers() {
+        assert!(matches!(AgentError::tool("x"), AgentError::Tool(_)));
+        assert!(matches!(AgentError::session("x"), AgentError::Session(_)));
+        assert!(matches!(AgentError::context("x"), AgentError::Context(_)));
+        assert!(matches!(AgentError::internal("x"), AgentError::Internal(_)));
+    }
 }

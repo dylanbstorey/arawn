@@ -1240,4 +1240,179 @@ mod tests {
         assert!(result.is_error());
         assert!(result.to_llm_content().contains("Invalid URL"));
     }
+
+    // ── HTML extraction edge cases ────────────────────────────────────────
+
+    #[test]
+    fn test_extract_text_article_content() {
+        let tool = WebFetchTool::new();
+        let html = r#"
+            <html><body>
+                <nav>Skip this nav</nav>
+                <article>
+                    <h1>Article Title</h1>
+                    <p>Article body text here.</p>
+                </article>
+                <footer>Skip footer</footer>
+            </body></html>
+        "#;
+        let text = tool.extract_text_from_html(html);
+        assert!(text.contains("Article Title"));
+        assert!(text.contains("Article body"));
+    }
+
+    #[test]
+    fn test_extract_text_fallback_to_body() {
+        let tool = WebFetchTool::new();
+        let html = r#"
+            <html><body>
+                <div>Plain body content without article/main tags.</div>
+            </body></html>
+        "#;
+        let text = tool.extract_text_from_html(html);
+        assert!(text.contains("Plain body content"));
+    }
+
+    #[test]
+    fn test_extract_text_empty_html() {
+        let tool = WebFetchTool::new();
+        let text = tool.extract_text_from_html("");
+        assert!(text.is_empty() || text.trim().is_empty());
+    }
+
+    #[test]
+    fn test_extract_text_truncation() {
+        let config = WebFetchConfig {
+            max_text_length: 20,
+            ..Default::default()
+        };
+        let tool = WebFetchTool::with_config(config);
+        let html = r#"<html><body><main><p>This is a long text that should be truncated because it exceeds the max length.</p></main></body></html>"#;
+        let text = tool.extract_text_from_html(html);
+        assert!(text.contains("[truncated]"));
+    }
+
+    #[test]
+    fn test_extract_text_content_class() {
+        let tool = WebFetchTool::new();
+        let html = r#"<html><body><div class="content"><p>Content class text</p></div></body></html>"#;
+        let text = tool.extract_text_from_html(html);
+        assert!(text.contains("Content class text"));
+    }
+
+    #[test]
+    fn test_extract_title_missing() {
+        let tool = WebFetchTool::new();
+        let html = "<html><body>No title here</body></html>";
+        assert_eq!(tool.extract_title(html), None);
+    }
+
+    #[test]
+    fn test_extract_description_missing() {
+        let tool = WebFetchTool::new();
+        let html = "<html><head></head><body></body></html>";
+        assert_eq!(tool.extract_description(html), None);
+    }
+
+    #[test]
+    fn test_extract_description_wrong_meta() {
+        let tool = WebFetchTool::new();
+        let html = r#"<html><head><meta name="keywords" content="foo,bar"></head></html>"#;
+        assert_eq!(tool.extract_description(html), None);
+    }
+
+    // ── WebFetchConfig tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_web_fetch_config_default() {
+        let config = WebFetchConfig::default();
+        assert_eq!(config.timeout, Duration::from_secs(30));
+        assert!(config.extract_text);
+        assert_eq!(config.max_text_length, 50_000);
+        assert!(config.user_agent.contains("Arawn"));
+    }
+
+    #[test]
+    fn test_web_fetch_tool_with_config() {
+        let config = WebFetchConfig {
+            timeout: Duration::from_secs(5),
+            max_size: 1024,
+            user_agent: "TestAgent".to_string(),
+            extract_text: false,
+            max_text_length: 100,
+        };
+        let tool = WebFetchTool::with_config(config);
+        assert_eq!(tool.config.timeout, Duration::from_secs(5));
+        assert_eq!(tool.config.max_size, 1024);
+        assert!(!tool.config.extract_text);
+    }
+
+    #[test]
+    fn test_web_fetch_tool_default() {
+        let tool = WebFetchTool::default();
+        assert_eq!(tool.name(), "web_fetch");
+    }
+
+    // ── WebSearchConfig tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_web_search_config_default() {
+        let config = WebSearchConfig::default();
+        assert_eq!(config.max_results, 10);
+        assert_eq!(config.timeout, Duration::from_secs(30));
+        assert!(matches!(config.provider, SearchProvider::DuckDuckGo));
+    }
+
+    #[test]
+    fn test_web_search_tool_default() {
+        let tool = WebSearchTool::default();
+        assert_eq!(tool.name(), "web_search");
+    }
+
+    // ── SearchResult ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_search_result_serialization() {
+        let result = SearchResult {
+            title: "Test".to_string(),
+            url: "https://example.com".to_string(),
+            snippet: "A snippet".to_string(),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("Test"));
+        let deserialized: SearchResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.title, "Test");
+    }
+
+    // ── Cancelled context ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_web_fetch_cancelled() {
+        use tokio_util::sync::CancellationToken;
+        let tool = WebFetchTool::new();
+        let token = CancellationToken::new();
+        let ctx = ToolContext::with_cancellation(
+            crate::SessionId::new(),
+            crate::TurnId::new(),
+            token.clone(),
+        );
+        token.cancel();
+
+        let result = tool
+            .execute(json!({"url": "https://example.com"}), &ctx)
+            .await
+            .unwrap();
+
+        assert!(result.is_error());
+        assert!(result.to_llm_content().contains("cancelled"));
+    }
+
+    #[tokio::test]
+    async fn test_web_fetch_missing_url() {
+        let tool = WebFetchTool::new();
+        let ctx = ToolContext::default();
+
+        let result = tool.execute(json!({}), &ctx).await;
+        assert!(result.is_err());
+    }
 }

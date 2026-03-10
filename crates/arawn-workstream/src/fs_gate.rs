@@ -286,4 +286,192 @@ mod tests {
                 .contains("scratch/sessions/sess-1")
         );
     }
+
+    // ── WorkstreamFsGate (FsGate trait) Tests ──────────────────────────
+
+    #[test]
+    fn test_path_only_gate_validate_read_allowed() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let work_dir = dm.work_path("proj");
+        let test_file = work_dir.join("readme.md");
+        fs::write(&test_file, "# Hello").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        let result = gate.validate_read(&test_file);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_path_only_gate_validate_read_denied() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let outside = dir.path().join("outside.txt");
+        fs::write(&outside, "secret").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        let result = gate.validate_read(&outside);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            FsGateError::AccessDenied { reason, .. } => {
+                assert!(reason.contains("outside the workstream sandbox"));
+            }
+            other => panic!("Expected AccessDenied, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_path_only_gate_validate_write_allowed() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let work_dir = dm.work_path("proj");
+        let new_file = work_dir.join("output.txt");
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        let result = gate.validate_write(&new_file);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_path_only_gate_validate_write_denied() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let outside = dir.path().join("outside.txt");
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        let result = gate.validate_write(&outside);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            FsGateError::AccessDenied { reason, .. } => {
+                assert!(reason.contains("outside the workstream sandbox"));
+            }
+            other => panic!("Expected AccessDenied, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_path_only_gate_working_dir_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        assert!(gate.working_dir().ends_with("proj/work"));
+    }
+
+    #[test]
+    fn test_path_only_gate_working_dir_scratch() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_scratch_session("sess-x").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "scratch", "sess-x");
+
+        assert!(gate
+            .working_dir()
+            .to_string_lossy()
+            .contains("scratch/sessions/sess-x"));
+    }
+
+    #[tokio::test]
+    async fn test_path_only_gate_sandbox_execute_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        // sandbox_execute should fail with clear message when sandbox is None
+        let result = gate.sandbox_execute("echo hello", None).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            FsGateError::SandboxError(msg) => {
+                assert!(msg.contains("unavailable"));
+                assert!(msg.contains("File tools"));
+            }
+            other => panic!("Expected SandboxError, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_scratch_gate_validate_read_cross_session_denied() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_scratch_session("session-A").unwrap();
+        dm.create_scratch_session("session-B").unwrap();
+
+        let gate_a = WorkstreamFsGate::path_only(&dm, "scratch", "session-A");
+
+        // Create file in session B
+        let file_b = dm.scratch_session_path("session-B").join("b.txt");
+        fs::write(&file_b, "b").unwrap();
+
+        // Gate A should deny reading session B's file
+        let result = gate_a.validate_read(&file_b);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_scratch_gate_validate_write_own_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_scratch_session("sess-1").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "scratch", "sess-1");
+
+        let own_file = dm.scratch_session_path("sess-1").join("new.txt");
+        assert!(gate.validate_write(&own_file).is_ok());
+    }
+
+    #[test]
+    fn test_named_gate_allows_production_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let prod_dir = dm.production_path("proj");
+        let prod_file = prod_dir.join("data.csv");
+        fs::write(&prod_file, "a,b,c").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+        assert!(gate.validate_read(&prod_file).is_ok());
+    }
+
+    #[test]
+    fn test_gate_allowed_paths_stored() {
+        let dir = tempfile::tempdir().unwrap();
+        let dm = DirectoryManager::new(dir.path());
+        dm.create_workstream("proj").unwrap();
+
+        let gate = WorkstreamFsGate::path_only(&dm, "proj", "s1");
+
+        // Should have both production/ and work/ in allowed_paths
+        assert!(!gate.allowed_paths.is_empty());
+        let paths_str: Vec<String> = gate
+            .allowed_paths
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+        assert!(
+            paths_str.iter().any(|p| p.contains("production")),
+            "Should contain production path"
+        );
+        assert!(
+            paths_str.iter().any(|p| p.contains("work")),
+            "Should contain work path"
+        );
+    }
 }

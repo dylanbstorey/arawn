@@ -413,6 +413,7 @@ mod tests {
         assert!(ctx2.is_cancelled());
     }
 
+    #[test]
     fn test_tool_result_sanitize_text() {
         let result = ToolResult::text("Hello\0World");
         let config = OutputConfig::default();
@@ -503,5 +504,79 @@ mod tests {
             }
             _ => panic!("Expected Text result"),
         }
+    }
+
+    #[test]
+    fn test_tool_context_new() {
+        let sid = SessionId::new();
+        let tid = TurnId::new();
+        let ctx = ToolContext::new(sid, tid);
+        assert_eq!(ctx.session_id, sid);
+        assert_eq!(ctx.turn_id, tid);
+        assert!(!ctx.is_cancelled());
+        assert!(!ctx.is_streaming());
+        assert!(ctx.fs_gate.is_none());
+        assert!(ctx.secret_resolver.is_none());
+    }
+
+    #[test]
+    fn test_tool_context_with_streaming() {
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        let ctx = ToolContext::default().with_streaming(tx, "tc-123");
+        assert!(ctx.is_streaming());
+        assert_eq!(ctx.tool_call_id.as_deref(), Some("tc-123"));
+    }
+
+    #[test]
+    fn test_tool_context_send_output() {
+        let ctx = ToolContext::default();
+        // No sender — should return false
+        assert!(!ctx.send_output("test"));
+
+        // With sender
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let ctx2 = ToolContext::default().with_streaming(tx, "tc-1");
+        assert!(ctx2.send_output("hello"));
+        assert_eq!(rx.try_recv().unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_tool_context_send_output_closed_channel() {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        let ctx = ToolContext::default().with_streaming(tx, "tc-1");
+        drop(rx); // Close the receiver
+        assert!(!ctx.send_output("should fail"));
+    }
+
+    #[test]
+    fn test_tool_context_debug() {
+        let ctx = ToolContext::default();
+        let debug_str = format!("{:?}", ctx);
+        assert!(debug_str.contains("ToolContext"));
+        assert!(debug_str.contains("session_id"));
+    }
+
+    #[test]
+    fn test_tool_result_fatal_error() {
+        let result = ToolResult::fatal_error("unrecoverable");
+        assert!(result.is_error());
+        match result {
+            ToolResult::Error {
+                message,
+                recoverable,
+            } => {
+                assert_eq!(message, "unrecoverable");
+                assert!(!recoverable);
+            }
+            _ => panic!("Expected Error"),
+        }
+    }
+
+    #[test]
+    fn test_tool_result_was_truncated() {
+        assert!(!ToolResult::text("normal").was_truncated());
+        assert!(ToolResult::text("foo [Output truncated bar").was_truncated());
+        assert!(!ToolResult::json(serde_json::json!({})).was_truncated());
+        assert!(ToolResult::error("err [Output truncated").was_truncated());
     }
 }

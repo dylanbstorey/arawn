@@ -253,5 +253,94 @@ mod tests {
     fn test_proxy_config_default() {
         let config = ProxyConfig::default();
         assert!(config.enable_cors);
+        assert!(config.token_manager.is_none());
+    }
+
+    #[test]
+    fn test_proxy_config_new() {
+        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
+        let config = ProxyConfig::new(addr);
+        assert_eq!(config.bind_addr, addr);
+        assert!(config.enable_cors);
+    }
+
+    #[tokio::test]
+    async fn test_messages_invalid_json() {
+        let server = ProxyServer::new(ProxyConfig::default());
+        let router = server.router();
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/messages")
+                    .header("content-type", "application/json")
+                    .body(Body::from("not valid json"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_run_with_shutdown() {
+        let config = ProxyConfig::default();
+        let server = ProxyServer::new(config);
+
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let addr = server
+            .run_with_shutdown(async move { rx.await.ok(); })
+            .await
+            .unwrap();
+
+        // Verify it's listening
+        assert_ne!(addr.port(), 0);
+
+        // Hit health endpoint
+        let client = reqwest::Client::new();
+        let resp = client
+            .get(format!("http://{}/health", addr))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+
+        // Shutdown
+        tx.send(()).unwrap();
+    }
+
+    #[test]
+    fn test_proxy_error_variants() {
+        use axum::response::IntoResponse;
+
+        let backend_err = ProxyError(OAuthError::Backend("upstream down".to_string()));
+        let resp = backend_err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+
+        let invalid_req = ProxyError(OAuthError::InvalidRequest("bad".to_string()));
+        let resp = invalid_req.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let network_err = ProxyError(OAuthError::Network("timeout".to_string()));
+        let resp = network_err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+
+        let serial_err = ProxyError(OAuthError::Serialization("parse fail".to_string()));
+        let resp = serial_err.into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        let config_err = ProxyError(OAuthError::Config("missing".to_string()));
+        let resp = config_err.into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_proxy_server_router_without_cors() {
+        let mut config = ProxyConfig::default();
+        config.enable_cors = false;
+        let server = ProxyServer::new(config);
+        let _router = server.router(); // Should not panic
     }
 }

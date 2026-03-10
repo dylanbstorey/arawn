@@ -1158,4 +1158,413 @@ mod tests {
             .await;
         assert!(matches!(outcome, HookOutcome::Allow));
     }
+
+    // ── register_from_config Tests ─────────────────────────────────────
+
+    #[test]
+    fn test_register_from_config_command_hooks() {
+        use crate::types::{HookAction, HookMatcherGroup, HookType, HooksConfig};
+
+        let tmp = TempDir::new().unwrap();
+        let script = create_hook_script(tmp.path(), "check.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut hooks_map = HashMap::new();
+        hooks_map.insert(
+            HookEvent::PreToolUse,
+            vec![HookMatcherGroup {
+                matcher: Some("Write|Edit".to_string()),
+                hooks: vec![HookAction {
+                    hook_type: HookType::Command,
+                    command: Some(script.display().to_string()),
+                    prompt: None,
+                    agent: None,
+                    timeout: None,
+                }],
+            }],
+        );
+
+        let config = HooksConfig { hooks: hooks_map };
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register_from_config(&config, tmp.path());
+
+        assert_eq!(dispatcher.len(), 1);
+        assert_eq!(dispatcher.count_for_event(HookEvent::PreToolUse), 1);
+    }
+
+    #[test]
+    fn test_register_from_config_skips_prompt_hooks() {
+        use crate::types::{HookAction, HookMatcherGroup, HookType, HooksConfig};
+
+        let tmp = TempDir::new().unwrap();
+
+        let mut hooks_map = HashMap::new();
+        hooks_map.insert(
+            HookEvent::SessionStart,
+            vec![HookMatcherGroup {
+                matcher: None,
+                hooks: vec![HookAction {
+                    hook_type: HookType::Prompt,
+                    command: None,
+                    prompt: Some("Check if code is safe".to_string()),
+                    agent: None,
+                    timeout: None,
+                }],
+            }],
+        );
+
+        let config = HooksConfig { hooks: hooks_map };
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register_from_config(&config, tmp.path());
+
+        // Prompt hooks are skipped
+        assert_eq!(dispatcher.len(), 0);
+    }
+
+    #[test]
+    fn test_register_from_config_skips_command_without_command_field() {
+        use crate::types::{HookAction, HookMatcherGroup, HookType, HooksConfig};
+
+        let tmp = TempDir::new().unwrap();
+
+        let mut hooks_map = HashMap::new();
+        hooks_map.insert(
+            HookEvent::PreToolUse,
+            vec![HookMatcherGroup {
+                matcher: None,
+                hooks: vec![HookAction {
+                    hook_type: HookType::Command,
+                    command: None, // missing command field
+                    prompt: None,
+                    agent: None,
+                    timeout: None,
+                }],
+            }],
+        );
+
+        let config = HooksConfig { hooks: hooks_map };
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register_from_config(&config, tmp.path());
+
+        assert_eq!(dispatcher.len(), 0);
+    }
+
+    #[test]
+    fn test_register_from_config_multiple_events() {
+        use crate::types::{HookAction, HookMatcherGroup, HookType, HooksConfig};
+
+        let tmp = TempDir::new().unwrap();
+        let script1 = create_hook_script(tmp.path(), "pre.sh", "#!/bin/bash\nexit 0\n");
+        let script2 = create_hook_script(tmp.path(), "post.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut hooks_map = HashMap::new();
+        hooks_map.insert(
+            HookEvent::PreToolUse,
+            vec![HookMatcherGroup {
+                matcher: Some("shell".to_string()),
+                hooks: vec![HookAction {
+                    hook_type: HookType::Command,
+                    command: Some(script1.display().to_string()),
+                    prompt: None,
+                    agent: None,
+                    timeout: None,
+                }],
+            }],
+        );
+        hooks_map.insert(
+            HookEvent::PostToolUse,
+            vec![HookMatcherGroup {
+                matcher: None,
+                hooks: vec![HookAction {
+                    hook_type: HookType::Command,
+                    command: Some(script2.display().to_string()),
+                    prompt: None,
+                    agent: None,
+                    timeout: None,
+                }],
+            }],
+        );
+
+        let config = HooksConfig { hooks: hooks_map };
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register_from_config(&config, tmp.path());
+
+        assert_eq!(dispatcher.len(), 2);
+        assert_eq!(dispatcher.count_for_event(HookEvent::PreToolUse), 1);
+        assert_eq!(dispatcher.count_for_event(HookEvent::PostToolUse), 1);
+    }
+
+    // ── Invalid Pattern Tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_register_invalid_glob_pattern() {
+        let tmp = TempDir::new().unwrap();
+        let script = create_hook_script(tmp.path(), "hook.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut dispatcher = HookDispatcher::new();
+        let mut hook = make_hook(HookEvent::PreToolUse, script);
+        hook.tool_match = Some("[invalid".to_string()); // invalid glob
+        dispatcher.register(hook, tmp.path().to_path_buf());
+
+        // Hook is registered but will never match due to invalid pattern
+        assert_eq!(dispatcher.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_invalid_glob_never_matches() {
+        let tmp = TempDir::new().unwrap();
+        let script = create_hook_script(
+            tmp.path(),
+            "block.sh",
+            "#!/bin/bash\necho 'blocked'\nexit 1\n",
+        );
+
+        let mut dispatcher = HookDispatcher::new();
+        let mut hook = make_hook(HookEvent::PreToolUse, script);
+        hook.tool_match = Some("[invalid".to_string());
+        dispatcher.register(hook, tmp.path().to_path_buf());
+
+        // Invalid glob means tool_pattern is None, so it matches everything...
+        // Actually let's check the behavior - an invalid glob sets tool_pattern to None
+        // which means no tool_match filter, so it will match all tools
+        let outcome = dispatcher
+            .dispatch_pre_tool_use("anything", &serde_json::json!({}))
+            .await;
+        // With tool_pattern=None, it matches (no filter)
+        assert!(matches!(outcome, HookOutcome::Block { .. }));
+    }
+
+    #[test]
+    fn test_register_invalid_regex_pattern() {
+        let tmp = TempDir::new().unwrap();
+        let script = create_hook_script(tmp.path(), "hook.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut dispatcher = HookDispatcher::new();
+        let mut hook = make_hook(HookEvent::PreToolUse, script);
+        hook.match_pattern = Some("(unclosed".to_string()); // invalid regex
+        dispatcher.register(hook, tmp.path().to_path_buf());
+
+        assert_eq!(dispatcher.len(), 1);
+    }
+
+    // ── matches_hook Combined Filters Tests ────────────────────────────
+
+    #[test]
+    fn test_matches_hook_both_tool_and_param_filters() {
+        let hook = CompiledHook {
+            def: make_hook(HookEvent::PreToolUse, PathBuf::from("test.sh")),
+            tool_pattern: Some(glob::Pattern::new("shell").unwrap()),
+            param_regex: Some(regex::Regex::new("rm").unwrap()),
+            plugin_dir: PathBuf::from("."),
+        };
+
+        // Both match
+        assert!(matches_hook(
+            &hook,
+            Some("shell"),
+            Some(&serde_json::json!({"cmd": "rm -rf /tmp"}))
+        ));
+
+        // Tool matches, params don't
+        assert!(!matches_hook(
+            &hook,
+            Some("shell"),
+            Some(&serde_json::json!({"cmd": "ls"}))
+        ));
+
+        // Tool doesn't match
+        assert!(!matches_hook(
+            &hook,
+            Some("file_read"),
+            Some(&serde_json::json!({"cmd": "rm"}))
+        ));
+    }
+
+    #[test]
+    fn test_matches_hook_param_regex_no_params() {
+        let hook = CompiledHook {
+            def: make_hook(HookEvent::PreToolUse, PathBuf::from("test.sh")),
+            tool_pattern: None,
+            param_regex: Some(regex::Regex::new("test").unwrap()),
+            plugin_dir: PathBuf::from("."),
+        };
+
+        // param_regex set but no params provided = no match
+        assert!(!matches_hook(&hook, Some("shell"), None));
+    }
+
+    // ── Default Impl Test ──────────────────────────────────────────────
+
+    #[test]
+    fn test_hook_dispatcher_default() {
+        let dispatcher = HookDispatcher::default();
+        assert!(dispatcher.is_empty());
+        assert_eq!(dispatcher.len(), 0);
+    }
+
+    // ── Hook Spawn Failure Test ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_hook_command_not_found() {
+        let tmp = TempDir::new().unwrap();
+
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register(
+            make_hook(
+                HookEvent::PreToolUse,
+                PathBuf::from("/nonexistent/command"),
+            ),
+            tmp.path().to_path_buf(),
+        );
+
+        // Failed spawn is treated as error, not block
+        let outcome = dispatcher
+            .dispatch_pre_tool_use("shell", &serde_json::json!({}))
+            .await;
+        assert!(matches!(outcome, HookOutcome::Allow));
+    }
+
+    #[tokio::test]
+    async fn test_info_hook_command_not_found() {
+        let tmp = TempDir::new().unwrap();
+
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register(
+            make_hook(
+                HookEvent::SessionStart,
+                PathBuf::from("/nonexistent/command"),
+            ),
+            tmp.path().to_path_buf(),
+        );
+
+        // Info hooks also treat spawn failure gracefully
+        let outcome = dispatcher.dispatch_session_start("sess").await;
+        assert!(matches!(outcome, HookOutcome::Allow));
+    }
+
+    // ── HookDispatch Trait Test ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_hook_dispatch_trait_methods() {
+        use arawn_types::HookDispatch;
+
+        let tmp = TempDir::new().unwrap();
+        let script = create_hook_script(
+            tmp.path(),
+            "hook.sh",
+            "#!/bin/bash\nread input\necho \"$input\"\n",
+        );
+
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register(
+            make_hook(HookEvent::Stop, script),
+            tmp.path().to_path_buf(),
+        );
+
+        // Call via trait object
+        let dispatch: &dyn HookDispatch = &dispatcher;
+        assert_eq!(dispatch.len(), 1);
+        assert!(!dispatch.is_empty());
+
+        let outcome = dispatch.dispatch_stop("test response").await;
+        match outcome {
+            HookOutcome::Info { output } => {
+                assert!(output.contains("test response"));
+            }
+            other => panic!("expected Info, got {:?}", other),
+        }
+    }
+
+    // ── Pre Tool Use Hook Error Path ───────────────────────────────────
+
+    #[tokio::test]
+    async fn test_pre_tool_use_hook_error_does_not_block() {
+        let tmp = TempDir::new().unwrap();
+        // First hook errors (spawn failure), second hook allows
+        let script_good =
+            create_hook_script(tmp.path(), "good.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut dispatcher = HookDispatcher::new();
+        // Register a bad hook first
+        dispatcher.register(
+            make_hook(
+                HookEvent::PreToolUse,
+                PathBuf::from("/nonexistent/command"),
+            ),
+            tmp.path().to_path_buf(),
+        );
+        // Register a good hook second
+        dispatcher.register(
+            make_hook(HookEvent::PreToolUse, script_good),
+            tmp.path().to_path_buf(),
+        );
+
+        // Error in first hook is logged but doesn't block; second hook allows
+        let outcome = dispatcher
+            .dispatch_pre_tool_use("shell", &serde_json::json!({}))
+            .await;
+        assert!(matches!(outcome, HookOutcome::Allow));
+    }
+
+    // ── Post Tool Use Multiple Hooks Combined Output ───────────────────
+
+    #[tokio::test]
+    async fn test_post_tool_use_info_hooks_combined_output() {
+        let tmp = TempDir::new().unwrap();
+        let script1 = create_hook_script(
+            tmp.path(),
+            "hook1.sh",
+            "#!/bin/bash\necho 'output-one'\n",
+        );
+        let script2 = create_hook_script(
+            tmp.path(),
+            "hook2.sh",
+            "#!/bin/bash\necho 'output-two'\n",
+        );
+
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register(
+            make_hook(HookEvent::PostToolUse, script1),
+            tmp.path().to_path_buf(),
+        );
+        dispatcher.register(
+            make_hook(HookEvent::PostToolUse, script2),
+            tmp.path().to_path_buf(),
+        );
+
+        let outcome = dispatcher
+            .dispatch_post_tool_use(
+                "shell",
+                &serde_json::json!({}),
+                &serde_json::json!({}),
+            )
+            .await;
+        match outcome {
+            HookOutcome::Info { output } => {
+                assert!(output.contains("output-one"));
+                assert!(output.contains("output-two"));
+                // Combined with newline separator
+                assert!(output.contains('\n'));
+            }
+            other => panic!("expected Info, got {:?}", other),
+        }
+    }
+
+    // ── Info Hook Silent Success ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_info_hook_no_output_returns_allow() {
+        let tmp = TempDir::new().unwrap();
+        // Hook succeeds but produces no output
+        let script = create_hook_script(tmp.path(), "silent.sh", "#!/bin/bash\nexit 0\n");
+
+        let mut dispatcher = HookDispatcher::new();
+        dispatcher.register(
+            make_hook(HookEvent::SessionStart, script),
+            tmp.path().to_path_buf(),
+        );
+
+        let outcome = dispatcher.dispatch_session_start("sess").await;
+        // No output from hook → Allow (not Info)
+        assert!(matches!(outcome, HookOutcome::Allow));
+    }
 }

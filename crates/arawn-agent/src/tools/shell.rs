@@ -1131,4 +1131,190 @@ mod tests {
         let config = ShellConfig::new().with_pty_size(40, 120);
         assert_eq!(config.pty_size, (40, 120));
     }
+
+    // ── Config builder tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_shell_config_builders() {
+        let config = ShellConfig::new()
+            .with_timeout(Duration::from_secs(60))
+            .with_working_dir("/tmp")
+            .with_max_output_size(2048)
+            .block_command("danger");
+
+        assert_eq!(config.timeout, Duration::from_secs(60));
+        assert_eq!(config.working_dir, Some("/tmp".to_string()));
+        assert_eq!(config.max_output_size, 2048);
+        assert!(config.blocked_commands.contains(&"danger".to_string()));
+    }
+
+    #[test]
+    fn test_shell_tool_default() {
+        let tool = ShellTool::default();
+        assert_eq!(tool.name(), "shell");
+    }
+
+    // ── extract_cd_target tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_extract_cd_target_bare_cd() {
+        let tool = ShellTool::new();
+        assert_eq!(tool.extract_cd_target("cd"), Some("~".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cd_target_with_path() {
+        let tool = ShellTool::new();
+        assert_eq!(tool.extract_cd_target("cd /tmp"), Some("/tmp".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cd_target_empty_path() {
+        let tool = ShellTool::new();
+        assert_eq!(tool.extract_cd_target("cd "), Some("~".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cd_target_not_cd() {
+        let tool = ShellTool::new();
+        assert_eq!(tool.extract_cd_target("echo cd"), None);
+        assert_eq!(tool.extract_cd_target("ls"), None);
+        assert_eq!(tool.extract_cd_target("cdd /tmp"), None);
+    }
+
+    // ── resolve_cd_path tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_cd_path_home() {
+        let tool = ShellTool::new();
+        let result = tool.resolve_cd_path("~", &None);
+        assert!(result.is_absolute());
+    }
+
+    #[test]
+    fn test_resolve_cd_path_absolute() {
+        let tool = ShellTool::new();
+        let result = tool.resolve_cd_path("/tmp", &None);
+        assert_eq!(result, PathBuf::from("/tmp"));
+    }
+
+    #[test]
+    fn test_resolve_cd_path_relative() {
+        let tool = ShellTool::new();
+        let base = Some(PathBuf::from("/tmp"));
+        let result = tool.resolve_cd_path("subdir", &base);
+        assert!(result.to_string_lossy().contains("subdir"));
+    }
+
+    #[test]
+    fn test_resolve_cd_path_tilde_subpath() {
+        let tool = ShellTool::new();
+        let result = tool.resolve_cd_path("~/Downloads", &None);
+        assert!(result.to_string_lossy().contains("Downloads"));
+        assert!(result.is_absolute());
+    }
+
+    // ── Working directory management ──────────────────────────────────────
+
+    #[test]
+    fn test_get_set_working_dir() {
+        let tool = ShellTool::new();
+        assert!(tool.get_working_dir("sess1").is_none());
+
+        tool.set_working_dir("sess1", PathBuf::from("/tmp"));
+        assert_eq!(tool.get_working_dir("sess1"), Some(PathBuf::from("/tmp")));
+
+        // Different session has no dir
+        assert!(tool.get_working_dir("sess2").is_none());
+    }
+
+    #[test]
+    fn test_get_working_dir_falls_back_to_config() {
+        let config = ShellConfig::new().with_working_dir("/etc");
+        let tool = ShellTool::with_config(config);
+        assert_eq!(tool.get_working_dir("any"), Some(PathBuf::from("/etc")));
+    }
+
+    // ── truncate_output tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_truncate_output_within_limit() {
+        let config = ShellConfig::new().with_max_output_size(1000);
+        let tool = ShellTool::with_config(config);
+        let output = "short output".to_string();
+        assert_eq!(tool.truncate_output(output.clone()), output);
+    }
+
+    // ── Command validation edge cases ─────────────────────────────────────
+
+    #[test]
+    fn test_is_command_allowed_fork_bomb() {
+        let tool = ShellTool::new();
+        assert!(!tool.is_command_allowed(":(){ :|:& };:"));
+    }
+
+    #[test]
+    fn test_is_command_allowed_custom_block() {
+        let config = ShellConfig::new().block_command("dangerous_tool");
+        let tool = ShellTool::with_config(config);
+        assert!(!tool.is_command_allowed("dangerous_tool --flag"));
+        assert!(tool.is_command_allowed("safe_tool"));
+    }
+
+    // ── execute with stderr ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_shell_command_with_stderr() {
+        let tool = ShellTool::new();
+        let ctx = ToolContext::default();
+
+        let result = tool
+            .execute(
+                json!({"command": "echo 'stdout' && echo 'stderr' >&2"}),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        let output = result.to_llm_content();
+        assert!(output.contains("stdout"));
+        assert!(output.contains("stderr"));
+    }
+
+    #[tokio::test]
+    async fn test_shell_no_output() {
+        let tool = ShellTool::new();
+        let ctx = ToolContext::default();
+
+        let result = tool
+            .execute(json!({"command": "true"}), &ctx)
+            .await
+            .unwrap();
+
+        assert!(result.is_success());
+        assert!(result.to_llm_content().contains("no output"));
+    }
+
+    // ── Cancelled execution ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_shell_cancelled() {
+        use tokio_util::sync::CancellationToken;
+        let tool = ShellTool::new();
+        let token = CancellationToken::new();
+        let ctx = ToolContext::with_cancellation(
+            crate::SessionId::new(),
+            crate::TurnId::new(),
+            token.clone(),
+        );
+        token.cancel();
+
+        let result = tool
+            .execute(json!({"command": "echo hello"}), &ctx)
+            .await
+            .unwrap();
+
+        assert!(result.is_error());
+        assert!(result.to_llm_content().contains("cancelled"));
+    }
 }

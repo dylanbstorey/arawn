@@ -699,4 +699,143 @@ contexts:
         let path2 = PathBuf::from("/absolute/path");
         assert_eq!(expand_path(&path2), path2);
     }
+
+    #[test]
+    fn test_load_client_config_from_none() {
+        let config = load_client_config_from(None).unwrap();
+        assert_eq!(config.api_version, API_VERSION);
+        assert!(config.contexts.is_empty());
+    }
+
+    #[test]
+    fn test_load_client_config_from_nonexistent() {
+        let config = load_client_config_from(Some(Path::new("/nonexistent/path/client.yaml")))
+            .unwrap();
+        assert_eq!(config.api_version, API_VERSION);
+        assert!(config.contexts.is_empty());
+    }
+
+    #[test]
+    fn test_load_client_config_from_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("client.yaml");
+        std::fs::write(
+            &path,
+            r#"
+current-context: test
+contexts:
+  - name: test
+    server: http://localhost:9999
+"#,
+        )
+        .unwrap();
+
+        let config = load_client_config_from(Some(&path)).unwrap();
+        assert_eq!(config.current_context.as_deref(), Some("test"));
+        assert_eq!(config.contexts.len(), 1);
+        assert_eq!(config.contexts[0].server, "http://localhost:9999");
+    }
+
+    #[test]
+    fn test_save_and_load_client_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("subdir/client.yaml");
+
+        let mut config = ClientConfig::new();
+        config.set_context(Context::new("saved", "http://saved.local"));
+        config.current_context = Some("saved".to_string());
+
+        save_client_config_to(&config, &path).unwrap();
+        assert!(path.exists());
+
+        let loaded = load_client_config_from(Some(&path)).unwrap();
+        assert_eq!(loaded.current_context.as_deref(), Some("saved"));
+        assert_eq!(loaded.contexts.len(), 1);
+        assert_eq!(loaded.contexts[0].name, "saved");
+    }
+
+    #[test]
+    fn test_auth_api_key_file_resolve() {
+        let dir = tempfile::tempdir().unwrap();
+        let key_path = dir.path().join("test.key");
+        std::fs::write(&key_path, "  my-secret-key  \n").unwrap();
+
+        let auth = AuthConfig::api_key_file(&key_path);
+        let resolved = auth.resolve().unwrap();
+        assert_eq!(resolved, Some("my-secret-key".to_string()));
+    }
+
+    #[test]
+    fn test_auth_api_key_file_not_found() {
+        let auth = AuthConfig::api_key_file("/nonexistent/key.file");
+        let resolved = auth.resolve().unwrap();
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn test_auth_bearer_file_resolve() {
+        let dir = tempfile::tempdir().unwrap();
+        let token_path = dir.path().join("token");
+        std::fs::write(&token_path, "bearer-token-value\n").unwrap();
+
+        let auth = AuthConfig::Bearer {
+            token_file: Some(token_path),
+            token_env: None,
+        };
+        let resolved = auth.resolve().unwrap();
+        assert_eq!(resolved, Some("bearer-token-value".to_string()));
+    }
+
+    #[test]
+    fn test_auth_bearer_env_resolve() {
+        unsafe {
+            std::env::set_var("TEST_ARAWN_BEARER", "bearer-from-env");
+        }
+        let auth = AuthConfig::Bearer {
+            token_file: None,
+            token_env: Some("TEST_ARAWN_BEARER".to_string()),
+        };
+        let resolved = auth.resolve().unwrap();
+        assert_eq!(resolved, Some("bearer-from-env".to_string()));
+        unsafe {
+            std::env::remove_var("TEST_ARAWN_BEARER");
+        }
+    }
+
+    #[test]
+    fn test_auth_oauth_resolve() {
+        let auth = AuthConfig::oauth("my-client-id");
+        let resolved = auth.resolve().unwrap();
+        assert!(resolved.is_none()); // OAuth handled separately
+    }
+
+    #[test]
+    fn test_server_url() {
+        let mut config = ClientConfig::new();
+        config.set_context(Context::new("local", "http://localhost:8080"));
+        assert_eq!(
+            config.server_url("local"),
+            Some("http://localhost:8080".to_string())
+        );
+        assert!(config.server_url("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_current_server_url_no_context() {
+        let config = ClientConfig::new();
+        assert!(config.current_server_url().is_none());
+    }
+
+    #[test]
+    fn test_remove_nonexistent_context() {
+        let mut config = ClientConfig::new();
+        assert!(config.remove_context("ghost").is_none());
+    }
+
+    #[test]
+    fn test_defaults() {
+        let defaults = ClientDefaults::default();
+        assert_eq!(defaults.timeout, 30);
+        assert_eq!(defaults.workstream, "default");
+    }
 }

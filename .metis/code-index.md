@@ -1,6 +1,6 @@
 # Code Index
 
-> Generated: 2026-03-10T00:54:21Z | 333 files | Rust
+> Generated: 2026-03-10T20:12:07Z | 333 files | Rust
 
 ## Project Structure
 
@@ -1097,9 +1097,18 @@
 - pub `llm_error` function L84-89 — `(&self) -> Option<&arawn_llm::LlmError>` — Get the wrapped LLM error if present.
 - pub `retry_after` function L92-97 — `(&self) -> Option<Duration>` — Get the retry-after duration if this is a rate limit error.
 -  `AgentError` type L57-98 — `= AgentError` — Error types for the agent crate.
--  `tests` module L101-116 — `-` — Error types for the agent crate.
+-  `tests` module L101-182 — `-` — Error types for the agent crate.
 -  `test_error_display` function L105-109 — `()` — Error types for the agent crate.
 -  `test_tool_not_found` function L112-115 — `()` — Error types for the agent crate.
+-  `test_is_rate_limit_true_for_rate_limit_error` function L118-122 — `()` — Error types for the agent crate.
+-  `test_is_rate_limit_false_for_other_llm_errors` function L125-129 — `()` — Error types for the agent crate.
+-  `test_is_rate_limit_false_for_non_llm_errors` function L132-139 — `()` — Error types for the agent crate.
+-  `test_llm_error_returns_some_for_llm_variant` function L142-146 — `()` — Error types for the agent crate.
+-  `test_llm_error_returns_none_for_non_llm_variants` function L149-152 — `()` — Error types for the agent crate.
+-  `test_retry_after_with_duration` function L155-160 — `()` — Error types for the agent crate.
+-  `test_retry_after_rate_limit_without_duration` function L163-167 — `()` — Error types for the agent crate.
+-  `test_retry_after_non_llm_error` function L170-173 — `()` — Error types for the agent crate.
+-  `test_constructor_helpers` function L176-181 — `()` — Error types for the agent crate.
 
 #### crates/arawn-agent/src/lib.rs
 
@@ -1734,20 +1743,27 @@
 -  `ToolContext` type L170-182 — `impl Default for ToolContext` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `default` function L171-181 — `() -> Self` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `ToolResult` type L223-365 — `= ToolResult` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `tests` module L368-507 — `-` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `tests` module L368-582 — `-` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `test_tool_result_text` function L372-377 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `test_tool_result_json` function L380-386 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `test_tool_result_error` function L389-394 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `test_tool_result_serialization` function L397-402 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 -  `test_tool_context` function L405-414 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_text` function L416-426 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_text_truncated` function L429-434 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_json` function L437-447 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_json_truncated_becomes_text` function L450-459 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_error` function L462-472 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_binary_becomes_error` function L475-482 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_content_size` function L485-494 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
--  `test_tool_result_sanitize_default` function L497-506 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_text` function L417-427 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_text_truncated` function L430-435 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_json` function L438-448 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_json_truncated_becomes_text` function L451-460 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_error` function L463-473 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_binary_becomes_error` function L476-483 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_content_size` function L486-495 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_sanitize_default` function L498-507 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_context_new` function L510-520 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_context_with_streaming` function L523-528 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_context_send_output` function L531-541 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_context_send_output_closed_channel` function L544-549 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_context_debug` function L552-557 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_fatal_error` function L560-573 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
+-  `test_tool_result_was_truncated` function L576-581 — `()` — Core tool types: the Tool trait, ToolContext, and ToolResult.
 
 #### crates/arawn-agent/src/tool/execution.rs
 
@@ -2325,7 +2341,7 @@
 -  `parse_cd_command` function L551-555 — `(&self, command: &str, current_dir: &Option<PathBuf>) -> Option<PathBuf>` — Check if this is a cd command and return the new directory path.
 -  `execute_standard` function L558-622 — `( &self, command: &str, working_dir: Option<&PathBuf>, timeout_duration: Duratio...` — Standard process execution (non-PTY).
 -  `execute_standard_streaming` function L626-754 — `( &self, command: &str, working_dir: Option<&PathBuf>, timeout_duration: Duratio...` — Streaming standard process execution.
--  `tests` module L762-1134 — `-` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `tests` module L762-1320 — `-` — for commands that need terminal emulation (colored output, interactive prompts).
 -  `test_shell_tool_metadata` function L766-778 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
 -  `test_shell_config_defaults` function L781-787 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
 -  `test_command_blocking` function L790-802 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
@@ -2347,6 +2363,24 @@
 -  `test_output_truncation` function L1104-1113 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
 -  `test_parse_cd_command` function L1116-1127 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
 -  `test_pty_size_config` function L1130-1133 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_shell_config_builders` function L1138-1149 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_shell_tool_default` function L1152-1155 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_extract_cd_target_bare_cd` function L1160-1163 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_extract_cd_target_with_path` function L1166-1169 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_extract_cd_target_empty_path` function L1172-1175 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_extract_cd_target_not_cd` function L1178-1183 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_resolve_cd_path_home` function L1188-1192 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_resolve_cd_path_absolute` function L1195-1199 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_resolve_cd_path_relative` function L1202-1207 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_resolve_cd_path_tilde_subpath` function L1210-1215 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_get_set_working_dir` function L1220-1229 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_get_working_dir_falls_back_to_config` function L1232-1236 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_truncate_output_within_limit` function L1241-1246 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_is_command_allowed_fork_bomb` function L1251-1254 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_is_command_allowed_custom_block` function L1257-1262 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_shell_command_with_stderr` function L1267-1282 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_shell_no_output` function L1285-1296 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
+-  `test_shell_cancelled` function L1301-1319 — `()` — for commands that need terminal emulation (colored output, interactive prompts).
 
 #### crates/arawn-agent/src/tools/think.rs
 
@@ -2407,7 +2441,7 @@
 -  `description` function L960-962 — `(&self) -> &str` — Provides tools for web search and URL fetching.
 -  `parameters` function L964-975 — `(&self) -> Value` — Provides tools for web search and URL fetching.
 -  `execute` function L977-1010 — `(&self, params: Value, ctx: &ToolContext) -> Result<ToolResult>` — Provides tools for web search and URL fetching.
--  `tests` module L1018-1243 — `-` — Provides tools for web search and URL fetching.
+-  `tests` module L1018-1418 — `-` — Provides tools for web search and URL fetching.
 -  `test_web_fetch_tool_metadata` function L1022-1042 — `()` — Provides tools for web search and URL fetching.
 -  `test_web_search_tool_metadata` function L1045-1052 — `()` — Provides tools for web search and URL fetching.
 -  `test_extract_text_from_html` function L1055-1074 — `()` — Provides tools for web search and URL fetching.
@@ -2423,6 +2457,22 @@
 -  `test_download_parameter_in_schema` function L1207-1213 — `()` — Provides tools for web search and URL fetching.
 -  `test_max_size_config` function L1216-1220 — `()` — Provides tools for web search and URL fetching.
 -  `test_web_fetch_download_invalid_url` function L1223-1242 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_text_article_content` function L1247-1262 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_text_fallback_to_body` function L1265-1274 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_text_empty_html` function L1277-1281 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_text_truncation` function L1284-1293 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_text_content_class` function L1296-1301 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_title_missing` function L1304-1308 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_description_missing` function L1311-1315 — `()` — Provides tools for web search and URL fetching.
+-  `test_extract_description_wrong_meta` function L1318-1322 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_fetch_config_default` function L1327-1333 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_fetch_tool_with_config` function L1336-1348 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_fetch_tool_default` function L1351-1354 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_search_config_default` function L1359-1364 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_search_tool_default` function L1367-1370 — `()` — Provides tools for web search and URL fetching.
+-  `test_search_result_serialization` function L1375-1385 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_fetch_cancelled` function L1390-1408 — `()` — Provides tools for web search and URL fetching.
+-  `test_web_fetch_missing_url` function L1411-1417 — `()` — Provides tools for web search and URL fetching.
 
 #### crates/arawn-agent/src/tools/workflow.rs
 
@@ -2913,7 +2963,7 @@
 -  `ClientDefaults` type L362-369 — `impl Default for ClientDefaults` — ```
 -  `default` function L363-368 — `() -> Self` — ```
 -  `expand_path` function L445-453 — `(path: &Path) -> PathBuf` — Expand ~ to home directory in paths.
--  `tests` module L460-702 — `-` — ```
+-  `tests` module L460-841 — `-` — ```
 -  `test_empty_config` function L464-470 — `()` — ```
 -  `test_parse_minimal_yaml` function L473-487 — `()` — ```
 -  `test_parse_full_yaml` function L490-555 — `()` — ```
@@ -2927,6 +2977,19 @@
 -  `test_auth_api_key_env_resolve` function L668-680 — `()` — ```
 -  `test_auth_none_resolve` function L683-687 — `()` — ```
 -  `test_expand_path` function L690-701 — `()` — ```
+-  `test_load_client_config_from_none` function L704-708 — `()` — ```
+-  `test_load_client_config_from_nonexistent` function L711-716 — `()` — ```
+-  `test_load_client_config_from_file` function L719-737 — `()` — ```
+-  `test_save_and_load_client_config` function L740-755 — `()` — ```
+-  `test_auth_api_key_file_resolve` function L758-766 — `()` — ```
+-  `test_auth_api_key_file_not_found` function L769-773 — `()` — ```
+-  `test_auth_bearer_file_resolve` function L776-787 — `()` — ```
+-  `test_auth_bearer_env_resolve` function L790-803 — `()` — ```
+-  `test_auth_oauth_resolve` function L806-810 — `()` — ```
+-  `test_server_url` function L813-821 — `()` — ```
+-  `test_current_server_url_no_context` function L824-827 — `()` — ```
+-  `test_remove_nonexistent_context` function L830-833 — `()` — ```
+-  `test_defaults` function L836-840 — `()` — ```
 
 #### crates/arawn-config/src/discovery.rs
 
@@ -3675,39 +3738,55 @@
 - pub `openai` function L333-339 — `(config: OpenAiConfig) -> Result<Self>` — Create a client with just an OpenAI backend.
 - pub `anthropic_from_env` function L342-344 — `() -> Result<Self>` — Create a client from environment with Anthropic as primary.
 - pub `openai_from_env` function L347-349 — `() -> Result<Self>` — Create a client from environment with OpenAI as primary.
-- pub `primary` function L352-354 — `(&self) -> Provider` — Get the primary provider.
-- pub `available_providers` function L357-359 — `(&self) -> Vec<Provider>` — Get all available providers.
-- pub `has_provider` function L362-364 — `(&self, provider: Provider) -> bool` — Check if a provider is available.
-- pub `get_backend` function L367-369 — `(&self, provider: Provider) -> Option<&SharedBackend>` — Get a backend by provider.
-- pub `complete` function L372-374 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — Execute a completion using the primary provider.
-- pub `complete_with` function L377-387 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<CompletionR...` — Execute a completion using a specific provider.
-- pub `complete_stream` function L436-438 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — Execute a streaming completion using the primary provider.
-- pub `complete_stream_with` function L441-451 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<ResponseStr...` — Execute a streaming completion using a specific provider.
+- pub `primary` function L368-370 — `(&self) -> Provider` — Get the primary provider.
+- pub `available_providers` function L373-375 — `(&self) -> Vec<Provider>` — Get all available providers.
+- pub `has_provider` function L378-380 — `(&self, provider: Provider) -> bool` — Check if a provider is available.
+- pub `get_backend` function L383-385 — `(&self, provider: Provider) -> Option<&SharedBackend>` — Get a backend by provider.
+- pub `complete` function L388-390 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — Execute a completion using the primary provider.
+- pub `complete_with` function L393-403 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<CompletionR...` — Execute a completion using a specific provider.
+- pub `complete_stream` function L452-454 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — Execute a streaming completion using the primary provider.
+- pub `complete_stream_with` function L457-467 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<ResponseStr...` — Execute a streaming completion using a specific provider.
 -  `Provider` type L52-81 — `= Provider` — ```
 -  `Provider` type L83-87 — `= Provider` — ```
 -  `fmt` function L84-86 — `(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result` — ```
 -  `LlmClientConfig` type L118-248 — `= LlmClientConfig` — ```
 -  `determine_primary` function L218-237 — `(&self) -> Option<Provider>` — Determine the primary provider based on what's configured.
 -  `is_provider_configured` function L240-247 — `(&self, provider: Provider) -> bool` — Check if a provider is configured.
--  `LlmClient` type L267-461 — `= LlmClient` — ```
--  `complete_with_fallback` function L390-433 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<CompletionR...` — Execute a completion with automatic fallback.
--  `should_fallback` function L454-460 — `(&self, error: &LlmError) -> bool` — Determine if we should attempt fallback for this error.
--  `LlmClient` type L465-485 — `impl LlmBackend for LlmClient` — ```
--  `complete` function L466-468 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — ```
--  `complete_stream` function L470-472 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — ```
--  `name` function L474-476 — `(&self) -> &str` — ```
--  `supports_native_tools` function L478-484 — `(&self) -> bool` — ```
--  `tests` module L492-608 — `-` — ```
--  `test_provider_name` function L497-502 — `()` — ```
--  `test_provider_from_name` function L505-514 — `()` — ```
--  `test_provider_requires_api_key` function L517-522 — `()` — ```
--  `test_client_config_builder` function L525-534 — `()` — ```
--  `test_config_is_provider_configured` function L537-543 — `()` — ```
--  `test_config_determine_primary` function L546-562 — `()` — ```
--  `test_client_with_ollama` function L565-575 — `()` — ```
--  `test_client_no_providers_error` function L578-582 — `()` — ```
--  `test_client_available_providers` function L585-596 — `()` — ```
--  `test_complete_with_unavailable_provider` function L599-607 — `()` — ```
+-  `LlmClient` type L267-477 — `= LlmClient` — ```
+-  `from_backends` function L353-365 — `( backends: HashMap<Provider, SharedBackend>, primary: Provider, fallbacks: Vec<...` — Create a client from pre-built backends (test-only).
+-  `complete_with_fallback` function L406-449 — `( &self, provider: Provider, request: CompletionRequest, ) -> Result<CompletionR...` — Execute a completion with automatic fallback.
+-  `should_fallback` function L470-476 — `(&self, error: &LlmError) -> bool` — Determine if we should attempt fallback for this error.
+-  `LlmClient` type L481-501 — `impl LlmBackend for LlmClient` — ```
+-  `complete` function L482-484 — `(&self, request: CompletionRequest) -> Result<CompletionResponse>` — ```
+-  `complete_stream` function L486-488 — `(&self, request: CompletionRequest) -> Result<ResponseStream>` — ```
+-  `name` function L490-492 — `(&self) -> &str` — ```
+-  `supports_native_tools` function L494-500 — `(&self) -> bool` — ```
+-  `tests` module L508-851 — `-` — ```
+-  `test_provider_name` function L513-518 — `()` — ```
+-  `test_provider_from_name` function L521-530 — `()` — ```
+-  `test_provider_requires_api_key` function L533-538 — `()` — ```
+-  `test_client_config_builder` function L541-550 — `()` — ```
+-  `test_config_is_provider_configured` function L553-559 — `()` — ```
+-  `test_config_determine_primary` function L562-578 — `()` — ```
+-  `test_client_with_ollama` function L581-591 — `()` — ```
+-  `test_client_no_providers_error` function L594-598 — `()` — ```
+-  `test_client_available_providers` function L601-612 — `()` — ```
+-  `test_complete_with_unavailable_provider` function L615-623 — `()` — ```
+-  `mock_success` function L629-631 — `(text: &str) -> MockBackend` — ```
+-  `mock_error` function L633-635 — `(msg: &str) -> MockBackend` — ```
+-  `test_complete_with_fallback_primary_succeeds` function L638-653 — `()` — ```
+-  `test_complete_with_fallback_primary_fails_fallback_succeeds` function L656-672 — `()` — ```
+-  `test_complete_with_fallback_all_fail` function L675-693 — `()` — ```
+-  `test_complete_no_fallback_when_disabled` function L696-711 — `()` — ```
+-  `test_complete_stream_with_provider` function L714-736 — `()` — ```
+-  `test_complete_stream_unavailable_provider` function L739-753 — `()` — ```
+-  `test_should_fallback_for_network_errors` function L758-776 — `()` — ```
+-  `test_llm_client_as_backend` function L781-795 — `()` — ```
+-  `test_provider_display` function L800-803 — `()` — ```
+-  `test_get_backend` function L808-813 — `()` — ```
+-  `test_config_determine_primary_prefers_anthropic` function L818-824 — `()` — ```
+-  `test_fallbacks_filtered_to_configured` function L827-838 — `()` — ```
+-  `test_client_config_default` function L841-850 — `()` — ```
 
 #### crates/arawn-llm/src/embeddings.rs
 
@@ -3769,7 +3848,7 @@
 -  `run_batch` function L446-566 — `(&self, encodings: &[tokenizers::Encoding]) -> Result<Vec<Vec<f32>>>` — Run ONNX inference on a batch of encodings.
 -  `default_local_model_dir` function L691-693 — `() -> Option<std::path::PathBuf>` — Default directory for local embedding model files.
 -  `ensure_model_files` function L718-764 — `( model_url: Option<&str>, tokenizer_url: Option<&str>, ) -> Option<std::path::P...` — Download embedding model files if they don't exist.
--  `tests` module L901-1075 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `tests` module L901-1335 — `-` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 -  `test_mock_embedder` function L905-916 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 -  `test_mock_embedder_deterministic` function L919-927 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 -  `test_mock_embedder_different_texts` function L930-938 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
@@ -3783,6 +3862,29 @@
 -  `test_openai_embedder_dimensions_override_unknown_model` function L1018-1025 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 -  `test_embed_auth_header` function L1028-1050 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 -  `test_embed_auth_header_dynamic_provider` function L1053-1074 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_mock` function L1079-1094 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_mock_default_dims` function L1097-1111 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_unknown_provider` function L1114-1130 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_openai_no_key` function L1133-1149 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_openai_with_config` function L1152-1167 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_build_embedder_local_without_feature` function L1170-1186 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_name` function L1191-1194 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_embeddings_url` function L1197-1202 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_embedder_embeddings_url_default` function L1205-1208 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder_custom_dimensions` function L1213-1221 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder_default_impl` function L1224-1228 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_mock_embedder_embed_batch_empty` function L1231-1235 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_cosine_similarity_mismatched_lengths` function L1240-1244 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_cosine_similarity_zero_vectors` function L1247-1252 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_euclidean_distance_mismatched_lengths` function L1255-1259 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_euclidean_distance_identical` function L1262-1265 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_embedder_spec_debug` function L1270-1284 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_config_with_dimensions` function L1289-1292 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_openai_config_timeout` function L1295-1298 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_simple_hash_deterministic` function L1303-1306 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_simple_hash_empty` function L1309-1313 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_default_ner_model_dir_returns_some` function L1318-1324 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
+-  `test_model_url_constants` function L1329-1334 — `()` — - [`OpenAiEmbedder`]: Uses OpenAI's embeddings API
 
 #### crates/arawn-llm/src/error.rs
 
@@ -4253,7 +4355,7 @@
 -  `receive_response_stdio` function L296-349 — `(&mut self) -> Result<JsonRpcResponse>` — Receive a JSON-RPC response with Content-Length framing (stdio only).
 -  `McpTransport` type L394-398 — `impl Drop for McpTransport` — or HTTP POST for remote servers.
 -  `drop` function L395-397 — `(&mut self)` — or HTTP POST for remote servers.
--  `tests` module L401-491 — `-` — or HTTP POST for remote servers.
+-  `tests` module L401-674 — `-` — or HTTP POST for remote servers.
 -  `test_spawn_nonexistent_command` function L405-411 — `()` — or HTTP POST for remote servers.
 -  `test_spawn_with_args` function L414-427 — `()` — or HTTP POST for remote servers.
 -  `test_http_transport_config` function L430-444 — `()` — or HTTP POST for remote servers.
@@ -4261,6 +4363,17 @@
 -  `test_http_transport_creation` function L455-463 — `()` — or HTTP POST for remote servers.
 -  `test_http_transport_invalid_url` function L466-475 — `()` — or HTTP POST for remote servers.
 -  `test_http_transport_is_always_connected` function L478-490 — `()` — or HTTP POST for remote servers.
+-  `test_stdio_send_and_receive_content_length_framing` function L495-528 — `()` — or HTTP POST for remote servers.
+-  `test_stdio_send_notification` function L531-540 — `()` — or HTTP POST for remote servers.
+-  `test_stdio_is_connected_after_exit` function L543-552 — `()` — or HTTP POST for remote servers.
+-  `test_stdio_shutdown_kills_child` function L555-563 — `()` — or HTTP POST for remote servers.
+-  `test_spawn_with_env_vars` function L568-580 — `()` — or HTTP POST for remote servers.
+-  `test_receive_response_stdio_connection_closed` function L585-596 — `()` — or HTTP POST for remote servers.
+-  `test_http_config_multiple_headers` function L599-609 — `()` — or HTTP POST for remote servers.
+-  `test_http_config_debug` function L612-616 — `()` — or HTTP POST for remote servers.
+-  `test_http_config_clone` function L619-630 — `()` — or HTTP POST for remote servers.
+-  `test_stdio_receive_missing_content_length` function L633-654 — `()` — or HTTP POST for remote servers.
+-  `test_http_connect_with_various_urls` function L657-673 — `()` — or HTTP POST for remote servers.
 
 ### crates/arawn-mcp/tests
 
@@ -4328,12 +4441,19 @@
 -  `count` function L211-218 — `(&self, content_type: Option<ContentType>) -> Result<usize>` — ```
 -  `touch` function L220-232 — `(&self, id: MemoryId) -> Result<()>` — ```
 -  `MockMemoryBackend` type L236 — `impl MemoryBackendExt for MockMemoryBackend` — ```
--  `tests` module L239-320 — `-` — ```
+-  `tests` module L239-400 — `-` — ```
 -  `test_mock_backend_insert_and_get` function L244-252 — `()` — ```
 -  `test_mock_backend_update` function L255-266 — `()` — ```
 -  `test_mock_backend_delete` function L269-278 — `()` — ```
 -  `test_mock_backend_list_and_count` function L281-305 — `()` — ```
 -  `test_mock_backend_touch` function L308-319 — `()` — ```
+-  `test_mock_backend_update_nonexistent` function L322-327 — `()` — ```
+-  `test_mock_backend_touch_nonexistent` function L330-335 — `()` — ```
+-  `test_mock_backend_get_nonexistent` function L338-342 — `()` — ```
+-  `test_mock_backend_utility_methods` function L345-358 — `()` — ```
+-  `test_mock_backend_list_pagination_beyond_range` function L361-372 — `()` — ```
+-  `test_mock_backend_list_empty_type_filter` function L375-384 — `()` — ```
+-  `test_memory_backend_ext_defaults` function L387-399 — `()` — ```
 
 #### crates/arawn-memory/src/error.rs
 
@@ -4560,7 +4680,7 @@
 - pub `search_similar_filtered` function L155-210 — `( conn: &Connection, query_embedding: &[f32], memory_ids: &[MemoryId], limit: us...` — Search for memories similar to a query, filtered by memory IDs.
 - pub `count_embeddings` function L213-218 — `(conn: &Connection) -> Result<usize>` — Get the count of stored embeddings.
 - pub `has_embedding` function L221-228 — `(conn: &Connection, memory_id: MemoryId) -> Result<bool>` — Check if an embedding exists for a memory.
--  `tests` module L235-358 — `-` — using the sqlite-vec SQLite extension.
+-  `tests` module L235-455 — `-` — using the sqlite-vec SQLite extension.
 -  `create_test_connection` function L238-243 — `() -> Connection` — using the sqlite-vec SQLite extension.
 -  `test_vector_extension_loads` function L246-252 — `()` — using the sqlite-vec SQLite extension.
 -  `test_create_vector_table` function L255-260 — `()` — using the sqlite-vec SQLite extension.
@@ -4569,6 +4689,14 @@
 -  `test_similarity_search` function L291-318 — `()` — using the sqlite-vec SQLite extension.
 -  `test_similarity_search_with_limit` function L321-335 — `()` — using the sqlite-vec SQLite extension.
 -  `test_update_embedding` function L338-357 — `()` — using the sqlite-vec SQLite extension.
+-  `test_search_similar_filtered_empty_ids` function L360-365 — `()` — using the sqlite-vec SQLite extension.
+-  `test_search_similar_filtered_basic` function L368-386 — `()` — using the sqlite-vec SQLite extension.
+-  `test_search_similar_filtered_with_limit` function L389-405 — `()` — using the sqlite-vec SQLite extension.
+-  `test_drop_vector_table` function L408-420 — `()` — using the sqlite-vec SQLite extension.
+-  `test_delete_nonexistent_embedding` function L423-428 — `()` — using the sqlite-vec SQLite extension.
+-  `test_has_embedding_nonexistent` function L431-435 — `()` — using the sqlite-vec SQLite extension.
+-  `test_search_similar_empty_table` function L438-443 — `()` — using the sqlite-vec SQLite extension.
+-  `test_similarity_result_fields` function L446-454 — `()` — using the sqlite-vec SQLite extension.
 
 ### crates/arawn-memory/src/store
 
@@ -4669,20 +4797,29 @@
 -  `supersede` function L579-585 — `( &self, old_id: crate::types::MemoryId, new_id: crate::types::MemoryId, ) -> Re...` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `reinforce` function L587-589 — `(&self, id: crate::types::MemoryId) -> Result<()>` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `update_last_accessed` function L591-593 — `(&self, id: crate::types::MemoryId) -> Result<()>` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `tests` module L597-669 — `-` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `tests` module L597-761 — `-` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `create_test_store` function L601-603 — `() -> MemoryStore` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `test_open_in_memory` function L606-611 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `test_meta_operations` function L614-630 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `test_store_stats` function L633-649 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 -  `test_with_transaction` function L652-668 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `concurrency_tests` module L672-966 — `-` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `create_test_store` function L677-679 — `() -> MemoryStore` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_writes_no_data_loss` function L682-713 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_reads_during_writes` function L716-771 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_delete_and_read_no_panic` function L774-813 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_search_returns_valid_results` function L816-865 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_note_writes_no_data_loss` function L868-900 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
--  `test_concurrent_mixed_operations_no_deadlock` function L903-965 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_has_graph_false_by_default` function L671-675 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_init_graph` function L678-685 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_has_vectors_false_by_default` function L688-691 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_debug_impl` function L694-699 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_open_at_path` function L702-713 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_entity_link_builder` function L716-725 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_store_options_default` function L728-732 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_with_transaction_rollback` function L735-750 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_init_graph_at_path` function L753-760 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `concurrency_tests` module L764-1058 — `-` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `create_test_store` function L769-771 — `() -> MemoryStore` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_writes_no_data_loss` function L774-805 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_reads_during_writes` function L808-863 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_delete_and_read_no_panic` function L866-905 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_search_returns_valid_results` function L908-957 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_note_writes_no_data_loss` function L960-992 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
+-  `test_concurrent_mixed_operations_no_deadlock` function L995-1057 — `()` — - `update_indexed()`: Update a memory and re-index its embedding/entities
 
 #### crates/arawn-memory/src/store/note_ops.rs
 
@@ -4917,13 +5054,35 @@
 -  `VALID_REQUEST_FIELDS` variable L276-290 — `: &[&str]` — Valid top-level fields for Anthropic API requests.
 -  `strip_unknown_fields` function L293-306 — `(request: &serde_json::Value) -> serde_json::Value` — Strip unknown fields from a raw JSON request.
 -  `inject_system_prompt` function L309-341 — `(request: &mut serde_json::Value)` — Inject the required system prompt into a raw JSON request.
--  `tests` module L374-469 — `-` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `tests` module L374-700 — `-` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_config_default_is_oauth` function L378-383 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_strip_unknown_fields` function L386-401 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_inject_system_prompt_empty` function L404-414 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_inject_system_prompt_prepend` function L417-435 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_inject_system_prompt_already_present` function L438-451 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 -  `test_inject_system_prompt_string_format` function L454-468 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_from_auth_header_bearer` function L473-480 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_from_auth_header_no_bearer` function L483-490 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_from_x_api_key_header` function L493-500 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_prefers_config_auth_header` function L503-512 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_api_key_mode_uses_x_api_key` function L515-522 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_api_key_mode_fallback_to_authorization` function L525-532 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_extract_api_key_no_headers` function L535-540 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_config_anthropic_api_key` function L545-552 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_config_anthropic_oauth` function L555-561 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_passthrough_new` function L566-570 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_passthrough_default` function L573-576 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_passthrough_with_config` function L579-583 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_get_auth_value_api_key_mode` function L588-593 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_get_auth_value_api_key_mode_missing` function L596-601 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_get_auth_value_oauth_no_manager` function L604-610 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_get_auth_value_oauth_fallback_no_tokens_uses_api_key` function L613-619 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_get_auth_value_oauth_fallback_no_tokens_no_key` function L622-627 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_prepare_raw_request_strips_and_injects` function L632-646 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_prepare_raw_request_no_inject_when_disabled` function L649-659 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_strip_unknown_fields_non_object` function L664-668 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_strip_unknown_fields_preserves_all_valid` function L671-689 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
+-  `test_constants` function L694-699 — `()` — field stripping, and anthropic-beta header injection for MAX plan.
 
 #### crates/arawn-oauth/src/proxy.rs
 
@@ -4947,9 +5106,14 @@
 -  `from` function L191-193 — `(err: OAuthError) -> Self` — upstream with OAuth Bearer token authentication and request mangling.
 -  `ProxyError` type L196-224 — `impl IntoResponse for ProxyError` — upstream with OAuth Bearer token authentication and request mangling.
 -  `into_response` function L197-223 — `(self) -> axum::response::Response` — upstream with OAuth Bearer token authentication and request mangling.
--  `tests` module L227-257 — `-` — upstream with OAuth Bearer token authentication and request mangling.
+-  `tests` module L227-346 — `-` — upstream with OAuth Bearer token authentication and request mangling.
 -  `test_health_endpoint` function L234-250 — `()` — upstream with OAuth Bearer token authentication and request mangling.
--  `test_proxy_config_default` function L253-256 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_proxy_config_default` function L253-257 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_proxy_config_new` function L260-265 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_messages_invalid_json` function L268-285 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_run_with_shutdown` function L288-312 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_proxy_error_variants` function L315-337 — `()` — upstream with OAuth Bearer token authentication and request mangling.
+-  `test_proxy_server_router_without_cors` function L340-345 — `()` — upstream with OAuth Bearer token authentication and request mangling.
 
 #### crates/arawn-oauth/src/token_manager.rs
 
@@ -5250,7 +5414,7 @@
 -  `WorkflowLoaderView` type L331-389 — `= WorkflowLoaderView` — picked up without restarting the server.
 -  `load_file` function L332-372 — `(&self, path: &Path) -> WorkflowEvent` — picked up without restarting the server.
 -  `remove_file` function L374-388 — `(&self, path: &Path) -> Option<WorkflowEvent>` — picked up without restarting the server.
--  `tests` module L399-654 — `-` — picked up without restarting the server.
+-  `tests` module L399-799 — `-` — picked up without restarting the server.
 -  `write_workflow` function L402-415 — `(dir: &Path, filename: &str, name: &str)` — picked up without restarting the server.
 -  `write_invalid` function L417-419 — `(dir: &Path, filename: &str)` — picked up without restarting the server.
 -  `test_load_empty_directory` function L422-428 — `()` — picked up without restarting the server.
@@ -5265,7 +5429,17 @@
 -  `test_watch_detects_new_file` function L548-574 — `()` — picked up without restarting the server.
 -  `test_watch_detects_modified_file` function L578-604 — `()` — picked up without restarting the server.
 -  `test_watch_detects_deleted_file` function L608-634 — `()` — picked up without restarting the server.
--  `test_watch_ignores_non_toml` function L638-653 — `()` — picked up without restarting the server.
+-  `test_is_workflow_file` function L637-644 — `()` — picked up without restarting the server.
+-  `test_normalize_path` function L647-654 — `()` — picked up without restarting the server.
+-  `test_normalize_path_no_filename` function L657-663 — `()` — picked up without restarting the server.
+-  `test_remove_nonexistent_file` function L666-671 — `()` — picked up without restarting the server.
+-  `test_workflow_event_debug` function L674-694 — `()` — picked up without restarting the server.
+-  `test_loader_view_load_file` function L697-714 — `()` — picked up without restarting the server.
+-  `test_loader_view_load_invalid_file` function L717-732 — `()` — picked up without restarting the server.
+-  `test_loader_view_remove_file` function L735-755 — `()` — picked up without restarting the server.
+-  `test_loader_view_remove_nonexistent` function L758-769 — `()` — picked up without restarting the server.
+-  `test_watch_returns_handle` function L772-779 — `()` — picked up without restarting the server.
+-  `test_watch_ignores_non_toml` function L783-798 — `()` — picked up without restarting the server.
 
 #### crates/arawn-pipeline/src/protocol.rs
 
@@ -5298,7 +5472,7 @@
 -  `check_wasm_target` function L387-405 — `() -> Result<(), PipelineError>` — Check if the `wasm32-wasip1` target is installed.
 -  `execute_sync` function L408-499 — `( engine: &Engine, module: &Module, context_json: &str, capabilities: &Capabilit...` — Synchronous WASM execution with Wasmtime + WASI Preview 1.
 -  `sha256_hex` function L503-507 — `(input: &str) -> String` — Compute SHA-256 hex digest of a string.
--  `tests` module L510-901 — `-` — 5.
+-  `tests` module L510-1109 — `-` — 5.
 -  `test_executor` function L514-519 — `() -> (ScriptExecutor, TempDir)` — 5.
 -  `test_sha256_deterministic` function L522-527 — `()` — 5.
 -  `test_sha256_different_inputs` function L530-534 — `()` — 5.
@@ -5315,7 +5489,21 @@
 -  `test_execute_runtime_missing_wasm` function L719-739 — `()` — 5.
 -  `test_execute_runtime_passthrough` function L742-815 — `()` — 5.
 -  `test_execute_runtime_caches_module` function L818-871 — `()` — 5.
--  `test_clear_cache` function L874-900 — `()` — 5.
+-  `test_sha256_empty_string` function L874-882 — `()` — 5.
+-  `test_sha256_unicode` function L885-890 — `()` — 5.
+-  `test_script_config_custom_values` function L893-906 — `()` — 5.
+-  `test_script_config_no_memory_limit` function L909-915 — `()` — 5.
+-  `test_compile_result_debug` function L918-928 — `()` — 5.
+-  `test_script_output_debug` function L931-941 — `()` — 5.
+-  `test_compile_crate_missing_cargo_toml` function L944-956 — `()` — 5.
+-  `test_executor_creates_cache_dir` function L959-965 — `()` — 5.
+-  `test_executor_default_timeout_used` function L968-973 — `()` — 5.
+-  `test_compile_hash_matches_sha256` function L976-997 — `()` — 5.
+-  `test_compile_and_execute_combined` function L1000-1018 — `()` — 5.
+-  `test_execute_with_custom_timeout` function L1021-1044 — `()` — 5.
+-  `test_execute_captures_stderr` function L1047-1070 — `()` — 5.
+-  `test_clear_cache_on_empty` function L1073-1079 — `()` — 5.
+-  `test_clear_cache` function L1082-1108 — `()` — 5.
 
 #### crates/arawn-pipeline/src/task.rs
 
@@ -5421,7 +5609,7 @@
 -  `delegate` function L433-555 — `( &self, agent_name: &str, task: &str, context: Option<&str>, max_turns: Option<...` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `delegate_background` function L557-675 — `( &self, agent_name: &str, task: &str, context: Option<&str>, parent_session_id:...` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `has_agent` function L677-679 — `(&self, name: &str) -> bool` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
--  `tests` module L683-1114 — `-` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `tests` module L683-1533 — `-` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `TestTool` struct L690-692 — `{ tool_name: String }` — A simple test tool.
 -  `TestTool` type L694-700 — `= TestTool` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `new` function L695-699 — `(name: &str) -> Self` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
@@ -5456,6 +5644,23 @@
 -  `test_compact_result_success` function L1065-1080 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `test_compaction_config_default` function L1083-1090 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 -  `test_spawner_with_compaction` function L1093-1113 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_spawner_default_max_iterations_applied` function L1118-1127 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_spawner_agent_specific_overrides_default` function L1130-1139 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_plugin_subagent_spawner_with_default_max_iterations` function L1142-1156 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_plugin_subagent_spawner_with_hook_dispatcher` function L1161-1172 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_success` function L1177-1202 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_with_context` function L1205-1227 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_with_long_context_truncated` function L1230-1251 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_with_max_turns_override` function L1254-1276 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_background_unknown_agent` function L1281-1293 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_background_known_agent` function L1296-1315 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_background_with_context` function L1318-1341 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_compact_result_failure_returns_original` function L1346-1361 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_long_response_truncated_when_compaction_disabled` function L1364-1389 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_long_response_compacted_when_enabled` function L1392-1428 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_compaction_failure_falls_back_to_truncation` function L1431-1470 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_compaction_enabled_but_no_backend_falls_back` function L1473-1507 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
+-  `test_delegate_short_response_no_processing` function L1510-1532 — `()` — - [`PluginSubagentSpawner`]: Implements [`SubagentSpawner`] trait for use with `DelegateTool`
 
 #### crates/arawn-plugin/src/hooks.rs
 
@@ -5502,7 +5707,7 @@
 -  `matches_hook` function L511-542 — `( hook: &CompiledHook, tool_name: Option<&str>, params: Option<&serde_json::Valu...` — (PreToolUse) or provide informational side effects.
 -  `HookRunResult` enum L548-555 — `Success | Blocked | Error` — (PreToolUse) or provide informational side effects.
 -  `run_hook_command` function L557-607 — `( command: &std::path::Path, plugin_dir: &std::path::Path, stdin_data: &str, tim...` — (PreToolUse) or provide informational side effects.
--  `tests` module L610-1161 — `-` — (PreToolUse) or provide informational side effects.
+-  `tests` module L610-1570 — `-` — (PreToolUse) or provide informational side effects.
 -  `create_hook_script` function L616-621 — `(dir: &std::path::Path, name: &str, script: &str) -> PathBuf` — (PreToolUse) or provide informational side effects.
 -  `make_hook` function L623-630 — `(event: HookEvent, command: PathBuf) -> HookDef` — (PreToolUse) or provide informational side effects.
 -  `test_pre_tool_use_allow` function L633-647 — `()` — (PreToolUse) or provide informational side effects.
@@ -5526,6 +5731,22 @@
 -  `test_two_plugins_pre_tool_use_first_blocker_wins` function L1052-1093 — `()` — (PreToolUse) or provide informational side effects.
 -  `test_two_plugins_different_tool_match_no_interference` function L1096-1144 — `()` — (PreToolUse) or provide informational side effects.
 -  `test_subagent_events_no_hooks_registered` function L1147-1160 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_from_config_command_hooks` function L1165-1192 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_from_config_skips_prompt_hooks` function L1195-1221 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_from_config_skips_command_without_command_field` function L1224-1249 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_from_config_multiple_events` function L1252-1294 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_invalid_glob_pattern` function L1299-1310 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_invalid_glob_never_matches` function L1313-1334 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_register_invalid_regex_pattern` function L1337-1347 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_matches_hook_both_tool_and_param_filters` function L1352-1380 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_matches_hook_param_regex_no_params` function L1383-1393 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_hook_dispatcher_default` function L1398-1402 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_hook_command_not_found` function L1407-1424 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_info_hook_command_not_found` function L1427-1442 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_hook_dispatch_trait_methods` function L1447-1475 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_pre_tool_use_hook_error_does_not_block` function L1480-1506 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_post_tool_use_info_hooks_combined_output` function L1511-1550 — `()` — (PreToolUse) or provide informational side effects.
+-  `test_info_hook_no_output_returns_allow` function L1555-1569 — `()` — (PreToolUse) or provide informational side effects.
 
 #### crates/arawn-plugin/src/lib.rs
 
@@ -5909,7 +6130,7 @@
 -  `PluginWatcher` type L66-229 — `= PluginWatcher` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `find_plugin_dir` function L235-248 — `(path: &Path, plugin_dirs: &[PathBuf]) -> Option<PathBuf>` — Find the plugin directory containing a given path.
 -  `reload_from_dir` function L251-274 — `(state: &Arc<RwLock<PluginState>>, plugin_dir: &Path) -> PluginEvent` — Reload a plugin from its directory into the shared state.
--  `tests` module L282-675 — `-` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `tests` module L282-943 — `-` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `create_test_plugin` function L287-304 — `(base_dir: &Path, name: &str) -> PathBuf` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `test_load_initial` function L307-323 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `test_reload_plugin` function L326-352 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
@@ -5926,6 +6147,20 @@
 -  `test_remove_and_readd_plugin` function L583-601 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `test_reload_other_plugins_unaffected` function L604-631 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 -  `test_concurrent_read_during_reload` function L634-674 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_plugin_state_default` function L679-685 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_plugin_state_plugins_returns_all` function L688-707 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_find_plugin_dir_multiple_search_dirs` function L712-735 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_find_plugin_dir_deeply_nested_file` function L738-749 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_find_plugin_dir_empty_search_dirs` function L752-758 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_find_plugin_dir_file_at_search_root` function L761-770 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_reload_from_dir_success` function L775-793 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_reload_from_dir_failure` function L796-815 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_reload_from_dir_replaces_existing` function L818-847 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_plugin_event_debug` function L852-875 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_watch_creates_receiver_and_handle` function L880-893 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_watch_with_nonexistent_dir` function L896-903 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_load_initial_empty_dir` function L908-919 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
+-  `test_load_initial_returns_events_for_each_plugin` function L922-942 — `()` — Uses debouncing to coalesce rapid file edits (e.g., editor save patterns).
 
 ### crates/arawn-sandbox/src
 
@@ -5987,7 +6222,7 @@
 -  `SandboxManager` type L89-298 — `= SandboxManager` — Sandbox manager for command execution.
 -  `execute_wrapped` function L179-221 — `( &self, wrapped_command: &str, config: &SandboxConfig, ) -> SandboxResult<Comma...` — Execute the already-wrapped command.
 -  `build_runtime_config` function L224-252 — `(&self, config: &SandboxConfig) -> SandboxResult<SandboxRuntimeConfig>` — Build the sandbox-runtime configuration from our config.
--  `tests` module L301-436 — `-` — Sandbox manager for command execution.
+-  `tests` module L301-663 — `-` — Sandbox manager for command execution.
 -  `test_command_output_success` function L305-310 — `()` — Sandbox manager for command execution.
 -  `test_command_output_error` function L313-318 — `()` — Sandbox manager for command execution.
 -  `test_command_output_combined` function L321-327 — `()` — Sandbox manager for command execution.
@@ -5996,6 +6231,20 @@
 -  `test_sandboxed_echo` function L367-383 — `()` — Sandbox manager for command execution.
 -  `test_sandboxed_write_allowed` function L387-408 — `()` — Sandbox manager for command execution.
 -  `test_sandboxed_write_denied` function L412-435 — `()` — Sandbox manager for command execution.
+-  `test_command_output_error_constructor` function L440-447 — `()` — Sandbox manager for command execution.
+-  `test_command_output_new_nonzero_exit` function L450-458 — `()` — Sandbox manager for command execution.
+-  `test_command_output_empty_both` function L461-465 — `()` — Sandbox manager for command execution.
+-  `test_command_output_debug` function L468-473 — `()` — Sandbox manager for command execution.
+-  `test_command_output_clone` function L476-483 — `()` — Sandbox manager for command execution.
+-  `test_build_runtime_config_default` function L488-500 — `()` — Sandbox manager for command execution.
+-  `test_build_runtime_config_with_paths` function L503-528 — `()` — Sandbox manager for command execution.
+-  `test_validate_config_valid` function L533-548 — `()` — Sandbox manager for command execution.
+-  `test_validate_config_nonexistent_working_dir` function L551-569 — `()` — Sandbox manager for command execution.
+-  `test_validate_config_nonexistent_write_path_warns_but_ok` function L572-584 — `()` — Sandbox manager for command execution.
+-  `test_sandbox_manager_platform` function L589-604 — `()` — Sandbox manager for command execution.
+-  `test_check_availability_returns_status` function L607-615 — `()` — Sandbox manager for command execution.
+-  `test_execute_with_paths` function L620-641 — `()` — Sandbox manager for command execution.
+-  `test_sandbox_execute_timeout` function L646-662 — `()` — Sandbox manager for command execution.
 
 #### crates/arawn-sandbox/src/platform.rs
 
@@ -6173,6 +6422,8 @@
 - pub `is_rate_limit` function L115-121 — `(&self) -> bool` — Check if this error should be returned as HTTP 429.
 - pub `Result` type L164 — `= std::result::Result<T, ServerError>` — Result type for server operations.
 - pub `ErrorResponse` struct L168-173 — `{ code: String, message: String }` — Error response body.
+- pub `status_code` function L177-190 — `(&self) -> StatusCode` — Get the HTTP status code for this error.
+- pub `error_code` function L193-210 — `(&self) -> &'static str` — Get the error code string for this error.
 -  `RateLimitError` type L69-77 — `= RateLimitError` — Error types for the server.
 -  `fmt` function L70-76 — `(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result` — Error types for the server.
 -  `RateLimitError` type L79-95 — `= RateLimitError` — Error types for the server.
@@ -6181,8 +6432,38 @@
 -  `from` function L125-136 — `(e: arawn_domain::WorkstreamError) -> Self` — Error types for the server.
 -  `ServerError` type L139-161 — `= ServerError` — Error types for the server.
 -  `from` function L140-160 — `(e: arawn_domain::ConfigError) -> Self` — Error types for the server.
--  `ServerError` type L175-235 — `impl IntoResponse for ServerError` — Error types for the server.
--  `into_response` function L176-234 — `(self) -> Response` — Error types for the server.
+-  `ServerError` type L175-211 — `= ServerError` — Error types for the server.
+-  `ServerError` type L213-250 — `impl IntoResponse for ServerError` — Error types for the server.
+-  `into_response` function L214-249 — `(self) -> Response` — Error types for the server.
+-  `tests` module L253-469 — `-` — Error types for the server.
+-  `test_status_code_unauthorized` function L257-261 — `()` — Error types for the server.
+-  `test_status_code_not_found` function L264-268 — `()` — Error types for the server.
+-  `test_status_code_bad_request` function L271-275 — `()` — Error types for the server.
+-  `test_status_code_conflict` function L278-282 — `()` — Error types for the server.
+-  `test_status_code_service_unavailable` function L285-289 — `()` — Error types for the server.
+-  `test_status_code_internal` function L292-296 — `()` — Error types for the server.
+-  `test_status_code_storage` function L299-303 — `()` — Error types for the server.
+-  `test_status_code_config` function L306-310 — `()` — Error types for the server.
+-  `test_status_code_rate_limit` function L313-317 — `()` — Error types for the server.
+-  `test_is_rate_limit_direct` function L320-323 — `()` — Error types for the server.
+-  `test_is_rate_limit_false_for_non_rate_limit` function L326-329 — `()` — Error types for the server.
+-  `test_is_rate_limit_via_agent_error` function L332-339 — `()` — Error types for the server.
+-  `test_retry_after_direct_rate_limit` function L342-348 — `()` — Error types for the server.
+-  `test_retry_after_none_when_not_set` function L351-354 — `()` — Error types for the server.
+-  `test_retry_after_via_agent_error` function L357-363 — `()` — Error types for the server.
+-  `test_retry_after_non_rate_limit` function L366-368 — `()` — Error types for the server.
+-  `test_from_workstream_not_found` function L371-375 — `()` — Error types for the server.
+-  `test_from_workstream_io` function L378-384 — `()` — Error types for the server.
+-  `test_from_workstream_migration` function L387-392 — `()` — Error types for the server.
+-  `test_from_config_context_not_found` function L395-399 — `()` — Error types for the server.
+-  `test_from_config_no_default_llm` function L402-406 — `()` — Error types for the server.
+-  `test_from_config_missing_field` function L409-416 — `()` — Error types for the server.
+-  `test_from_config_api_key_not_found` function L419-427 — `()` — Error types for the server.
+-  `test_from_config_llm_not_found` function L430-437 — `()` — Error types for the server.
+-  `test_rate_limit_error_display_without_retry` function L440-443 — `()` — Error types for the server.
+-  `test_rate_limit_error_display_with_retry` function L446-449 — `()` — Error types for the server.
+-  `test_into_response_rate_limit_has_retry_after_header` function L452-460 — `()` — Error types for the server.
+-  `test_into_response_no_retry_after_header_for_non_rate_limit` function L463-468 — `()` — Error types for the server.
 
 #### crates/arawn-server/src/lib.rs
 
@@ -6266,7 +6547,7 @@
 -  `parse_session_id` function L105-109 — `(session_id: &str) -> SessionStoreResult<SessionId>` — Parse a session ID string into a `SessionId`.
 -  `SessionCache` type L127-405 — `= SessionCache` — workstream JSONL storage.
 -  `convert_reconstructed_to_session` function L408-446 — `( reconstructed: &ReconstructedSession, session_id: SessionId, ) -> Session` — Convert a reconstructed session from workstream to an agent Session.
--  `tests` module L449-635 — `-` — workstream JSONL storage.
+-  `tests` module L449-802 — `-` — workstream JSONL storage.
 -  `test_create_session` function L453-463 — `()` — workstream JSONL storage.
 -  `test_get_nonexistent_creates_empty` function L466-477 — `()` — workstream JSONL storage.
 -  `test_remove_session` function L480-489 — `()` — workstream JSONL storage.
@@ -6278,6 +6559,21 @@
 -  `test_ttl_expiration` function L575-589 — `()` — workstream JSONL storage.
 -  `test_ttl_access_resets_timer` function L592-611 — `()` — workstream JSONL storage.
 -  `test_cleanup_expired` function L614-634 — `()` — workstream JSONL storage.
+-  `test_get_or_create_with_none_creates_new` function L637-644 — `()` — workstream JSONL storage.
+-  `test_get_or_create_with_existing_id` function L647-656 — `()` — workstream JSONL storage.
+-  `test_get_or_create_with_unknown_id_loads` function L659-670 — `()` — workstream JSONL storage.
+-  `test_with_session` function L673-685 — `()` — workstream JSONL storage.
+-  `test_with_session_mut` function L688-705 — `()` — workstream JSONL storage.
+-  `test_with_session_nonexistent` function L708-714 — `()` — workstream JSONL storage.
+-  `test_all_sessions` function L717-727 — `()` — workstream JSONL storage.
+-  `test_is_empty` function L730-736 — `()` — workstream JSONL storage.
+-  `test_insert_directly` function L739-751 — `()` — workstream JSONL storage.
+-  `test_update_nonexistent_session` function L754-761 — `()` — workstream JSONL storage.
+-  `test_remove_nonexistent` function L764-769 — `()` — workstream JSONL storage.
+-  `test_save_turn_no_workstream_manager` function L772-779 — `()` — workstream JSONL storage.
+-  `test_parse_session_id_valid` function L782-786 — `()` — workstream JSONL storage.
+-  `test_parse_session_id_invalid` function L789-792 — `()` — workstream JSONL storage.
+-  `test_session_cache_error_display` function L795-801 — `()` — workstream JSONL storage.
 
 #### crates/arawn-server/src/state.rs
 
@@ -6384,7 +6680,7 @@
 -  `AppState` type L565-1238 — `= AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `session_to_messages` function L1245-1254 — `(session: &Session) -> Vec<(String, String)>` — Convert a session's turns into owned `(role, content)` pairs.
 -  `messages_as_refs` function L1257-1262 — `(messages: &[(String, String)]) -> Vec<(&str, &str)>` — Convert owned message pairs to borrowed slices for the indexer API.
--  `tests` module L1265-2018 — `-` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `tests` module L1265-2298 — `-` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `create_test_state` function L1270-1278 — `() -> AppState` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `test_session_to_messages_empty` function L1281-1285 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `test_session_to_messages_with_turns` function L1288-1310 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
@@ -6423,6 +6719,32 @@
 -  `test_ws_connection_tracker_rate_limits` function L1973-1985 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `test_ws_connection_tracker_per_ip` function L1988-2003 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 -  `test_ws_connection_tracker_cleanup` function L2006-2017 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_ws_connection_tracker_default` function L2020-2024 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_new` function L2029-2040 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_with_session` function L2043-2047 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_start` function L2050-2057 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_update_progress` function L2060-2067 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_update_progress_clamps_to_100` function L2070-2074 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_complete` function L2077-2086 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_fail` function L2089-2097 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_cancel` function L2100-2107 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_task_status_serde` function L2110-2117 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_task_status_all_variants_serialize` function L2120-2132 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_tracked_task_serializes` function L2135-2145 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_pending_reconnect_new_not_expired` function L2150-2154 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_pending_reconnect_zero_duration_expired` function L2157-2164 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_pending_reconnect_debug` function L2167-2171 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_shared_services_build_domain_services` function L2176-2190 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_shared_services_optional_fields_all_none` function L2193-2213 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_build_domain_services` function L2218-2221 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_convenience_accessors_optional_none` function L2224-2236 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_allowed_paths_no_directory_manager` function L2239-2242 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_path_validator_no_directory_manager` function L2245-2248 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_get_or_create_session_returns_existing` function L2251-2258 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_update_and_get_session` function L2261-2268 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_app_state_invalidate_session` function L2271-2278 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_check_ws_connection_rate_delegates` function L2281-2288 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
+-  `test_runtime_state_default_trait` function L2291-2297 — `()` — - See `docs/src/architecture/concurrency.md` for the full concurrency guide.
 
 ### crates/arawn-server/src/routes
 
@@ -6705,7 +7027,7 @@
 -  `parse_session_id` function L760-764 — `(s: &str) -> Result<SessionId, ServerError>` — Session management endpoints.
 -  `session_to_detail` function L766-768 — `(session: &Session) -> SessionDetail` — Session management endpoints.
 -  `session_to_detail_with_migration` function L770-797 — `( session: &Session, workstream_id: Option<String>, files_migrated: Option<usize...` — Session management endpoints.
--  `tests` module L804-1214 — `-` — Session management endpoints.
+-  `tests` module L804-1561 — `-` — Session management endpoints.
 -  `create_test_state` function L819-828 — `() -> AppState` — Session management endpoints.
 -  `create_test_router` function L830-848 — `(state: AppState) -> Router` — Session management endpoints.
 -  `test_list_sessions_empty` function L851-876 — `()` — Session management endpoints.
@@ -6722,6 +7044,25 @@
 -  `test_get_session_messages_empty` function L1128-1154 — `()` — Session management endpoints.
 -  `test_get_session_messages_with_data` function L1157-1194 — `()` — Session management endpoints.
 -  `test_get_session_messages_not_found` function L1197-1213 — `()` — Session management endpoints.
+-  `test_create_session_empty_body` function L1216-1240 — `()` — Session management endpoints.
+-  `test_list_sessions_with_pagination` function L1243-1273 — `()` — Session management endpoints.
+-  `test_list_sessions_with_offset` function L1276-1303 — `()` — Session management endpoints.
+-  `test_unauthorized_request` function L1306-1321 — `()` — Session management endpoints.
+-  `test_unauthorized_wrong_token` function L1324-1340 — `()` — Session management endpoints.
+-  `test_delete_session_invalid_id` function L1343-1360 — `()` — Session management endpoints.
+-  `test_update_session_merge_metadata` function L1363-1403 — `()` — Session management endpoints.
+-  `test_update_session_workstream_without_workstreams` function L1406-1428 — `()` — Session management endpoints.
+-  `test_get_session_messages_invalid_id` function L1431-1447 — `()` — Session management endpoints.
+-  `test_parse_session_id_valid` function L1452-1456 — `()` — Session management endpoints.
+-  `test_parse_session_id_invalid` function L1459-1462 — `()` — Session management endpoints.
+-  `test_session_to_detail_empty_session` function L1465-1473 — `()` — Session management endpoints.
+-  `test_session_to_detail_with_migration_info` function L1476-1490 — `()` — Session management endpoints.
+-  `test_session_to_detail_with_turns` function L1493-1501 — `()` — Session management endpoints.
+-  `test_create_session_request_deserialize` function L1506-1511 — `()` — Session management endpoints.
+-  `test_create_session_request_deserialize_minimal` function L1514-1519 — `()` — Session management endpoints.
+-  `test_update_session_request_deserialize` function L1522-1528 — `()` — Session management endpoints.
+-  `test_list_sessions_response_serialization` function L1531-1541 — `()` — Session management endpoints.
+-  `test_session_messages_response_serialization` function L1544-1560 — `()` — Session management endpoints.
 
 #### crates/arawn-server/src/routes/tasks.rs
 
@@ -6792,6 +7133,35 @@
 -  `get_manager` function L314-318 — `(state: &AppState) -> Result<&Arc<WorkstreamManager>, ServerError>`
 -  `to_workstream_response` function L320-335 — `( ws: &arawn_domain::Workstream, tags: Option<Vec<String>>, ) -> WorkstreamRespo...`
 -  `to_message_response` function L337-347 — `(msg: &WorkstreamMessage) -> MessageResponse`
+-  `tests` module L1096-1651 — `-`
+-  `create_state_with_workstreams` function L1111-1131 — `() -> (AppState, tempfile::TempDir)`
+-  `create_state_without_workstreams` function L1133-1141 — `() -> AppState`
+-  `create_test_router` function L1143-1160 — `(state: AppState) -> Router`
+-  `auth_header` function L1162-1164 — `() -> (&'static str, &'static str)`
+-  `test_validate_id_valid` function L1169-1173 — `()`
+-  `test_validate_id_invalid` function L1176-1180 — `()`
+-  `test_is_zero` function L1185-1189 — `()`
+-  `test_list_workstreams_empty` function L1194-1217 — `()`
+-  `test_create_workstream` function L1220-1246 — `()`
+-  `test_get_workstream_scratch` function L1249-1278 — `()`
+-  `test_get_workstream_not_found` function L1281-1298 — `()`
+-  `test_get_workstream_invalid_id` function L1301-1319 — `()`
+-  `test_update_workstream` function L1322-1350 — `()`
+-  `test_delete_workstream` function L1353-1374 — `()`
+-  `test_delete_workstream_not_found` function L1377-1395 — `()`
+-  `test_list_workstream_sessions_empty` function L1398-1420 — `()`
+-  `test_send_message` function L1423-1452 — `()`
+-  `test_send_message_invalid_role` function L1455-1476 — `()`
+-  `test_list_messages_empty` function L1479-1503 — `()`
+-  `test_list_messages_invalid_since` function L1506-1525 — `()`
+-  `test_promote_non_scratch` function L1528-1550 — `()`
+-  `test_list_workstreams_not_configured` function L1555-1572 — `()`
+-  `test_create_workstream_request_deserialize` function L1577-1583 — `()`
+-  `test_send_message_request_deserialize` function L1586-1592 — `()`
+-  `test_update_workstream_request_deserialize` function L1595-1602 — `()`
+-  `test_workstream_response_serialization` function L1605-1622 — `()`
+-  `test_promote_file_response_serialization` function L1625-1635 — `()`
+-  `test_cleanup_response_serialization` function L1638-1650 — `()`
 
 ### crates/arawn-server/src/routes/ws
 
@@ -7929,7 +8299,7 @@
 -  `default` function L65-67 — `() -> Self` — Input state management with history support.
 -  `InputState` type L70-374 — `= InputState` — Input state management with history support.
 -  `exit_history_mode` function L337-340 — `(&mut self)` — Exit history browsing mode without restoring draft.
--  `tests` module L377-557 — `-` — Input state management with history support.
+-  `tests` module L377-845 — `-` — Input state management with history support.
 -  `test_basic_input` function L381-389 — `()` — Input state management with history support.
 -  `test_cursor_movement` function L392-406 — `()` — Input state management with history support.
 -  `test_backspace` function L409-415 — `()` — Input state management with history support.
@@ -7938,7 +8308,34 @@
 -  `test_history_with_draft` function L463-484 — `()` — Input state management with history support.
 -  `test_is_command` function L487-508 — `()` — Input state management with history support.
 -  `test_parse_command` function L511-535 — `()` — Input state management with history support.
--  `test_command_prefix` function L538-556 — `()` — Input state management with history support.
+-  `test_move_right` function L538-551 — `()` — Input state management with history support.
+-  `test_move_left_at_start` function L554-560 — `()` — Input state management with history support.
+-  `test_delete_char_at` function L563-570 — `()` — Input state management with history support.
+-  `test_delete_char_at_end_noop` function L573-579 — `()` — Input state management with history support.
+-  `test_delete_char_before_at_start_noop` function L582-588 — `()` — Input state management with history support.
+-  `test_move_to_line_start_and_end` function L591-599 — `()` — Input state management with history support.
+-  `test_move_to_line_start_first_line` function L602-609 — `()` — Input state management with history support.
+-  `test_move_to_line_end_first_line` function L612-618 — `()` — Input state management with history support.
+-  `test_move_up_down` function L621-655 — `()` — Input state management with history support.
+-  `test_move_up_clamps_column_to_shorter_line` function L658-667 — `()` — Input state management with history support.
+-  `test_move_down_clamps_column_to_shorter_line` function L670-686 — `()` — Input state management with history support.
+-  `test_clear` function L689-695 — `()` — Input state management with history support.
+-  `test_set_text` function L698-703 — `()` — Input state management with history support.
+-  `test_submit_adds_to_history_and_clears` function L706-713 — `()` — Input state management with history support.
+-  `test_submit_empty_not_added_to_history` function L716-720 — `()` — Input state management with history support.
+-  `test_submit_whitespace_not_added_to_history` function L723-728 — `()` — Input state management with history support.
+-  `test_submit_dedup_consecutive` function L731-741 — `()` — Input state management with history support.
+-  `test_history_prev_on_empty_history` function L744-747 — `()` — Input state management with history support.
+-  `test_history_next_without_browsing` function L750-753 — `()` — Input state management with history support.
+-  `test_history_at_oldest_returns_false` function L756-762 — `()` — Input state management with history support.
+-  `test_insert_char_exits_history_mode` function L765-773 — `()` — Input state management with history support.
+-  `test_name_lower` function L776-779 — `()` — Input state management with history support.
+-  `test_cursor_position_empty` function L782-787 — `()` — Input state management with history support.
+-  `test_line_count_empty` function L790-793 — `()` — Input state management with history support.
+-  `test_line_count_multiline` function L796-800 — `()` — Input state management with history support.
+-  `test_insert_in_middle` function L803-811 — `()` — Input state management with history support.
+-  `test_unicode_cursor_movement` function L814-823 — `()` — Input state management with history support.
+-  `test_command_prefix` function L826-844 — `()` — Input state management with history support.
 
 #### crates/arawn-tui/src/lib.rs
 
@@ -8069,10 +8466,35 @@
 -  `SessionList` type L54-192 — `= SessionList` — Session list state and management.
 -  `update_filtered` function L158-177 — `(&mut self)` — Update the filtered indices based on current filter.
 -  `fuzzy_match` function L202-216 — `(text: &str, filter: &str) -> bool` — Simple fuzzy matching - checks if all filter characters appear in order.
--  `tests` module L252-344 — `-` — Session list state and management.
+-  `tests` module L252-557 — `-` — Session list state and management.
 -  `test_fuzzy_match` function L256-265 — `()` — Session list state and management.
 -  `test_session_list_filtering` function L268-295 — `()` — Session list state and management.
 -  `test_session_list_navigation` function L298-343 — `()` — Session list state and management.
+-  `make_sessions` function L345-355 — `(n: usize) -> Vec<SessionSummary>` — Session list state and management.
+-  `test_selected_session_returns_correct_item` function L358-364 — `()` — Session list state and management.
+-  `test_selected_session_empty_list` function L367-370 — `()` — Session list state and management.
+-  `test_visible_sessions_iterator` function L373-382 — `()` — Session list state and management.
+-  `test_filter_pop` function L385-409 — `()` — Session list state and management.
+-  `test_reset` function L412-422 — `()` — Session list state and management.
+-  `test_set_current` function L425-433 — `()` — Session list state and management.
+-  `test_loading_state` function L436-443 — `()` — Session list state and management.
+-  `test_select_prev_at_zero` function L446-451 — `()` — Session list state and management.
+-  `test_select_last_on_empty` function L454-458 — `()` — Session list state and management.
+-  `test_select_next_on_empty` function L461-465 — `()` — Session list state and management.
+-  `test_filter_clamps_selection` function L468-477 — `()` — Session list state and management.
+-  `test_filter_no_matches` function L480-488 — `()` — Session list state and management.
+-  `test_format_relative_time_just_now` function L491-494 — `()` — Session list state and management.
+-  `test_format_relative_time_minutes` function L497-500 — `()` — Session list state and management.
+-  `test_format_relative_time_one_hour` function L503-506 — `()` — Session list state and management.
+-  `test_format_relative_time_hours` function L509-512 — `()` — Session list state and management.
+-  `test_format_relative_time_yesterday` function L515-518 — `()` — Session list state and management.
+-  `test_format_relative_time_days` function L521-524 — `()` — Session list state and management.
+-  `test_format_relative_time_one_week` function L527-530 — `()` — Session list state and management.
+-  `test_format_relative_time_weeks` function L533-536 — `()` — Session list state and management.
+-  `test_format_relative_time_old` function L539-544 — `()` — Session list state and management.
+-  `test_default_impl` function L547-550 — `()` — Session list state and management.
+-  `SessionList` type L552-556 — `= SessionList` — Session list state and management.
+-  `is_empty` function L553-555 — `(&self) -> bool` — Session list state and management.
 
 #### crates/arawn-tui/src/sidebar.rs
 
@@ -8440,7 +8862,7 @@
 -  `DiskPressureEvent` type L91-107 — `= DiskPressureEvent` — disk pressure.
 -  `delete_scratch_session_work` function L237-251 — `( dir_manager: &DirectoryManager, session_id: &str, ) -> std::io::Result<()>` — Delete a scratch session's work directory.
 -  `CleanupContext` type L387-410 — `= CleanupContext` — disk pressure.
--  `tests` module L413-509 — `-` — disk pressure.
+-  `tests` module L413-658 — `-` — disk pressure.
 -  `setup` function L417-421 — `() -> (tempfile::TempDir, DirectoryManager)` — disk pressure.
 -  `test_cleanup_config_default` function L424-433 — `()` — disk pressure.
 -  `test_pressure_level_display` function L436-440 — `()` — disk pressure.
@@ -8449,6 +8871,15 @@
 -  `test_cleanup_result_serialization` function L464-480 — `()` — disk pressure.
 -  `test_delete_scratch_session_work_nonexistent` function L483-488 — `()` — disk pressure.
 -  `test_delete_scratch_session_work` function L491-508 — `()` — disk pressure.
+-  `test_workstream_manager` function L510-516 — `( dir: &std::path::Path, ) -> crate::manager::WorkstreamManager` — disk pressure.
+-  `test_cleanup_scratch_sessions_no_sessions` function L519-530 — `()` — disk pressure.
+-  `test_cleanup_scratch_sessions_with_active_session` function L533-554 — `()` — disk pressure.
+-  `test_cleanup_scratch_sessions_dry_run` function L557-582 — `()` — disk pressure.
+-  `test_cleanup_context_new` function L585-598 — `()` — disk pressure.
+-  `test_check_disk_pressure_no_workstreams` function L601-610 — `()` — disk pressure.
+-  `test_check_disk_pressure_below_threshold` function L613-628 — `()` — disk pressure.
+-  `test_workstream_usage_struct` function L631-639 — `()` — disk pressure.
+-  `test_disk_pressure_result_serialization` function L642-657 — `()` — disk pressure.
 
 #### crates/arawn-workstream/src/compression.rs
 
@@ -8510,13 +8941,24 @@
 -  `validate_write` function L104-122 — `(&self, path: &Path) -> Result<PathBuf, FsGateError>` — boundaries for all agent tool execution.
 -  `working_dir` function L124-126 — `(&self) -> &Path` — boundaries for all agent tool execution.
 -  `sandbox_execute` function L128-169 — `( &self, command: &str, timeout: Option<Duration>, ) -> Result<SandboxOutput, Fs...` — boundaries for all agent tool execution.
--  `tests` module L173-289 — `-` — boundaries for all agent tool execution.
+-  `tests` module L173-477 — `-` — boundaries for all agent tool execution.
 -  `test_named_workstream_gate_allows_workstream_paths` function L178-199 — `()` — boundaries for all agent tool execution.
 -  `test_named_workstream_gate_allows_production_paths` function L202-215 — `()` — boundaries for all agent tool execution.
 -  `test_named_workstream_gate_denies_outside_paths` function L218-231 — `()` — boundaries for all agent tool execution.
 -  `test_scratch_gate_isolates_sessions` function L234-263 — `()` — boundaries for all agent tool execution.
 -  `test_working_dir_named_workstream` function L266-274 — `()` — boundaries for all agent tool execution.
 -  `test_working_dir_scratch` function L277-288 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_validate_read_allowed` function L293-306 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_validate_read_denied` function L309-327 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_validate_write_allowed` function L330-342 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_validate_write_denied` function L345-362 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_working_dir_named` function L365-373 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_working_dir_scratch` function L376-387 — `()` — boundaries for all agent tool execution.
+-  `test_path_only_gate_sandbox_execute_returns_error` function L390-407 — `()` — boundaries for all agent tool execution.
+-  `test_scratch_gate_validate_read_cross_session_denied` function L410-425 — `()` — boundaries for all agent tool execution.
+-  `test_scratch_gate_validate_write_own_session` function L428-437 — `()` — boundaries for all agent tool execution.
+-  `test_named_gate_allows_production_read` function L440-451 — `()` — boundaries for all agent tool execution.
+-  `test_gate_allowed_paths_stored` function L454-476 — `()` — boundaries for all agent tool execution.
 
 #### crates/arawn-workstream/src/lib.rs
 
@@ -8600,7 +9042,7 @@
 -  `read_range` function L186-192 — `( &self, workstream_id: &str, since: DateTime<Utc>, ) -> Result<Vec<WorkstreamMe...`
 -  `move_messages` function L194-196 — `(&self, from_workstream: &str, to_workstream: &str) -> Result<()>`
 -  `delete_all` function L198-200 — `(&self, workstream_id: &str) -> Result<()>`
--  `tests` module L204-356 — `-`
+-  `tests` module L204-480 — `-`
 -  `temp_store` function L207-211 — `() -> (tempfile::TempDir, MessageStore)`
 -  `test_append_and_read_all` function L214-227 — `()`
 -  `test_multi_message_append` function L230-248 — `()`
@@ -8609,6 +9051,16 @@
 -  `test_metadata_roundtrip` function L277-293 — `()`
 -  `test_separate_workstreams` function L296-308 — `()`
 -  `test_read_for_session` function L311-355 — `()`
+-  `test_move_messages` function L358-382 — `()`
+-  `test_move_messages_empty_source` function L385-392 — `()`
+-  `test_move_messages_appends_to_existing` function L395-414 — `()`
+-  `test_delete_all` function L417-430 — `()`
+-  `test_delete_all_nonexistent` function L433-437 — `()`
+-  `test_read_range_no_matches` function L440-451 — `()`
+-  `test_read_range_nonexistent_workstream` function L454-458 — `()`
+-  `test_read_for_session_nonexistent_workstream` function L461-465 — `()`
+-  `test_workstream_dir_path` function L468-472 — `()`
+-  `test_jsonl_path` function L475-479 — `()`
 
 #### crates/arawn-workstream/src/path_validator.rs
 
@@ -8861,18 +9313,24 @@
 -  `repo_name_from_url` function L123-129 — `(url: &str) -> &str` — Derive repository name from URL.
 -  `is_git_available` function L132-138 — `() -> bool` — Check if git is available on the system.
 -  `get_head_commit` function L141-153 — `(repo_path: &Path) -> DirectoryResult<String>` — Get the HEAD commit hash for a repository.
--  `tests` module L157-314 — `-` — Git clone operations for workstreams.
+-  `tests` module L157-517 — `-` — Git clone operations for workstreams.
 -  `setup` function L163-167 — `() -> (tempfile::TempDir, DirectoryManager)` — Git clone operations for workstreams.
--  `test_repo_name_from_url_https` function L169-182 — `()` — Git clone operations for workstreams.
--  `test_repo_name_from_url_ssh` function L185-192 — `()` — Git clone operations for workstreams.
--  `test_repo_name_from_url_fallback` function L195-198 — `()` — Git clone operations for workstreams.
--  `test_clone_workstream_not_found` function L201-209 — `()` — Git clone operations for workstreams.
--  `test_clone_invalid_workstream_name` function L212-220 — `()` — Git clone operations for workstreams.
--  `test_clone_destination_exists` function L223-241 — `()` — Git clone operations for workstreams.
--  `test_clone_custom_name_conflict` function L244-262 — `()` — Git clone operations for workstreams.
--  `test_is_git_available` function L265-271 — `()` — Git clone operations for workstreams.
--  `test_clone_public_repo` function L276-295 — `()` — Git clone operations for workstreams.
--  `test_clone_invalid_url` function L299-313 — `()` — Git clone operations for workstreams.
+-  `test_repo_name_from_url_https` function L170-183 — `()` — Git clone operations for workstreams.
+-  `test_repo_name_from_url_ssh` function L186-193 — `()` — Git clone operations for workstreams.
+-  `test_repo_name_from_url_fallback` function L196-199 — `()` — Git clone operations for workstreams.
+-  `test_clone_workstream_not_found` function L202-210 — `()` — Git clone operations for workstreams.
+-  `test_clone_invalid_workstream_name` function L213-221 — `()` — Git clone operations for workstreams.
+-  `test_clone_destination_exists` function L224-242 — `()` — Git clone operations for workstreams.
+-  `test_clone_custom_name_conflict` function L245-263 — `()` — Git clone operations for workstreams.
+-  `test_is_git_available` function L266-272 — `()` — Git clone operations for workstreams.
+-  `test_clone_public_repo` function L277-296 — `()` — Git clone operations for workstreams.
+-  `test_clone_invalid_url` function L300-314 — `()` — Git clone operations for workstreams.
+-  `test_get_head_commit_on_local_repo` function L319-362 — `()` — Git clone operations for workstreams.
+-  `test_get_head_commit_empty_repo` function L365-384 — `()` — Git clone operations for workstreams.
+-  `test_clone_local_repo_success` function L389-444 — `()` — Git clone operations for workstreams.
+-  `test_clone_local_repo_derives_name_from_url` function L447-494 — `()` — Git clone operations for workstreams.
+-  `test_repo_name_from_url_trailing_slash` function L499-504 — `()` — Git clone operations for workstreams.
+-  `test_repo_name_from_url_bare_name` function L507-516 — `()` — Git clone operations for workstreams.
 
 #### crates/arawn-workstream/src/directory/manager.rs
 
@@ -8958,34 +9416,41 @@
 - pub `export` function L190-251 — `( &self, workstream: &str, source: &Path, destination: &Path, ) -> DirectoryResu...` — Exports a file from `production/` to an external path.
 -  `DirectoryManager` type L8-252 — `= DirectoryManager` — File operations: promote and export.
 -  `resolve_conflict` function L119-145 — `(path: &Path) -> PathBuf` — Resolves a filename conflict by appending a suffix.
--  `tests` module L255-482 — `-` — File operations: promote and export.
+-  `tests` module L255-606 — `-` — File operations: promote and export.
 -  `setup` function L262-266 — `() -> (tempfile::TempDir, DirectoryManager)` — File operations: promote and export.
--  `test_promote_basic` function L268-300 — `()` — File operations: promote and export.
--  `test_promote_to_subdirectory` function L303-325 — `()` — File operations: promote and export.
--  `test_promote_with_conflict` function L328-357 — `()` — File operations: promote and export.
--  `test_promote_with_multiple_conflicts` function L360-382 — `()` — File operations: promote and export.
--  `test_promote_file_without_extension` function L385-402 — `()` — File operations: promote and export.
--  `test_promote_source_not_found` function L405-419 — `()` — File operations: promote and export.
--  `test_promote_source_is_directory` function L422-436 — `()` — File operations: promote and export.
--  `test_promote_workstream_not_found` function L439-447 — `()` — File operations: promote and export.
--  `test_promote_invalid_workstream_name` function L450-458 — `()` — File operations: promote and export.
--  `test_resolve_conflict_basic` function L461-468 — `()` — File operations: promote and export.
--  `test_resolve_conflict_finds_gap` function L471-481 — `()` — File operations: promote and export.
+-  `test_promote_basic` function L269-301 — `()` — File operations: promote and export.
+-  `test_promote_to_subdirectory` function L304-326 — `()` — File operations: promote and export.
+-  `test_promote_with_conflict` function L329-358 — `()` — File operations: promote and export.
+-  `test_promote_with_multiple_conflicts` function L361-383 — `()` — File operations: promote and export.
+-  `test_promote_file_without_extension` function L386-403 — `()` — File operations: promote and export.
+-  `test_promote_source_not_found` function L406-420 — `()` — File operations: promote and export.
+-  `test_promote_source_is_directory` function L423-437 — `()` — File operations: promote and export.
+-  `test_promote_workstream_not_found` function L440-448 — `()` — File operations: promote and export.
+-  `test_promote_invalid_workstream_name` function L451-459 — `()` — File operations: promote and export.
+-  `test_resolve_conflict_basic` function L462-469 — `()` — File operations: promote and export.
+-  `test_resolve_conflict_finds_gap` function L472-482 — `()` — File operations: promote and export.
+-  `test_export_basic` function L485-507 — `()` — File operations: promote and export.
+-  `test_export_to_directory` function L510-527 — `()` — File operations: promote and export.
+-  `test_export_creates_parent_dirs` function L530-546 — `()` — File operations: promote and export.
+-  `test_export_source_not_found` function L549-561 — `()` — File operations: promote and export.
+-  `test_export_source_is_directory` function L564-579 — `()` — File operations: promote and export.
+-  `test_export_workstream_not_found` function L582-592 — `()` — File operations: promote and export.
+-  `test_export_invalid_workstream_name` function L595-605 — `()` — File operations: promote and export.
 
 #### crates/arawn-workstream/src/directory/session.rs
 
 - pub `attach_session` function L41-132 — `( &self, session_id: &str, target_workstream: &str, ) -> DirectoryResult<AttachR...` — Attaches a scratch session to a named workstream by migrating its files.
 -  `DirectoryManager` type L8-149 — `= DirectoryManager` — Session attachment: migrating scratch sessions to named workstreams.
 -  `copy_dir_recursive` function L135-148 — `(src: &Path, dest: &Path) -> DirectoryResult<()>` — Recursively copy a directory.
--  `tests` module L152-297 — `-` — Session attachment: migrating scratch sessions to named workstreams.
+-  `tests` module L152-298 — `-` — Session attachment: migrating scratch sessions to named workstreams.
 -  `setup` function L158-162 — `() -> (tempfile::TempDir, DirectoryManager)` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_basic` function L164-193 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_with_subdirectories` function L196-217 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_no_files` function L220-234 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_invalid_session_id` function L237-244 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_invalid_workstream_name` function L247-257 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_workstream_not_found` function L260-270 — `()` — Session attachment: migrating scratch sessions to named workstreams.
--  `test_attach_session_preserves_content` function L273-296 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_basic` function L165-194 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_with_subdirectories` function L197-218 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_no_files` function L221-235 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_invalid_session_id` function L238-245 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_invalid_workstream_name` function L248-258 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_workstream_not_found` function L261-271 — `()` — Session attachment: migrating scratch sessions to named workstreams.
+-  `test_attach_session_preserves_content` function L274-297 — `()` — Session attachment: migrating scratch sessions to named workstreams.
 
 #### crates/arawn-workstream/src/directory/usage.rs
 

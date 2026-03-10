@@ -265,6 +265,7 @@ mod tests {
         (dir, manager)
     }
 
+    #[test]
     fn test_promote_basic() {
         let (_dir, manager) = setup();
 
@@ -478,5 +479,128 @@ mod tests {
 
         let resolved = DirectoryManager::resolve_conflict(&base_path);
         assert!(resolved.ends_with("test(3).txt"));
+    }
+
+    #[test]
+    fn test_export_basic() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        manager.create_workstream("test-project").unwrap();
+
+        // Create a file in production/
+        let prod_path = manager.production_path("test-project");
+        fs::write(prod_path.join("report.txt"), "Final report").unwrap();
+
+        let dest = export_dir.path().join("report.txt");
+        let result = manager
+            .export("test-project", Path::new("report.txt"), &dest)
+            .unwrap();
+
+        assert_eq!(result.bytes, 12); // "Final report"
+        assert_eq!(result.path, dest);
+        assert!(result.path.exists());
+        assert_eq!(fs::read_to_string(&result.path).unwrap(), "Final report");
+
+        // Source should still exist (copy, not move)
+        assert!(prod_path.join("report.txt").exists());
+    }
+
+    #[test]
+    fn test_export_to_directory() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        manager.create_workstream("test-project").unwrap();
+
+        let prod_path = manager.production_path("test-project");
+        fs::write(prod_path.join("data.csv"), "a,b,c").unwrap();
+
+        // Export to a directory — filename should be appended
+        let result = manager
+            .export("test-project", Path::new("data.csv"), export_dir.path())
+            .unwrap();
+
+        assert!(result.path.ends_with("data.csv"));
+        assert!(result.path.exists());
+        assert_eq!(fs::read_to_string(&result.path).unwrap(), "a,b,c");
+    }
+
+    #[test]
+    fn test_export_creates_parent_dirs() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        manager.create_workstream("test-project").unwrap();
+
+        let prod_path = manager.production_path("test-project");
+        fs::write(prod_path.join("file.txt"), "content").unwrap();
+
+        let dest = export_dir.path().join("deep/nested/dir/file.txt");
+        let result = manager
+            .export("test-project", Path::new("file.txt"), &dest)
+            .unwrap();
+
+        assert!(result.path.exists());
+        assert_eq!(fs::read_to_string(&result.path).unwrap(), "content");
+    }
+
+    #[test]
+    fn test_export_source_not_found() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        manager.create_workstream("test-project").unwrap();
+
+        let dest = export_dir.path().join("out.txt");
+        let err = manager
+            .export("test-project", Path::new("nonexistent.txt"), &dest)
+            .unwrap_err();
+
+        assert!(matches!(err, DirectoryError::SourceNotFound(_)));
+    }
+
+    #[test]
+    fn test_export_source_is_directory() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        manager.create_workstream("test-project").unwrap();
+
+        let prod_path = manager.production_path("test-project");
+        fs::create_dir_all(prod_path.join("subdir")).unwrap();
+
+        let dest = export_dir.path().join("out");
+        let err = manager
+            .export("test-project", Path::new("subdir"), &dest)
+            .unwrap_err();
+
+        assert!(matches!(err, DirectoryError::NotAFile(_)));
+    }
+
+    #[test]
+    fn test_export_workstream_not_found() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        let dest = export_dir.path().join("out.txt");
+        let err = manager
+            .export("nonexistent", Path::new("file.txt"), &dest)
+            .unwrap_err();
+
+        assert!(matches!(err, DirectoryError::WorkstreamNotFound(_)));
+    }
+
+    #[test]
+    fn test_export_invalid_workstream_name() {
+        let (_dir, manager) = setup();
+        let export_dir = tempfile::tempdir().unwrap();
+
+        let dest = export_dir.path().join("out.txt");
+        let err = manager
+            .export("../escape", Path::new("file.txt"), &dest)
+            .unwrap_err();
+
+        assert!(matches!(err, DirectoryError::InvalidName(_)));
     }
 }

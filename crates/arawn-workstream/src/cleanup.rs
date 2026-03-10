@@ -506,4 +506,153 @@ mod tests {
             .join("test-session");
         assert!(!session_path.exists());
     }
+
+    fn test_workstream_manager(
+        dir: &std::path::Path,
+    ) -> crate::manager::WorkstreamManager {
+        let store = crate::store::WorkstreamStore::open_in_memory().unwrap();
+        let msg_store = crate::message_store::MessageStore::new(dir);
+        crate::manager::WorkstreamManager::from_parts(store, msg_store, 30)
+    }
+
+    #[test]
+    fn test_cleanup_scratch_sessions_no_sessions() {
+        let dir = tempdir().unwrap();
+        let dir_manager = DirectoryManager::new(dir.path());
+        let ws_manager = test_workstream_manager(dir.path());
+        let config = CleanupConfig::default();
+
+        let result = cleanup_scratch_sessions(&dir_manager, &ws_manager, &config);
+        assert_eq!(result.sessions_checked, 0);
+        assert_eq!(result.sessions_cleaned, 0);
+        assert_eq!(result.bytes_reclaimed, 0);
+        assert!(!result.dry_run);
+    }
+
+    #[test]
+    fn test_cleanup_scratch_sessions_with_active_session() {
+        let dir = tempdir().unwrap();
+        let dir_manager = DirectoryManager::new(dir.path());
+        let ws_manager = test_workstream_manager(dir.path());
+
+        // Send a message to scratch to create a session
+        ws_manager
+            .send_message(
+                None, // None resolves to scratch, auto-creating it
+                None,
+                crate::types::MessageRole::User,
+                "test msg",
+                None,
+            )
+            .unwrap();
+
+        // With default 7-day cutoff, the just-created session is still active
+        let config = CleanupConfig::default();
+        let result = cleanup_scratch_sessions(&dir_manager, &ws_manager, &config);
+        assert_eq!(result.sessions_checked, 1);
+        assert_eq!(result.sessions_cleaned, 0); // not old enough
+    }
+
+    #[test]
+    fn test_cleanup_scratch_sessions_dry_run() {
+        let dir = tempdir().unwrap();
+        let dir_manager = DirectoryManager::new(dir.path());
+        let ws_manager = test_workstream_manager(dir.path());
+
+        // Send a message to scratch to create a session
+        ws_manager
+            .send_message(
+                None, // None resolves to scratch, auto-creating it
+                None,
+                crate::types::MessageRole::User,
+                "test msg",
+                None,
+            )
+            .unwrap();
+
+        // Use 0-day cutoff to catch everything
+        let mut config = CleanupConfig::default();
+        config.dry_run = true;
+        config.scratch_cleanup_days = 0;
+
+        let result = cleanup_scratch_sessions(&dir_manager, &ws_manager, &config);
+        assert_eq!(result.sessions_checked, 1);
+        assert_eq!(result.sessions_cleaned, 1); // counted even in dry run
+        assert!(result.dry_run);
+    }
+
+    #[test]
+    fn test_cleanup_context_new() {
+        let dir = tempdir().unwrap();
+        let dir_manager = Arc::new(DirectoryManager::new(dir.path()));
+        let ws_manager = Arc::new(test_workstream_manager(dir.path()));
+        let config = CleanupConfig::default();
+
+        let ctx = CleanupContext::new(dir_manager, ws_manager, config);
+        // Just verify it constructs and methods exist
+        let result = ctx.run_scratch_cleanup();
+        assert_eq!(result.sessions_checked, 0);
+
+        let pressure = ctx.run_disk_pressure_check();
+        assert!(pressure.events.is_empty());
+    }
+
+    #[test]
+    fn test_check_disk_pressure_no_workstreams() {
+        let dir = tempdir().unwrap();
+        let dir_manager = DirectoryManager::new(dir.path());
+        let ws_manager = test_workstream_manager(dir.path());
+        let config = CleanupConfig::default();
+
+        let result = check_disk_pressure(&dir_manager, &ws_manager, &config);
+        assert_eq!(result.workstream_usage.len(), 0);
+        assert!(result.events.is_empty());
+    }
+
+    #[test]
+    fn test_check_disk_pressure_below_threshold() {
+        let dir = tempdir().unwrap();
+        let dir_manager = DirectoryManager::new(dir.path());
+        let ws_manager = test_workstream_manager(dir.path());
+
+        // Create a workstream with small data
+        ws_manager
+            .create_workstream("test-ws", None, &[])
+            .unwrap();
+        dir_manager.create_workstream("test-ws").unwrap();
+
+        let config = CleanupConfig::default();
+        let result = check_disk_pressure(&dir_manager, &ws_manager, &config);
+        // No events since usage is well under thresholds
+        assert!(result.events.is_empty());
+    }
+
+    #[test]
+    fn test_workstream_usage_struct() {
+        let usage = WorkstreamUsage {
+            id: "my-ws".to_string(),
+            bytes: 1024,
+        };
+        let json = serde_json::to_string(&usage).unwrap();
+        assert!(json.contains("\"id\":\"my-ws\""));
+        assert!(json.contains("\"bytes\":1024"));
+    }
+
+    #[test]
+    fn test_disk_pressure_result_serialization() {
+        let result = DiskPressureResult {
+            total_usage_bytes: 5000,
+            workstream_usage: vec![WorkstreamUsage {
+                id: "ws-1".to_string(),
+                bytes: 5000,
+            }],
+            events: vec![],
+            timestamp: Utc::now(),
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"total_usage_bytes\":5000"));
+        let deserialized: DiskPressureResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.total_usage_bytes, 5000);
+        assert_eq!(deserialized.workstream_usage.len(), 1);
+    }
 }

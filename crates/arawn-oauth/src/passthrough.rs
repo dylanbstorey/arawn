@@ -466,4 +466,235 @@ mod tests {
             CLAUDE_CODE_SYSTEM_PROMPT
         );
     }
+
+    // ── extract_api_key tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_api_key_from_auth_header_bearer() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-ant-123".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("sk-ant-123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_from_auth_header_no_bearer() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("authorization", "sk-ant-123".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("sk-ant-123".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_from_x_api_key_header() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-api-key", "sk-ant-456".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("sk-ant-456".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_prefers_config_auth_header() {
+        // When config auth_header is "Authorization", it should be checked first
+        let config = PassthroughConfig::anthropic_oauth();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("authorization", "Bearer primary-key".parse().unwrap());
+        headers.insert("x-api-key", "secondary-key".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("primary-key".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_api_key_mode_uses_x_api_key() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-api-key", "sk-ant-789".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("sk-ant-789".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_api_key_mode_fallback_to_authorization() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("authorization", "Bearer sk-fallback".parse().unwrap());
+
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, Some("sk-fallback".to_string()));
+    }
+
+    #[test]
+    fn test_extract_api_key_no_headers() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let headers = axum::http::HeaderMap::new();
+        let key = extract_api_key(&headers, &config);
+        assert_eq!(key, None);
+    }
+
+    // ── PassthroughConfig tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_config_anthropic_api_key() {
+        let config = PassthroughConfig::anthropic_api_key();
+        assert_eq!(config.auth_mode, AuthMode::ApiKey);
+        assert!(!config.inject_system_prompt);
+        assert_eq!(config.auth_header, "x-api-key");
+        assert!(config.extra_headers.contains_key("anthropic-version"));
+        assert!(!config.extra_headers.contains_key("anthropic-beta"));
+    }
+
+    #[test]
+    fn test_config_anthropic_oauth() {
+        let config = PassthroughConfig::anthropic_oauth();
+        assert_eq!(config.auth_mode, AuthMode::OAuthWithFallback);
+        assert!(config.inject_system_prompt);
+        assert_eq!(config.auth_header, "Authorization");
+        assert!(config.extra_headers.contains_key("anthropic-beta"));
+    }
+
+    // ── Passthrough construction ──────────────────────────────────────────
+
+    #[test]
+    fn test_passthrough_new() {
+        let pt = Passthrough::new();
+        assert_eq!(pt.config().auth_mode, AuthMode::OAuthWithFallback);
+        assert!(pt.token_manager.is_none());
+    }
+
+    #[test]
+    fn test_passthrough_default() {
+        let pt = Passthrough::default();
+        assert_eq!(pt.config().auth_mode, AuthMode::OAuthWithFallback);
+    }
+
+    #[test]
+    fn test_passthrough_with_config() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let pt = Passthrough::with_config(config);
+        assert_eq!(pt.config().auth_mode, AuthMode::ApiKey);
+    }
+
+    // ── get_auth_value tests ──────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_get_auth_value_api_key_mode() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let pt = Passthrough::with_config(config);
+        let value = pt.get_auth_value(Some("sk-ant-test")).await.unwrap();
+        assert_eq!(value, "sk-ant-test");
+    }
+
+    #[tokio::test]
+    async fn test_get_auth_value_api_key_mode_missing() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let pt = Passthrough::with_config(config);
+        let result = pt.get_auth_value(None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_auth_value_oauth_no_manager() {
+        let mut config = PassthroughConfig::anthropic_oauth();
+        config.auth_mode = AuthMode::OAuth;
+        let pt = Passthrough::with_config(config);
+        let result = pt.get_auth_value(None).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_auth_value_oauth_fallback_no_tokens_uses_api_key() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let pt = Passthrough::with_config(config);
+        // No token manager → falls through to API key
+        let value = pt.get_auth_value(Some("sk-fallback")).await.unwrap();
+        assert_eq!(value, "sk-fallback");
+    }
+
+    #[tokio::test]
+    async fn test_get_auth_value_oauth_fallback_no_tokens_no_key() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let pt = Passthrough::with_config(config);
+        let result = pt.get_auth_value(None).await;
+        assert!(result.is_err());
+    }
+
+    // ── prepare_raw_request tests ─────────────────────────────────────────
+
+    #[test]
+    fn test_prepare_raw_request_strips_and_injects() {
+        let config = PassthroughConfig::anthropic_oauth();
+        let pt = Passthrough::with_config(config);
+        let request = serde_json::json!({
+            "model": "claude-3",
+            "max_tokens": 100,
+            "messages": [],
+            "extra_field": "stripped"
+        });
+        let prepared = pt.prepare_raw_request(request);
+        assert!(prepared.get("model").is_some());
+        assert!(prepared.get("extra_field").is_none());
+        // System prompt injected
+        assert!(prepared.get("system").is_some());
+    }
+
+    #[test]
+    fn test_prepare_raw_request_no_inject_when_disabled() {
+        let config = PassthroughConfig::anthropic_api_key();
+        let pt = Passthrough::with_config(config);
+        let request = serde_json::json!({
+            "model": "claude-3",
+            "messages": []
+        });
+        let prepared = pt.prepare_raw_request(request);
+        // No system prompt injected in api_key mode
+        assert!(prepared.get("system").is_none());
+    }
+
+    // ── strip_unknown_fields edge cases ───────────────────────────────────
+
+    #[test]
+    fn test_strip_unknown_fields_non_object() {
+        let input = serde_json::json!("just a string");
+        let result = strip_unknown_fields(&input);
+        assert_eq!(result, input);
+    }
+
+    #[test]
+    fn test_strip_unknown_fields_preserves_all_valid() {
+        let request = serde_json::json!({
+            "model": "claude-3",
+            "max_tokens": 100,
+            "system": [],
+            "messages": [],
+            "tools": [],
+            "tool_choice": "auto",
+            "stream": true,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "top_k": 40,
+            "stop_sequences": ["END"],
+            "metadata": {},
+            "thinking": {}
+        });
+        let stripped = strip_unknown_fields(&request);
+        assert_eq!(stripped.as_object().unwrap().len(), 13); // All 13 valid fields
+    }
+
+    // ── Constants tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_constants() {
+        assert!(ANTHROPIC_API_URL.starts_with("https://"));
+        assert!(!ANTHROPIC_VERSION.is_empty());
+        assert!(ANTHROPIC_BETA.contains("oauth"));
+        assert!(!CLAUDE_CODE_SYSTEM_PROMPT.is_empty());
+    }
 }

@@ -433,4 +433,231 @@ mod tests {
                 || output.stderr.contains("Operation not permitted")
         );
     }
+
+    // ── CommandOutput Tests ────────────────────────────────────────────
+
+    #[test]
+    fn test_command_output_error_constructor() {
+        let output = CommandOutput::error("something went wrong".to_string());
+        assert!(!output.success);
+        assert_eq!(output.exit_code, 1);
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, "something went wrong");
+        assert_eq!(output.combined_output(), "something went wrong");
+    }
+
+    #[test]
+    fn test_command_output_new_nonzero_exit() {
+        let output = CommandOutput::new("partial".to_string(), "fail reason".to_string(), 127);
+        assert!(!output.success);
+        assert_eq!(output.exit_code, 127);
+        let combined = output.combined_output();
+        assert!(combined.contains("partial"));
+        assert!(combined.contains("fail reason"));
+        assert!(combined.contains("--- stderr ---"));
+    }
+
+    #[test]
+    fn test_command_output_empty_both() {
+        let output = CommandOutput::new(String::new(), String::new(), 0);
+        assert!(output.success);
+        assert_eq!(output.combined_output(), "");
+    }
+
+    #[test]
+    fn test_command_output_debug() {
+        let output = CommandOutput::new("hello".to_string(), String::new(), 0);
+        let debug = format!("{:?}", output);
+        assert!(debug.contains("hello"));
+        assert!(debug.contains("exit_code: 0"));
+    }
+
+    #[test]
+    fn test_command_output_clone() {
+        let output = CommandOutput::new("out".to_string(), "err".to_string(), 42);
+        let cloned = output.clone();
+        assert_eq!(cloned.stdout, "out");
+        assert_eq!(cloned.stderr, "err");
+        assert_eq!(cloned.exit_code, 42);
+        assert!(!cloned.success);
+    }
+
+    // ── build_runtime_config Tests ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_build_runtime_config_default() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let config = SandboxConfig::default();
+        let runtime_config = manager.build_runtime_config(&config).unwrap();
+
+        assert!(runtime_config.filesystem.allow_write.is_empty());
+        assert!(runtime_config.filesystem.deny_write.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_build_runtime_config_with_paths() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let config = SandboxConfig::default()
+            .with_write_paths(vec![
+                std::path::PathBuf::from("/tmp/work"),
+                std::path::PathBuf::from("/tmp/output"),
+            ])
+            .with_deny_read_paths(vec![std::path::PathBuf::from("/etc/shadow")])
+            .with_allowed_domains(vec!["example.com".to_string()])
+            .with_git_access(true);
+
+        let runtime_config = manager.build_runtime_config(&config).unwrap();
+
+        assert_eq!(runtime_config.filesystem.allow_write.len(), 2);
+        assert!(runtime_config.filesystem.allow_write.contains(&"/tmp/work".to_string()));
+        assert!(runtime_config.filesystem.allow_write.contains(&"/tmp/output".to_string()));
+        assert_eq!(runtime_config.filesystem.deny_read.len(), 1);
+        assert!(runtime_config.filesystem.deny_read.contains(&"/etc/shadow".to_string()));
+        assert_eq!(runtime_config.network.allowed_domains.len(), 1);
+        assert_eq!(runtime_config.filesystem.allow_git_config, Some(true));
+    }
+
+    // ── validate_config Tests ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_validate_config_valid() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+
+        // Config with no working dir (valid)
+        let config = SandboxConfig::default();
+        assert!(manager.validate_config(&config).is_ok());
+
+        // Config with existing working dir
+        let config = SandboxConfig::default().with_working_dir("/tmp");
+        assert!(manager.validate_config(&config).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_validate_config_nonexistent_working_dir() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let config =
+            SandboxConfig::default().with_working_dir("/absolutely/nonexistent/path");
+
+        let result = manager.validate_config(&config);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SandboxError::ConfigError(msg) => {
+                assert!(msg.contains("does not exist"));
+            }
+            other => panic!("Expected ConfigError, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_validate_config_nonexistent_write_path_warns_but_ok() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let config = SandboxConfig::default()
+            .with_write_paths(vec![std::path::PathBuf::from("/nonexistent/write/path")]);
+
+        // Non-existent write paths are allowed (warn but ok)
+        assert!(manager.validate_config(&config).is_ok());
+    }
+
+    // ── Platform Tests ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_sandbox_manager_platform() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let platform = manager.platform();
+
+        // On macOS it should be MacOS, on Linux it should be Linux
+        if cfg!(target_os = "macos") {
+            assert_eq!(platform, Platform::MacOS);
+        } else if cfg!(target_os = "linux") {
+            assert_eq!(platform, Platform::Linux);
+        }
+    }
+
+    #[test]
+    fn test_check_availability_returns_status() {
+        let status = SandboxManager::check_availability();
+        // Should return one of the three variants
+        match status {
+            SandboxStatus::Available { .. } => {}
+            SandboxStatus::MissingDependency { .. } => {}
+            SandboxStatus::Unsupported { .. } => {}
+        }
+    }
+
+    // ── execute_with_paths Tests ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_execute_with_paths() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let manager = SandboxManager::new().await.unwrap();
+
+        let output = manager
+            .execute_with_paths(
+                "echo 'path test'",
+                temp_dir.path(),
+                &[temp_dir.path().to_path_buf()],
+                Duration::from_secs(10),
+            )
+            .await
+            .unwrap();
+
+        assert!(output.success);
+        assert!(output.stdout.contains("path test"));
+    }
+
+    // ── Timeout Tests ──────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_sandbox_execute_timeout() {
+        let status = SandboxManager::check_availability();
+        if !status.is_available() {
+            return;
+        }
+
+        let manager = SandboxManager::new().await.unwrap();
+        let config = SandboxConfig::default().with_timeout(Duration::from_millis(100));
+
+        // Command that takes too long
+        let result = manager.execute("sleep 60", &config).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SandboxError::Timeout(_) => {} // Expected
+            other => panic!("Expected Timeout, got: {:?}", other),
+        }
+    }
 }

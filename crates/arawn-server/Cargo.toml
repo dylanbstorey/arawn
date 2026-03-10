@@ -41,6 +41,7 @@ arawn-llm = { workspace = true, features = ["testing"] }
 arawn-memory = { workspace = true }
 arawn-plugin = { workspace = true }
 arawn-test-utils = { workspace = true }
+arawn-workstream = { workspace = true }
 reqwest = { workspace = true }
 anyhow = { workspace = true }
 tempfile = "3.10"

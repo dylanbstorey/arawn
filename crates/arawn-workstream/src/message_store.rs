@@ -353,4 +353,128 @@ mod tests {
         let empty_msgs = store.read_for_session("ws-1", "nonexistent").unwrap();
         assert!(empty_msgs.is_empty());
     }
+
+    #[test]
+    fn test_move_messages() {
+        let (_dir, store) = temp_store();
+
+        store
+            .append("ws-src", Some("s1"), MessageRole::User, "msg1", None)
+            .unwrap();
+        store
+            .append("ws-src", Some("s1"), MessageRole::Assistant, "msg2", None)
+            .unwrap();
+
+        store.move_messages("ws-src", "ws-dest").unwrap();
+
+        // Source should be empty
+        let src_msgs = store.read_all("ws-src").unwrap();
+        assert!(src_msgs.is_empty());
+        assert!(!store.jsonl_path("ws-src").exists());
+
+        // Destination should have both messages with updated workstream_id
+        let dest_msgs = store.read_all("ws-dest").unwrap();
+        assert_eq!(dest_msgs.len(), 2);
+        assert_eq!(dest_msgs[0].workstream_id, "ws-dest");
+        assert_eq!(dest_msgs[1].workstream_id, "ws-dest");
+        assert_eq!(dest_msgs[0].content, "msg1");
+        assert_eq!(dest_msgs[1].content, "msg2");
+    }
+
+    #[test]
+    fn test_move_messages_empty_source() {
+        let (_dir, store) = temp_store();
+
+        // Moving from nonexistent workstream should succeed (no-op)
+        store.move_messages("empty", "ws-dest").unwrap();
+        let msgs = store.read_all("ws-dest").unwrap();
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn test_move_messages_appends_to_existing() {
+        let (_dir, store) = temp_store();
+
+        // Add existing message in destination
+        store
+            .append("ws-dest", None, MessageRole::User, "existing", None)
+            .unwrap();
+
+        // Add message in source
+        store
+            .append("ws-src", None, MessageRole::User, "moved", None)
+            .unwrap();
+
+        store.move_messages("ws-src", "ws-dest").unwrap();
+
+        let dest_msgs = store.read_all("ws-dest").unwrap();
+        assert_eq!(dest_msgs.len(), 2);
+        assert_eq!(dest_msgs[0].content, "existing");
+        assert_eq!(dest_msgs[1].content, "moved");
+    }
+
+    #[test]
+    fn test_delete_all() {
+        let (_dir, store) = temp_store();
+
+        store
+            .append("ws-1", None, MessageRole::User, "hello", None)
+            .unwrap();
+        assert!(store.jsonl_path("ws-1").exists());
+
+        store.delete_all("ws-1").unwrap();
+        assert!(!store.jsonl_path("ws-1").exists());
+
+        let msgs = store.read_all("ws-1").unwrap();
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn test_delete_all_nonexistent() {
+        let (_dir, store) = temp_store();
+        // Should succeed even if workstream doesn't exist
+        store.delete_all("nonexistent").unwrap();
+    }
+
+    #[test]
+    fn test_read_range_no_matches() {
+        let (_dir, store) = temp_store();
+
+        store
+            .append("ws-1", None, MessageRole::User, "old", None)
+            .unwrap();
+
+        // Future cutoff should return nothing
+        let future = Utc::now() + chrono::Duration::hours(1);
+        let range = store.read_range("ws-1", future).unwrap();
+        assert!(range.is_empty());
+    }
+
+    #[test]
+    fn test_read_range_nonexistent_workstream() {
+        let (_dir, store) = temp_store();
+        let range = store.read_range("nonexistent", Utc::now()).unwrap();
+        assert!(range.is_empty());
+    }
+
+    #[test]
+    fn test_read_for_session_nonexistent_workstream() {
+        let (_dir, store) = temp_store();
+        let msgs = store.read_for_session("nonexistent", "s1").unwrap();
+        assert!(msgs.is_empty());
+    }
+
+    #[test]
+    fn test_workstream_dir_path() {
+        let (_dir, store) = temp_store();
+        let path = store.workstream_dir("my-ws");
+        assert!(path.ends_with("workstreams/my-ws"));
+    }
+
+    #[test]
+    fn test_jsonl_path() {
+        let (_dir, store) = temp_store();
+        let path = store.jsonl_path("my-ws");
+        assert!(path.ends_with("workstreams/my-ws/messages.jsonl"));
+    }
 }

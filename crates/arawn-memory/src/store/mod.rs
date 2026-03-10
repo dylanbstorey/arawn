@@ -666,6 +666,98 @@ mod tests {
             Some("tx_value".to_string())
         );
     }
+
+    #[test]
+    fn test_has_graph_false_by_default() {
+        let store = create_test_store();
+        assert!(!store.has_graph());
+        assert!(store.graph().is_none());
+    }
+
+    #[test]
+    fn test_init_graph() {
+        let mut store = create_test_store();
+        assert!(!store.has_graph());
+
+        store.init_graph().unwrap();
+        assert!(store.has_graph());
+        assert!(store.graph().is_some());
+    }
+
+    #[test]
+    fn test_has_vectors_false_by_default() {
+        let store = create_test_store();
+        assert!(!store.has_vectors());
+    }
+
+    #[test]
+    fn test_debug_impl() {
+        let store = create_test_store();
+        let debug_str = format!("{:?}", store);
+        assert!(debug_str.contains("MemoryStore"));
+        assert!(debug_str.contains("has_graph"));
+    }
+
+    #[test]
+    fn test_open_at_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("subdir/memory.db");
+        let store = MemoryStore::open(&db_path).unwrap();
+
+        // Should work and be functional
+        store
+            .insert_memory(&Memory::new(ContentType::Note, "persisted"))
+            .unwrap();
+        let stats = store.stats().unwrap();
+        assert_eq!(stats.memory_count, 1);
+    }
+
+    #[test]
+    fn test_entity_link_builder() {
+        let link = EntityLink::new("person-1", "Person", RelationshipType::Mentions)
+            .with_property("name", "Alice")
+            .with_property("role", "Developer");
+
+        assert_eq!(link.entity_id, "person-1");
+        assert_eq!(link.label, "Person");
+        assert_eq!(link.properties.len(), 2);
+        assert_eq!(link.properties[0], ("name".to_string(), "Alice".to_string()));
+    }
+
+    #[test]
+    fn test_store_options_default() {
+        let opts = StoreOptions::default();
+        assert!(opts.embedding.is_none());
+        assert!(opts.entities.is_empty());
+    }
+
+    #[test]
+    fn test_with_transaction_rollback() {
+        let store = create_test_store();
+
+        let result: std::result::Result<(), _> = store.with_transaction(|conn| {
+            conn.execute(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)",
+                params!["rollback_key", "value"],
+            )?;
+            // Force an error to trigger rollback
+            Err(MemoryError::Database(rusqlite::Error::QueryReturnedNoRows))
+        });
+
+        assert!(result.is_err());
+        // Key should not exist due to rollback
+        assert!(store.get_meta("rollback_key").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_init_graph_at_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = create_test_store();
+        let graph_path = dir.path().join("graph.db");
+
+        store.init_graph_at_path(&graph_path).unwrap();
+        assert!(store.has_graph());
+    }
 }
 
 #[cfg(test)]

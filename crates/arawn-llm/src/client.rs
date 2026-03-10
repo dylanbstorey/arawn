@@ -348,6 +348,22 @@ impl LlmClient {
         Self::openai(OpenAiConfig::openai_from_env()?)
     }
 
+    /// Create a client from pre-built backends (test-only).
+    #[cfg(test)]
+    fn from_backends(
+        backends: HashMap<Provider, SharedBackend>,
+        primary: Provider,
+        fallbacks: Vec<Provider>,
+        auto_fallback: bool,
+    ) -> Self {
+        Self {
+            backends,
+            primary,
+            fallbacks,
+            auto_fallback,
+        }
+    }
+
     /// Get the primary provider.
     pub fn primary(&self) -> Provider {
         self.primary
@@ -604,5 +620,232 @@ mod tests {
 
         let result = client.complete_with(Provider::Anthropic, request).await;
         assert!(result.is_err());
+    }
+
+    // ── Fallback logic tests ──────────────────────────────────────────────
+
+    use crate::backend::{MockBackend, MockResponse};
+
+    fn mock_success(text: &str) -> MockBackend {
+        MockBackend::with_text(text)
+    }
+
+    fn mock_error(msg: &str) -> MockBackend {
+        MockBackend::with_results(vec![MockResponse::Error(msg.to_string())])
+    }
+
+    #[tokio::test]
+    async fn test_complete_with_fallback_primary_succeeds() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_success("primary ok")));
+        backends.insert(Provider::Groq, Arc::new(mock_success("fallback ok")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![Provider::Groq],
+            true,
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let response = client.complete(request).await.unwrap();
+        assert_eq!(response.text(), "primary ok");
+    }
+
+    #[tokio::test]
+    async fn test_complete_with_fallback_primary_fails_fallback_succeeds() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        // MockBackend::Error produces LlmError::Backend which is fallback-eligible
+        backends.insert(Provider::Ollama, Arc::new(mock_error("primary down")));
+        backends.insert(Provider::Groq, Arc::new(mock_success("fallback ok")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![Provider::Groq],
+            true,
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let response = client.complete(request).await.unwrap();
+        assert_eq!(response.text(), "fallback ok");
+    }
+
+    #[tokio::test]
+    async fn test_complete_with_fallback_all_fail() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_error("primary down")));
+        backends.insert(Provider::Groq, Arc::new(mock_error("fallback down")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![Provider::Groq],
+            true,
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let result = client.complete(request).await;
+        assert!(result.is_err());
+        // Should return the primary error, not the fallback error
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("primary down"));
+    }
+
+    #[tokio::test]
+    async fn test_complete_no_fallback_when_disabled() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_error("primary down")));
+        backends.insert(Provider::Groq, Arc::new(mock_success("fallback ok")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![Provider::Groq],
+            false, // auto_fallback disabled
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let result = client.complete(request).await;
+        assert!(result.is_err()); // Should NOT try fallback
+    }
+
+    #[tokio::test]
+    async fn test_complete_stream_with_provider() {
+        use futures::StreamExt;
+
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_success("streamed")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![],
+            false,
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let mut stream = client.complete_stream(request).await.unwrap();
+
+        let mut events = Vec::new();
+        while let Some(event) = stream.next().await {
+            events.push(event.unwrap());
+        }
+        assert!(!events.is_empty());
+        assert!(matches!(events.last().unwrap(), crate::backend::StreamEvent::MessageStop));
+    }
+
+    #[tokio::test]
+    async fn test_complete_stream_unavailable_provider() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_success("ok")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![],
+            false,
+        );
+
+        let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
+        let result = client.complete_stream_with(Provider::Anthropic, request).await;
+        assert!(result.is_err());
+    }
+
+    // ── should_fallback tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_should_fallback_for_network_errors() {
+        let backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        let client = LlmClient {
+            backends,
+            primary: Provider::Ollama,
+            fallbacks: vec![],
+            auto_fallback: true,
+        };
+
+        assert!(client.should_fallback(&LlmError::Network("timeout".to_string())));
+        assert!(client.should_fallback(&LlmError::Backend("500".to_string())));
+        assert!(client.should_fallback(&LlmError::RateLimit(crate::error::RateLimitInfo {
+            message: "429".to_string(),
+            retry_after: None,
+            limit_type: None,
+        })));
+        assert!(!client.should_fallback(&LlmError::Auth("bad key".to_string())));
+        assert!(!client.should_fallback(&LlmError::Config("missing".to_string())));
+    }
+
+    // ── LlmBackend impl for LlmClient ────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_llm_client_as_backend() {
+        let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
+        backends.insert(Provider::Ollama, Arc::new(mock_success("backend response")));
+
+        let client = LlmClient::from_backends(
+            backends,
+            Provider::Ollama,
+            vec![],
+            false,
+        );
+
+        assert_eq!(client.name(), "llm-client");
+        // supports_native_tools delegates to primary backend (MockBackend returns false)
+        assert!(!client.supports_native_tools());
+    }
+
+    // ── Provider Display ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_provider_display() {
+        assert_eq!(format!("{}", Provider::Anthropic), "anthropic");
+        assert_eq!(format!("{}", Provider::Groq), "groq");
+    }
+
+    // ── Client get_backend ────────────────────────────────────────────────
+
+    #[test]
+    fn test_get_backend() {
+        let config = LlmClientConfig::new().with_ollama(OpenAiConfig::ollama());
+        let client = LlmClient::new(config).unwrap();
+        assert!(client.get_backend(Provider::Ollama).is_some());
+        assert!(client.get_backend(Provider::Anthropic).is_none());
+    }
+
+    // ── Config with multiple providers ────────────────────────────────────
+
+    #[test]
+    fn test_config_determine_primary_prefers_anthropic() {
+        let config = LlmClientConfig::new()
+            .with_ollama(OpenAiConfig::ollama())
+            .with_groq(OpenAiConfig::groq("key"));
+        // Without explicit primary, preference order is Anthropic > OpenAI > Groq > Ollama
+        assert_eq!(config.determine_primary(), Some(Provider::Groq));
+    }
+
+    #[test]
+    fn test_fallbacks_filtered_to_configured() {
+        let config = LlmClientConfig::new()
+            .with_ollama(OpenAiConfig::ollama())
+            .with_fallbacks(vec![Provider::Anthropic, Provider::Ollama])
+            .with_auto_fallback(true);
+
+        let client = LlmClient::new(config).unwrap();
+        // Anthropic is not configured, so shouldn't be in fallbacks
+        // Ollama is the primary, so also shouldn't be in fallbacks
+        let providers = client.available_providers();
+        assert_eq!(providers.len(), 1);
+    }
+
+    #[test]
+    fn test_client_config_default() {
+        let config = LlmClientConfig::default();
+        assert!(config.anthropic.is_none());
+        assert!(config.openai.is_none());
+        assert!(config.groq.is_none());
+        assert!(config.ollama.is_none());
+        assert!(config.primary.is_none());
+        assert!(config.fallbacks.is_empty());
+        assert!(!config.auto_fallback);
     }
 }

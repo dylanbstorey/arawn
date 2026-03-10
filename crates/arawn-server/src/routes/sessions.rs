@@ -1211,4 +1211,351 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_create_session_empty_body() {
+        let state = create_test_state();
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/sessions")
+                    .header("Authorization", "Bearer test-token")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(r#"{}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let result: SessionDetail = serde_json::from_slice(&body).unwrap();
+        assert!(!result.id.is_empty());
+        assert!(result.metadata.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_pagination() {
+        let state = create_test_state();
+
+        // Create 3 sessions
+        state.get_or_create_session(None).await;
+        state.get_or_create_session(None).await;
+        state.get_or_create_session(None).await;
+
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sessions?limit=2&offset=0")
+                    .header("Authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let result: ListSessionsResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(result.total, 3);
+        assert_eq!(result.sessions.len(), 2);
+        assert_eq!(result.limit, 2);
+        assert_eq!(result.offset, 0);
+    }
+
+    #[tokio::test]
+    async fn test_list_sessions_with_offset() {
+        let state = create_test_state();
+
+        state.get_or_create_session(None).await;
+        state.get_or_create_session(None).await;
+        state.get_or_create_session(None).await;
+
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sessions?limit=10&offset=2")
+                    .header("Authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let result: ListSessionsResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(result.total, 3);
+        assert_eq!(result.sessions.len(), 1); // Only 1 remaining after offset 2
+    }
+
+    #[tokio::test]
+    async fn test_unauthorized_request() {
+        let state = create_test_state();
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sessions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_unauthorized_wrong_token() {
+        let state = create_test_state();
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sessions")
+                    .header("Authorization", "Bearer wrong-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn test_delete_session_invalid_id() {
+        let state = create_test_state();
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/sessions/not-a-uuid")
+                    .header("Authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_update_session_merge_metadata() {
+        let state = create_test_state();
+        let session_id = state.get_or_create_session(None).await;
+
+        // Set initial metadata
+        state
+            .session_cache()
+            .with_session_mut(&session_id, |session| {
+                session.metadata.insert(
+                    "existing_key".to_string(),
+                    serde_json::Value::String("old_value".to_string()),
+                );
+            })
+            .await;
+
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(&format!("/sessions/{}", session_id))
+                    .header("Authorization", "Bearer test-token")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        r#"{"metadata": {"new_key": "new_value"}}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let result: SessionDetail = serde_json::from_slice(&body).unwrap();
+        // Both old and new keys should be present
+        assert_eq!(result.metadata["existing_key"], "old_value");
+        assert_eq!(result.metadata["new_key"], "new_value");
+    }
+
+    #[tokio::test]
+    async fn test_update_session_workstream_without_workstreams() {
+        let state = create_test_state();
+        let session_id = state.get_or_create_session(None).await;
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(&format!("/sessions/{}", session_id))
+                    .header("Authorization", "Bearer test-token")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        r#"{"workstream_id": "my-workstream"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        // Should fail because workstreams not configured
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_session_messages_invalid_id() {
+        let state = create_test_state();
+        let app = create_test_router(state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/sessions/bad-uuid/messages")
+                    .header("Authorization", "Bearer test-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // ── Helper function tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_session_id_valid() {
+        let uuid = uuid::Uuid::new_v4();
+        let result = parse_session_id(&uuid.to_string());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_session_id_invalid() {
+        let result = parse_session_id("not-a-uuid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_session_to_detail_empty_session() {
+        let session = Session::new();
+        let detail = session_to_detail(&session);
+        assert!(detail.turns.is_empty());
+        assert!(detail.metadata.is_empty());
+        assert!(detail.workstream_id.is_none());
+        assert!(detail.files_migrated.is_none());
+        assert!(detail.allowed_paths.is_none());
+    }
+
+    #[test]
+    fn test_session_to_detail_with_migration_info() {
+        let session = Session::new();
+        let detail = session_to_detail_with_migration(
+            &session,
+            Some("ws-1".to_string()),
+            Some(5),
+            Some(vec!["/tmp/work".to_string()]),
+        );
+        assert_eq!(detail.workstream_id, Some("ws-1".to_string()));
+        assert_eq!(detail.files_migrated, Some(5));
+        assert_eq!(
+            detail.allowed_paths,
+            Some(vec!["/tmp/work".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_session_to_detail_with_turns() {
+        let mut session = Session::new();
+        let turn = session.start_turn("Hello");
+        turn.complete("World");
+        let detail = session_to_detail(&session);
+        assert_eq!(detail.turns.len(), 1);
+        assert_eq!(detail.turns[0].user_message, "Hello");
+        assert_eq!(detail.turns[0].assistant_response, Some("World".to_string()));
+    }
+
+    // ── Type serialization tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_create_session_request_deserialize() {
+        let json = r#"{"title": "Test"}"#;
+        let req: CreateSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.title, Some("Test".to_string()));
+        assert!(req.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_create_session_request_deserialize_minimal() {
+        let json = r#"{}"#;
+        let req: CreateSessionRequest = serde_json::from_str(json).unwrap();
+        assert!(req.title.is_none());
+        assert!(req.metadata.is_empty());
+    }
+
+    #[test]
+    fn test_update_session_request_deserialize() {
+        let json = r#"{"title": "New", "workstream_id": "ws-1"}"#;
+        let req: UpdateSessionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.title, Some("New".to_string()));
+        assert_eq!(req.workstream_id, Some("ws-1".to_string()));
+        assert!(req.metadata.is_none());
+    }
+
+    #[test]
+    fn test_list_sessions_response_serialization() {
+        let resp = ListSessionsResponse {
+            sessions: vec![],
+            total: 0,
+            limit: 20,
+            offset: 0,
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"total\":0"));
+        assert!(json.contains("\"limit\":20"));
+    }
+
+    #[test]
+    fn test_session_messages_response_serialization() {
+        let resp = SessionMessagesResponse {
+            session_id: "abc".to_string(),
+            messages: vec![MessageInfo {
+                role: "user".to_string(),
+                content: "hi".to_string(),
+                timestamp: "2024-01-01T00:00:00Z".to_string(),
+                metadata: None,
+            }],
+            count: 1,
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("\"role\":\"user\""));
+        assert!(json.contains("\"count\":1"));
+        // metadata=None should be skipped
+        assert!(!json.contains("\"metadata\""));
+    }
 }

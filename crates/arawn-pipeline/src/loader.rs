@@ -633,6 +633,151 @@ action = {{ type = "tool", name = "echo" }}
         assert!(loader.is_empty().await);
     }
 
+    #[test]
+    fn test_is_workflow_file() {
+        assert!(WorkflowLoader::is_workflow_file(Path::new("foo.toml")));
+        assert!(WorkflowLoader::is_workflow_file(Path::new("/path/to/wf.toml")));
+        assert!(!WorkflowLoader::is_workflow_file(Path::new("foo.json")));
+        assert!(!WorkflowLoader::is_workflow_file(Path::new("foo.md")));
+        assert!(!WorkflowLoader::is_workflow_file(Path::new("foo")));
+        assert!(!WorkflowLoader::is_workflow_file(Path::new("")));
+    }
+
+    #[tokio::test]
+    async fn test_normalize_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        let normalized = loader.normalize_path(Path::new("/some/other/path/file.toml"));
+        // Should use the loader's workflow_dir + the filename
+        assert!(normalized.ends_with("file.toml"));
+        assert!(normalized.starts_with(loader.workflow_dir.as_path()));
+    }
+
+    #[tokio::test]
+    async fn test_normalize_path_no_filename() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        // Path with no filename component
+        let normalized = loader.normalize_path(Path::new("/"));
+        assert_eq!(normalized, PathBuf::from("/"));
+    }
+
+    #[tokio::test]
+    async fn test_remove_nonexistent_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        let event = loader.remove_file(Path::new("nonexistent.toml")).await;
+        assert!(event.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_workflow_event_debug() {
+        let event = WorkflowEvent::Loaded {
+            name: "test".to_string(),
+            path: PathBuf::from("/test.toml"),
+        };
+        let debug = format!("{:?}", event);
+        assert!(debug.contains("Loaded"));
+        assert!(debug.contains("test"));
+
+        let event = WorkflowEvent::Removed {
+            name: "rm".to_string(),
+            path: PathBuf::from("/rm.toml"),
+        };
+        assert!(format!("{:?}", event).contains("Removed"));
+
+        let event = WorkflowEvent::Error {
+            path: PathBuf::from("/bad.toml"),
+            error: "parse error".to_string(),
+        };
+        assert!(format!("{:?}", event).contains("Error"));
+    }
+
+    #[tokio::test]
+    async fn test_loader_view_load_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_workflow(dir.path(), "vw.toml", "view_test");
+
+        let workflows = Arc::new(RwLock::new(HashMap::new()));
+        let path_to_name = Arc::new(RwLock::new(HashMap::new()));
+
+        let view = WorkflowLoaderView {
+            workflows: workflows.clone(),
+            path_to_name: path_to_name.clone(),
+        };
+
+        let event = view.load_file(&dir.path().join("vw.toml")).await;
+        assert!(matches!(&event, WorkflowEvent::Loaded { name, .. } if name == "view_test"));
+
+        let wfs = workflows.read().await;
+        assert!(wfs.contains_key("view_test"));
+    }
+
+    #[tokio::test]
+    async fn test_loader_view_load_invalid_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_invalid(dir.path(), "bad.toml");
+
+        let workflows = Arc::new(RwLock::new(HashMap::new()));
+        let path_to_name = Arc::new(RwLock::new(HashMap::new()));
+
+        let view = WorkflowLoaderView {
+            workflows: workflows.clone(),
+            path_to_name: path_to_name.clone(),
+        };
+
+        let event = view.load_file(&dir.path().join("bad.toml")).await;
+        assert!(matches!(event, WorkflowEvent::Error { .. }));
+        assert!(workflows.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_loader_view_remove_file() {
+        let dir = tempfile::tempdir().unwrap();
+        write_workflow(dir.path(), "rm.toml", "removable");
+
+        let workflows = Arc::new(RwLock::new(HashMap::new()));
+        let path_to_name = Arc::new(RwLock::new(HashMap::new()));
+
+        let view = WorkflowLoaderView {
+            workflows: workflows.clone(),
+            path_to_name: path_to_name.clone(),
+        };
+
+        // Load first
+        view.load_file(&dir.path().join("rm.toml")).await;
+        assert_eq!(workflows.read().await.len(), 1);
+
+        // Remove
+        let event = view.remove_file(&dir.path().join("rm.toml")).await;
+        assert!(matches!(event, Some(WorkflowEvent::Removed { name, .. }) if name == "removable"));
+        assert!(workflows.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_loader_view_remove_nonexistent() {
+        let workflows = Arc::new(RwLock::new(HashMap::new()));
+        let path_to_name = Arc::new(RwLock::new(HashMap::new()));
+
+        let view = WorkflowLoaderView {
+            workflows,
+            path_to_name,
+        };
+
+        let event = view.remove_file(Path::new("/no/such/file.toml")).await;
+        assert!(event.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_watch_returns_handle() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = WorkflowLoader::new(dir.path()).unwrap();
+        let result = loader.watch();
+        assert!(result.is_ok());
+        let (_rx, _handle) = result.unwrap();
+        // Handle keeps watcher alive; drop it to stop
+    }
+
     #[tokio::test]
     #[ignore] // Run with --ignored flag - requires filesystem event timing
     async fn test_watch_ignores_non_toml() {

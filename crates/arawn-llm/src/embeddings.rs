@@ -1072,4 +1072,264 @@ mod tests {
             .unwrap();
         assert_eq!(auth, format!("Bearer {}", key));
     }
+
+    // ── build_embedder factory tests ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_build_embedder_mock() {
+        let spec = EmbedderSpec {
+            provider: "mock".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: Some(128),
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let embedder = build_embedder(&spec).await.unwrap();
+        assert_eq!(embedder.name(), "mock");
+        assert_eq!(embedder.dimensions(), 128);
+    }
+
+    #[tokio::test]
+    async fn test_build_embedder_mock_default_dims() {
+        let spec = EmbedderSpec {
+            provider: "mock".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: None,
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let embedder = build_embedder(&spec).await.unwrap();
+        assert_eq!(embedder.dimensions(), 384);
+    }
+
+    #[tokio::test]
+    async fn test_build_embedder_unknown_provider() {
+        let spec = EmbedderSpec {
+            provider: "nonexistent".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: None,
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let result = build_embedder(&spec).await;
+        assert!(result.is_err());
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("nonexistent"), "Error should mention provider: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn test_build_embedder_openai_no_key() {
+        let spec = EmbedderSpec {
+            provider: "openai".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: None,
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let result = build_embedder(&spec).await;
+        assert!(result.is_err());
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("API key"), "Error should mention API key: {}", msg);
+    }
+
+    #[tokio::test]
+    async fn test_build_embedder_openai_with_config() {
+        let spec = EmbedderSpec {
+            provider: "openai".to_string(),
+            openai_api_key: Some("test-key".to_string()),
+            openai_model: Some("text-embedding-ada-002".to_string()),
+            openai_base_url: Some("http://localhost:8080/v1".to_string()),
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: Some(256),
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let embedder = build_embedder(&spec).await.unwrap();
+        assert_eq!(embedder.name(), "openai");
+        assert_eq!(embedder.dimensions(), 256);
+    }
+
+    #[tokio::test]
+    async fn test_build_embedder_local_without_feature() {
+        // When local-embeddings feature is disabled, "local" falls back to mock
+        let spec = EmbedderSpec {
+            provider: "local".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: Some(64),
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let embedder = build_embedder(&spec).await.unwrap();
+        // Falls back to mock when feature disabled OR model files missing
+        assert_eq!(embedder.dimensions(), 64);
+    }
+
+    // ── OpenAiEmbedder method tests ───────────────────────────────────────
+
+    #[test]
+    fn test_openai_embedder_name() {
+        let embedder = OpenAiEmbedder::new(OpenAiEmbedderConfig::new("key")).unwrap();
+        assert_eq!(embedder.name(), "openai");
+    }
+
+    #[test]
+    fn test_openai_embedder_embeddings_url() {
+        let config = OpenAiEmbedderConfig::new("key")
+            .with_base_url("http://localhost:8080/v1");
+        let embedder = OpenAiEmbedder::new(config).unwrap();
+        assert_eq!(embedder.embeddings_url(), "http://localhost:8080/v1/embeddings");
+    }
+
+    #[test]
+    fn test_openai_embedder_embeddings_url_default() {
+        let embedder = OpenAiEmbedder::new(OpenAiEmbedderConfig::new("key")).unwrap();
+        assert_eq!(embedder.embeddings_url(), "https://api.openai.com/v1/embeddings");
+    }
+
+    // ── MockEmbedder tests ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_mock_embedder_custom_dimensions() {
+        let embedder = MockEmbedder::new(16);
+        assert_eq!(embedder.dimensions(), 16);
+        let emb = embedder.embed("test").await.unwrap();
+        assert_eq!(emb.len(), 16);
+        // Verify normalization
+        let norm: f32 = emb.iter().map(|x| x * x).sum::<f32>().sqrt();
+        assert!((norm - 1.0).abs() < 0.001);
+    }
+
+    #[tokio::test]
+    async fn test_mock_embedder_default_impl() {
+        let embedder = MockEmbedder::default();
+        assert_eq!(embedder.dimensions(), 384);
+        assert_eq!(embedder.name(), "mock");
+    }
+
+    #[tokio::test]
+    async fn test_mock_embedder_embed_batch_empty() {
+        let embedder = MockEmbedder::default();
+        let results = embedder.embed_batch(&[]).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    // ── Similarity edge cases ─────────────────────────────────────────────
+
+    #[test]
+    fn test_cosine_similarity_mismatched_lengths() {
+        let a = vec![1.0, 0.0];
+        let b = vec![1.0, 0.0, 0.0];
+        assert_eq!(cosine_similarity(&a, &b), 0.0);
+    }
+
+    #[test]
+    fn test_cosine_similarity_zero_vectors() {
+        let a = vec![0.0, 0.0, 0.0];
+        let b = vec![1.0, 0.0, 0.0];
+        assert_eq!(cosine_similarity(&a, &b), 0.0);
+        assert_eq!(cosine_similarity(&a, &a), 0.0);
+    }
+
+    #[test]
+    fn test_euclidean_distance_mismatched_lengths() {
+        let a = vec![1.0, 0.0];
+        let b = vec![1.0, 0.0, 0.0];
+        assert_eq!(euclidean_distance(&a, &b), f32::MAX);
+    }
+
+    #[test]
+    fn test_euclidean_distance_identical() {
+        let a = vec![3.0, 4.0, 5.0];
+        assert!(euclidean_distance(&a, &a).abs() < f32::EPSILON);
+    }
+
+    // ── EmbedderSpec construction ─────────────────────────────────────────
+
+    #[test]
+    fn test_embedder_spec_debug() {
+        let spec = EmbedderSpec {
+            provider: "mock".to_string(),
+            openai_api_key: None,
+            openai_model: None,
+            openai_base_url: None,
+            local_model_path: None,
+            local_tokenizer_path: None,
+            dimensions: None,
+            local_model_url: None,
+            local_tokenizer_url: None,
+        };
+        let debug = format!("{:?}", spec);
+        assert!(debug.contains("mock"));
+    }
+
+    // ── OpenAiEmbedderConfig edge cases ───────────────────────────────────
+
+    #[test]
+    fn test_openai_config_with_dimensions() {
+        let config = OpenAiEmbedderConfig::new("key").with_dimensions(512);
+        assert_eq!(config.dimensions, Some(512));
+    }
+
+    #[test]
+    fn test_openai_config_timeout() {
+        let config = OpenAiEmbedderConfig::new("key");
+        assert_eq!(config.timeout, Duration::from_secs(60));
+    }
+
+    // ── simple_hash ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_simple_hash_deterministic() {
+        assert_eq!(simple_hash("hello"), simple_hash("hello"));
+        assert_ne!(simple_hash("hello"), simple_hash("world"));
+    }
+
+    #[test]
+    fn test_simple_hash_empty() {
+        // Empty string should produce the initial seed value
+        let h = simple_hash("");
+        assert_eq!(h, 5381);
+    }
+
+    // ── default_ner_model_dir ─────────────────────────────────────────────
+
+    #[test]
+    fn test_default_ner_model_dir_returns_some() {
+        // On most systems dirs::data_dir() returns Some
+        let dir = default_ner_model_dir();
+        if let Some(d) = dir {
+            assert!(d.ends_with("arawn/models/ner") || d.to_string_lossy().contains("arawn"));
+        }
+    }
+
+    // ── Constants ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_model_url_constants() {
+        assert!(DEFAULT_EMBEDDING_MODEL_URL.contains("huggingface.co"));
+        assert!(DEFAULT_EMBEDDING_TOKENIZER_URL.contains("tokenizer.json"));
+        assert!(DEFAULT_NER_MODEL_URL.contains("gliner"));
+        assert!(DEFAULT_NER_TOKENIZER_URL.contains("tokenizer.json"));
+    }
 }

@@ -672,4 +672,272 @@ mod tests {
         let p = st.get_by_name("concurrent").unwrap();
         assert!(p.skill_contents[0].content.contains("Reloaded content"));
     }
+
+    // ── PluginState Tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_plugin_state_default() {
+        let state = PluginState::default();
+        assert!(state.is_empty());
+        assert_eq!(state.len(), 0);
+        assert!(state.plugins().is_empty());
+        assert!(state.get_by_name("anything").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_plugin_state_plugins_returns_all() {
+        let tmp = TempDir::new().unwrap();
+        create_test_plugin(tmp.path(), "p1");
+        create_test_plugin(tmp.path(), "p2");
+        create_test_plugin(tmp.path(), "p3");
+
+        let manager = PluginManager::new(vec![tmp.path().to_path_buf()]);
+        let watcher = PluginWatcher::new(manager);
+        watcher.load_initial().await;
+
+        let state = watcher.state();
+        let st = state.read().await;
+        let plugins = st.plugins();
+        assert_eq!(plugins.len(), 3);
+
+        let names: Vec<&str> = plugins.iter().map(|p| p.manifest.name.as_str()).collect();
+        assert!(names.contains(&"p1"));
+        assert!(names.contains(&"p2"));
+        assert!(names.contains(&"p3"));
+    }
+
+    // ── find_plugin_dir Tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_find_plugin_dir_multiple_search_dirs() {
+        let dirs = vec![
+            PathBuf::from("/plugins"),
+            PathBuf::from("/extra-plugins"),
+        ];
+
+        // File in first search dir
+        assert_eq!(
+            find_plugin_dir(Path::new("/plugins/my-plugin/file.txt"), &dirs),
+            Some(PathBuf::from("/plugins/my-plugin"))
+        );
+
+        // File in second search dir
+        assert_eq!(
+            find_plugin_dir(Path::new("/extra-plugins/other/deep/file.txt"), &dirs),
+            Some(PathBuf::from("/extra-plugins/other"))
+        );
+
+        // File not under any search dir
+        assert_eq!(
+            find_plugin_dir(Path::new("/somewhere/else/file.txt"), &dirs),
+            None
+        );
+    }
+
+    #[test]
+    fn test_find_plugin_dir_deeply_nested_file() {
+        let dirs = vec![PathBuf::from("/plugins")];
+
+        // Deeply nested file should still resolve to direct child of search dir
+        assert_eq!(
+            find_plugin_dir(
+                Path::new("/plugins/my-plugin/src/deep/nested/module.rs"),
+                &dirs
+            ),
+            Some(PathBuf::from("/plugins/my-plugin"))
+        );
+    }
+
+    #[test]
+    fn test_find_plugin_dir_empty_search_dirs() {
+        let dirs: Vec<PathBuf> = vec![];
+        assert_eq!(
+            find_plugin_dir(Path::new("/anything/file.txt"), &dirs),
+            None
+        );
+    }
+
+    #[test]
+    fn test_find_plugin_dir_file_at_search_root() {
+        let dirs = vec![PathBuf::from("/plugins")];
+        // File directly under the search dir (not inside a plugin subdir)
+        // The parent of "/plugins/file.txt" is "/plugins" which matches search_dir,
+        // so it returns "/plugins/file.txt" as the "plugin dir"
+        assert_eq!(
+            find_plugin_dir(Path::new("/plugins/file.txt"), &dirs),
+            Some(PathBuf::from("/plugins/file.txt"))
+        );
+    }
+
+    // ── reload_from_dir Tests ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_reload_from_dir_success() {
+        let tmp = TempDir::new().unwrap();
+        let plugin_dir = create_test_plugin(tmp.path(), "direct-reload");
+
+        let state = Arc::new(RwLock::new(PluginState::default()));
+        let event = reload_from_dir(&state, &plugin_dir).await;
+
+        match event {
+            PluginEvent::Reloaded { name, plugin_dir: dir } => {
+                assert_eq!(name, "direct-reload");
+                assert_eq!(dir, plugin_dir);
+            }
+            other => panic!("Expected Reloaded, got {:?}", other),
+        }
+
+        let st = state.read().await;
+        assert_eq!(st.len(), 1);
+        assert!(st.get_by_name("direct-reload").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_reload_from_dir_failure() {
+        let tmp = TempDir::new().unwrap();
+        let bad_dir = tmp.path().join("bad-plugin");
+        fs::create_dir_all(bad_dir.join(".claude-plugin")).unwrap();
+        fs::write(bad_dir.join(MANIFEST_PATH), "invalid json{{{").unwrap();
+
+        let state = Arc::new(RwLock::new(PluginState::default()));
+        let event = reload_from_dir(&state, &bad_dir).await;
+
+        match event {
+            PluginEvent::Error { plugin_dir, error } => {
+                assert_eq!(plugin_dir, bad_dir);
+                assert!(!error.is_empty());
+            }
+            other => panic!("Expected Error, got {:?}", other),
+        }
+
+        // State should remain empty
+        assert!(state.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_reload_from_dir_replaces_existing() {
+        let tmp = TempDir::new().unwrap();
+        let plugin_dir = create_test_plugin(tmp.path(), "replace-me");
+
+        let state = Arc::new(RwLock::new(PluginState::default()));
+
+        // Load initially
+        reload_from_dir(&state, &plugin_dir).await;
+        assert_eq!(
+            state.read().await.get_by_name("replace-me").unwrap().manifest.version.as_deref(),
+            Some("0.1.0")
+        );
+
+        // Update manifest
+        fs::write(
+            plugin_dir.join(MANIFEST_PATH),
+            r#"{ "name": "replace-me", "version": "3.0.0", "description": "Upgraded" }"#,
+        )
+        .unwrap();
+
+        // Reload should replace
+        reload_from_dir(&state, &plugin_dir).await;
+        assert_eq!(
+            state.read().await.get_by_name("replace-me").unwrap().manifest.version.as_deref(),
+            Some("3.0.0")
+        );
+
+        // Should still be just one plugin
+        assert_eq!(state.read().await.len(), 1);
+    }
+
+    // ── PluginEvent Variant Tests ──────────────────────────────────────
+
+    #[test]
+    fn test_plugin_event_debug() {
+        let event = PluginEvent::Reloaded {
+            name: "test".to_string(),
+            plugin_dir: PathBuf::from("/plugins/test"),
+        };
+        let debug = format!("{:?}", event);
+        assert!(debug.contains("Reloaded"));
+        assert!(debug.contains("test"));
+
+        let event = PluginEvent::Removed {
+            name: "gone".to_string(),
+            plugin_dir: PathBuf::from("/plugins/gone"),
+        };
+        let debug = format!("{:?}", event);
+        assert!(debug.contains("Removed"));
+
+        let event = PluginEvent::Error {
+            plugin_dir: PathBuf::from("/plugins/bad"),
+            error: "parse error".to_string(),
+        };
+        let debug = format!("{:?}", event);
+        assert!(debug.contains("Error"));
+        assert!(debug.contains("parse error"));
+    }
+
+    // ── Watch Setup Test ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_watch_creates_receiver_and_handle() {
+        let tmp = TempDir::new().unwrap();
+        create_test_plugin(tmp.path(), "watchable");
+
+        let manager = PluginManager::new(vec![tmp.path().to_path_buf()]);
+        let watcher = PluginWatcher::new(manager).with_debounce(Duration::from_millis(100));
+        watcher.load_initial().await;
+
+        let result = watcher.watch();
+        assert!(result.is_ok());
+
+        let (_rx, _handle) = result.unwrap();
+        // Handle keeps watcher alive; dropping it stops watching
+    }
+
+    #[tokio::test]
+    async fn test_watch_with_nonexistent_dir() {
+        let manager = PluginManager::new(vec![PathBuf::from("/nonexistent/plugins")]);
+        let watcher = PluginWatcher::new(manager);
+
+        // watch() should succeed even if dirs don't exist (warns but continues)
+        let result = watcher.watch();
+        assert!(result.is_ok());
+    }
+
+    // ── Load Initial No Plugins ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_load_initial_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        let manager = PluginManager::new(vec![tmp.path().to_path_buf()]);
+        let watcher = PluginWatcher::new(manager);
+
+        let events = watcher.load_initial().await;
+        assert!(events.is_empty());
+
+        let state = watcher.state();
+        let st = state.read().await;
+        assert!(st.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_load_initial_returns_events_for_each_plugin() {
+        let tmp = TempDir::new().unwrap();
+        create_test_plugin(tmp.path(), "a");
+        create_test_plugin(tmp.path(), "b");
+
+        let manager = PluginManager::new(vec![tmp.path().to_path_buf()]);
+        let watcher = PluginWatcher::new(manager);
+
+        let events = watcher.load_initial().await;
+        assert_eq!(events.len(), 2);
+
+        let names: Vec<&str> = events
+            .iter()
+            .filter_map(|e| match e {
+                PluginEvent::Reloaded { name, .. } => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(names.contains(&"a"));
+        assert!(names.contains(&"b"));
+    }
 }

@@ -632,4 +632,171 @@ mod tests {
         assert_eq!(cleaned, 3);
         assert_eq!(cache.len().await, 0);
     }
+
+    #[tokio::test]
+    async fn test_get_or_create_with_none_creates_new() {
+        let cache = SessionCache::new(None);
+
+        let (id, session, created) = cache.get_or_create(None, "ws-1").await.unwrap();
+        assert!(created);
+        assert!(session.is_empty());
+        assert!(cache.contains(&id).await);
+    }
+
+    #[tokio::test]
+    async fn test_get_or_create_with_existing_id() {
+        let cache = SessionCache::new(None);
+
+        let (id, _) = cache.create_session("ws-1").await;
+        let (returned_id, _session, created) =
+            cache.get_or_create(Some(id), "ws-1").await.unwrap();
+
+        assert!(!created);
+        assert_eq!(returned_id, id);
+    }
+
+    #[tokio::test]
+    async fn test_get_or_create_with_unknown_id_loads() {
+        let cache = SessionCache::new(None);
+        let id = SessionId::new();
+
+        // With no WorkstreamManager, loads an empty session
+        let (returned_id, session, created) =
+            cache.get_or_create(Some(id), "ws-1").await.unwrap();
+
+        assert!(!created);
+        assert_eq!(returned_id, id);
+        assert!(session.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_with_session() {
+        let cache = SessionCache::new(None);
+
+        let (id, mut session) = cache.create_session("ws-1").await;
+        session.start_turn("Hello").complete("Hi!");
+        cache.update(id, session).await.unwrap();
+
+        let turn_count = cache
+            .with_session(&id, |s| s.turn_count())
+            .await
+            .unwrap();
+        assert_eq!(turn_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_session_mut() {
+        let cache = SessionCache::new(None);
+
+        let (id, _) = cache.create_session("ws-1").await;
+
+        cache
+            .with_session_mut(&id, |s| {
+                s.start_turn("Added").complete("Done");
+            })
+            .await
+            .unwrap();
+
+        let turn_count = cache
+            .with_session(&id, |s| s.turn_count())
+            .await
+            .unwrap();
+        assert_eq!(turn_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_with_session_nonexistent() {
+        let cache = SessionCache::new(None);
+        let id = SessionId::new();
+
+        let result = cache.with_session(&id, |s| s.turn_count()).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_all_sessions() {
+        let cache = SessionCache::new(None);
+
+        let (id1, _) = cache.create_session("ws-1").await;
+        let (id2, _) = cache.create_session("ws-2").await;
+
+        let all = cache.all_sessions().await;
+        assert_eq!(all.len(), 2);
+        assert!(all.contains_key(&id1));
+        assert!(all.contains_key(&id2));
+    }
+
+    #[tokio::test]
+    async fn test_is_empty() {
+        let cache = SessionCache::new(None);
+        assert!(cache.is_empty().await);
+
+        cache.create_session("ws-1").await;
+        assert!(!cache.is_empty().await);
+    }
+
+    #[tokio::test]
+    async fn test_insert_directly() {
+        let cache = SessionCache::new(None);
+        let session = Session::new();
+        let id = session.id;
+
+        cache.insert(id, session, "ws-direct").await;
+
+        assert!(cache.contains(&id).await);
+        assert_eq!(
+            cache.get_workstream_id(&id).await,
+            Some("ws-direct".to_string())
+        );
+    }
+
+    #[tokio::test]
+    async fn test_update_nonexistent_session() {
+        let cache = SessionCache::new(None);
+        let id = SessionId::new();
+        let session = Session::with_id(id);
+
+        // Should not panic, just warn
+        cache.update(id, session).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_remove_nonexistent() {
+        let cache = SessionCache::new(None);
+        let id = SessionId::new();
+        let result = cache.remove(&id).await;
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_save_turn_no_workstream_manager() {
+        let cache = SessionCache::new(None);
+        let session_id = SessionId::new();
+        let turn = Turn::new("Hello");
+
+        // Should succeed as no-op when no workstream manager
+        cache.save_turn(session_id, &turn, "ws-1").await.unwrap();
+    }
+
+    #[test]
+    fn test_parse_session_id_valid() {
+        let uuid = uuid::Uuid::new_v4();
+        let result = parse_session_id(&uuid.to_string());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_parse_session_id_invalid() {
+        let result = parse_session_id("not-a-uuid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_session_cache_error_display() {
+        let err = SessionCacheError::NotFound("s-123".into());
+        assert!(err.to_string().contains("s-123"));
+
+        let err = SessionCacheError::NoWorkstreamManager;
+        assert!(err.to_string().contains("No workstream manager"));
+    }
 }

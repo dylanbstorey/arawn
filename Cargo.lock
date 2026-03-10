@@ -469,6 +469,7 @@ dependencies = [
  "arawn-plugin",
  "arawn-test-utils",
  "arawn-types",
+ "arawn-workstream",
  "async-stream",
  "async-trait",
  "axum",

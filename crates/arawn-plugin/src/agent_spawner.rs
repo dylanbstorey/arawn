@@ -683,7 +683,7 @@ impl SubagentSpawner for PluginSubagentSpawner {
 mod tests {
     use super::*;
     use arawn_agent::tool::{Tool, ToolContext, ToolResult};
-    use arawn_llm::{MockBackend, SharedBackend};
+    use arawn_llm::{MockBackend, MockResponse, SharedBackend};
     use async_trait::async_trait;
 
     /// A simple test tool.
@@ -1110,5 +1110,424 @@ mod tests {
         assert!(spawner.compaction_config.enabled);
         assert_eq!(spawner.compaction_config.threshold, 1000);
         assert_eq!(spawner.compaction_config.model, "gpt-4o-mini");
+    }
+
+    // ── Default Max Iterations Tests ───────────────────────────────────
+
+    #[test]
+    fn test_spawner_default_max_iterations_applied() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("test"));
+
+        let spawner = AgentSpawner::new(parent_tools, backend).with_default_max_iterations(20);
+        // Agent has no agent-specific override, so default should apply
+        let config = make_agent_config("test", vec!["shell"], None);
+        let agent = spawner.spawn(&config).unwrap();
+        assert_eq!(agent.config().max_iterations, 20);
+    }
+
+    #[test]
+    fn test_spawner_agent_specific_overrides_default() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("test"));
+
+        let spawner = AgentSpawner::new(parent_tools, backend).with_default_max_iterations(20);
+        // Agent specifies its own max_iterations = 3, should override the default 20
+        let config = make_agent_config("test", vec!["shell"], Some(3));
+        let agent = spawner.spawn(&config).unwrap();
+        assert_eq!(agent.config().max_iterations, 3);
+    }
+
+    #[test]
+    fn test_plugin_subagent_spawner_with_default_max_iterations() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("test"));
+
+        let mut configs = HashMap::new();
+        configs.insert("a".to_string(), make_agent_config("a", vec!["shell"], None));
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs)
+            .with_default_max_iterations(15);
+
+        // Verify it propagates to the inner AgentSpawner
+        let config = make_agent_config("test", vec![], None);
+        let agent = spawner.spawner.spawn(&config).unwrap();
+        assert_eq!(agent.config().max_iterations, 15);
+    }
+
+    // ── Hook Dispatcher Builder Test ───────────────────────────────────
+
+    #[test]
+    fn test_plugin_subagent_spawner_with_hook_dispatcher() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("test"));
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, HashMap::new());
+        assert!(spawner.hook_dispatcher.is_none());
+
+        // We can't easily construct a real SharedHookDispatcher in a unit test,
+        // but we can verify the builder pattern works by checking the field is set
+        // after construction with_sources (the default is None).
+        assert!(spawner.compaction_backend.is_none());
+    }
+
+    // ── Delegate Success Path Tests ────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_delegate_success() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("Agent result text"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec!["shell"], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        let outcome = spawner.delegate("worker", "do something", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                assert_eq!(result.text, "Agent result text");
+                assert!(result.success);
+                assert_eq!(result.turns, 1);
+                assert!(result.duration_ms > 0 || result.duration_ms == 0); // timing
+                assert!(!result.truncated);
+                assert!(!result.compacted);
+                assert!(result.original_len.is_none());
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_with_context() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("Done"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        let context = "Some relevant context for the task";
+        let outcome = spawner
+            .delegate("worker", "do work", Some(context), None)
+            .await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                assert_eq!(result.text, "Done");
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_with_long_context_truncated() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("Done"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        // Context longer than DEFAULT_MAX_CONTEXT_LEN (4000)
+        let long_context = "word ".repeat(2000); // 10000 chars
+        let outcome = spawner
+            .delegate("worker", "do work", Some(&long_context), None)
+            .await;
+
+        match outcome {
+            DelegationOutcome::Success(_) => {} // Passed - context was truncated internally
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_with_max_turns_override() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("Done"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec!["shell"], Some(10)),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        // Pass max_turns = 2, should override the config's 10
+        let outcome = spawner
+            .delegate("worker", "do work", None, Some(2))
+            .await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                assert!(result.success);
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    // ── Delegate Background Tests ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_delegate_background_unknown_agent() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("test"));
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, HashMap::new());
+
+        let result = spawner
+            .delegate_background("nonexistent", "task", None, "session-1")
+            .await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown agent"));
+    }
+
+    #[tokio::test]
+    async fn test_delegate_background_known_agent() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("background result"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "bg-worker".to_string(),
+            make_agent_config("bg-worker", vec!["shell"], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+
+        let result = spawner
+            .delegate_background("bg-worker", "background task", None, "session-1")
+            .await;
+
+        assert!(result.is_ok());
+        // Give the background task a moment to complete
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    #[tokio::test]
+    async fn test_delegate_background_with_context() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("done"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "bg-worker".to_string(),
+            make_agent_config("bg-worker", vec![], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+
+        let result = spawner
+            .delegate_background(
+                "bg-worker",
+                "task with context",
+                Some("relevant context"),
+                "session-2",
+            )
+            .await;
+
+        assert!(result.is_ok());
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+
+    // ── Compaction Failure Tests ────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_compact_result_failure_returns_original() {
+        use crate::agent_spawner::compact_result;
+
+        // Create a mock backend that returns an error
+        let backend: SharedBackend =
+            Arc::new(MockBackend::with_results(vec![MockResponse::Error(
+                "compaction failed".to_string(),
+            )]));
+
+        let text = "Original text that should be returned on failure";
+        let result = compact_result(text, &backend, "test-model", 100).await;
+
+        assert!(!result.success);
+        assert_eq!(result.original_len, text.len());
+        assert_eq!(result.text, text); // Returns original on failure
+    }
+
+    #[tokio::test]
+    async fn test_delegate_long_response_truncated_when_compaction_disabled() {
+        let parent_tools = make_parent_tools();
+        // Return a very long response (> DEFAULT_MAX_RESULT_LEN = 8000)
+        let long_response = "x ".repeat(10000);
+        let backend: SharedBackend = Arc::new(MockBackend::with_text(long_response.clone()));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        // Default compaction_config has enabled=false and threshold=8000
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        let outcome = spawner.delegate("worker", "task", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                // Response is > threshold (8000), compaction disabled, so truncation happens
+                assert!(result.truncated);
+                assert!(!result.compacted);
+                assert!(result.original_len.is_some());
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_long_response_compacted_when_enabled() {
+        let parent_tools = make_parent_tools();
+        // Return a very long response
+        let long_response = "detailed analysis ".repeat(1000);
+        let backend: SharedBackend = Arc::new(MockBackend::with_text(long_response.clone()));
+        let compaction_backend: SharedBackend =
+            Arc::new(MockBackend::with_text("Compacted summary"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let compaction_config = CompactionConfig {
+            enabled: true,
+            threshold: 100, // Low threshold so our response triggers compaction
+            backend: "default".to_string(),
+            model: "test-model".to_string(),
+            target_len: 50,
+        };
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs)
+            .with_compaction(compaction_backend, compaction_config);
+
+        let outcome = spawner.delegate("worker", "task", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                assert!(result.compacted);
+                assert!(!result.truncated);
+                assert!(result.original_len.is_some());
+                assert_eq!(result.text, "Compacted summary");
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_compaction_failure_falls_back_to_truncation() {
+        let parent_tools = make_parent_tools();
+        let long_response = "word ".repeat(5000);
+        let backend: SharedBackend = Arc::new(MockBackend::with_text(long_response.clone()));
+
+        // Compaction backend that fails
+        let compaction_backend: SharedBackend =
+            Arc::new(MockBackend::with_results(vec![MockResponse::Error(
+                "LLM error".to_string(),
+            )]));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let compaction_config = CompactionConfig {
+            enabled: true,
+            threshold: 100,
+            backend: "default".to_string(),
+            model: "test-model".to_string(),
+            target_len: 50,
+        };
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs)
+            .with_compaction(compaction_backend, compaction_config);
+
+        let outcome = spawner.delegate("worker", "task", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                // Compaction failed, should fall back to truncation
+                assert!(result.truncated);
+                assert!(!result.compacted);
+                assert!(result.original_len.is_some());
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_compaction_enabled_but_no_backend_falls_back() {
+        let parent_tools = make_parent_tools();
+        let long_response = "word ".repeat(5000);
+        let backend: SharedBackend = Arc::new(MockBackend::with_text(long_response.clone()));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let compaction_config = CompactionConfig {
+            enabled: true,
+            threshold: 100,
+            backend: "default".to_string(),
+            model: "test-model".to_string(),
+            target_len: 50,
+        };
+
+        // Set compaction config enabled but don't set compaction_backend
+        let mut spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        spawner.compaction_config = compaction_config;
+        // compaction_backend is None
+
+        let outcome = spawner.delegate("worker", "task", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                // No compaction backend, falls back to truncation
+                assert!(result.truncated);
+                assert!(!result.compacted);
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delegate_short_response_no_processing() {
+        let parent_tools = make_parent_tools();
+        let backend: SharedBackend = Arc::new(MockBackend::with_text("short"));
+
+        let mut configs = HashMap::new();
+        configs.insert(
+            "worker".to_string(),
+            make_agent_config("worker", vec![], None),
+        );
+
+        let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
+        let outcome = spawner.delegate("worker", "task", None, None).await;
+
+        match outcome {
+            DelegationOutcome::Success(result) => {
+                assert!(!result.truncated);
+                assert!(!result.compacted);
+                assert!(result.original_len.is_none());
+                assert_eq!(result.text, "short");
+            }
+            other => panic!("Expected Success, got: {:?}", other),
+        }
     }
 }

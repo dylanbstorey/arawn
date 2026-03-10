@@ -2015,4 +2015,284 @@ mod tests {
         // Cleanup should not panic or error
         tracker.cleanup().await;
     }
+
+    #[test]
+    fn test_ws_connection_tracker_default() {
+        let tracker = WsConnectionTracker::default();
+        // Should behave identically to new()
+        let _debug = format!("{:?}", tracker);
+    }
+
+    // ── TrackedTask Tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_tracked_task_new() {
+        let task = TrackedTask::new("task-1", "compile");
+        assert_eq!(task.id, "task-1");
+        assert_eq!(task.task_type, "compile");
+        assert_eq!(task.status, TaskStatus::Pending);
+        assert!(task.progress.is_none());
+        assert!(task.message.is_none());
+        assert!(task.session_id.is_none());
+        assert!(task.started_at.is_none());
+        assert!(task.completed_at.is_none());
+        assert!(task.error.is_none());
+    }
+
+    #[test]
+    fn test_tracked_task_with_session() {
+        let task = TrackedTask::new("task-2", "index").with_session("session-abc");
+        assert_eq!(task.session_id, Some("session-abc".to_string()));
+        assert_eq!(task.status, TaskStatus::Pending);
+    }
+
+    #[test]
+    fn test_tracked_task_start() {
+        let mut task = TrackedTask::new("task-3", "run");
+        assert!(task.started_at.is_none());
+
+        task.start();
+        assert_eq!(task.status, TaskStatus::Running);
+        assert!(task.started_at.is_some());
+    }
+
+    #[test]
+    fn test_tracked_task_update_progress() {
+        let mut task = TrackedTask::new("task-4", "build");
+        task.start();
+
+        task.update_progress(50, Some("Halfway done".to_string()));
+        assert_eq!(task.progress, Some(50));
+        assert_eq!(task.message, Some("Halfway done".to_string()));
+    }
+
+    #[test]
+    fn test_tracked_task_update_progress_clamps_to_100() {
+        let mut task = TrackedTask::new("task-5", "build");
+        task.update_progress(200, None);
+        assert_eq!(task.progress, Some(100));
+    }
+
+    #[test]
+    fn test_tracked_task_complete() {
+        let mut task = TrackedTask::new("task-6", "deploy");
+        task.start();
+        task.complete(Some("All done".to_string()));
+
+        assert_eq!(task.status, TaskStatus::Completed);
+        assert_eq!(task.progress, Some(100));
+        assert_eq!(task.message, Some("All done".to_string()));
+        assert!(task.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_tracked_task_fail() {
+        let mut task = TrackedTask::new("task-7", "test");
+        task.start();
+        task.fail("assertion failed");
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert_eq!(task.error, Some("assertion failed".to_string()));
+        assert!(task.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_tracked_task_cancel() {
+        let mut task = TrackedTask::new("task-8", "build");
+        task.start();
+        task.cancel();
+
+        assert_eq!(task.status, TaskStatus::Cancelled);
+        assert!(task.completed_at.is_some());
+    }
+
+    #[test]
+    fn test_task_status_serde() {
+        let status = TaskStatus::Running;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"running\"");
+
+        let deserialized: TaskStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, TaskStatus::Running);
+    }
+
+    #[test]
+    fn test_task_status_all_variants_serialize() {
+        let variants = vec![
+            (TaskStatus::Pending, "\"pending\""),
+            (TaskStatus::Running, "\"running\""),
+            (TaskStatus::Completed, "\"completed\""),
+            (TaskStatus::Failed, "\"failed\""),
+            (TaskStatus::Cancelled, "\"cancelled\""),
+        ];
+        for (status, expected) in variants {
+            let json = serde_json::to_string(&status).unwrap();
+            assert_eq!(json, expected, "Failed for {:?}", status);
+        }
+    }
+
+    #[test]
+    fn test_tracked_task_serializes() {
+        let mut task = TrackedTask::new("t-1", "compile");
+        task.start();
+        task.update_progress(42, Some("compiling".to_string()));
+
+        let json = serde_json::to_string(&task).unwrap();
+        assert!(json.contains("\"id\":\"t-1\""));
+        assert!(json.contains("\"task_type\":\"compile\""));
+        assert!(json.contains("\"status\":\"running\""));
+        assert!(json.contains("\"progress\":42"));
+    }
+
+    // ── PendingReconnect Tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_pending_reconnect_new_not_expired() {
+        let pr = PendingReconnect::new("token-123".to_string(), std::time::Duration::from_secs(60));
+        assert_eq!(pr.token, "token-123");
+        assert!(!pr.is_expired());
+    }
+
+    #[test]
+    fn test_pending_reconnect_zero_duration_expired() {
+        let pr =
+            PendingReconnect::new("token-abc".to_string(), std::time::Duration::from_millis(0));
+        // With 0 duration, expires_at = now, so it should be expired immediately
+        // (or at least within a ms)
+        std::thread::sleep(std::time::Duration::from_millis(1));
+        assert!(pr.is_expired());
+    }
+
+    #[test]
+    fn test_pending_reconnect_debug() {
+        let pr = PendingReconnect::new("tok".to_string(), std::time::Duration::from_secs(10));
+        let debug = format!("{:?}", pr);
+        assert!(debug.contains("tok"));
+    }
+
+    // ── SharedServices builder tests ───────────────────────────────────────
+
+    #[test]
+    fn test_shared_services_build_domain_services() {
+        let backend = MockBackend::with_text("Test");
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_tools(ToolRegistry::new())
+            .build()
+            .unwrap();
+        let config = ServerConfig::new(Some("test-token".to_string()));
+        let services = SharedServices::new(agent, config);
+
+        assert!(services.domain().is_none());
+
+        let services = services.build_domain_services();
+        assert!(services.domain().is_some());
+    }
+
+    #[test]
+    fn test_shared_services_optional_fields_all_none() {
+        let backend = MockBackend::with_text("Test");
+        let agent = Agent::builder()
+            .with_backend(backend)
+            .with_tools(ToolRegistry::new())
+            .build()
+            .unwrap();
+        let config = ServerConfig::new(Some("test-token".to_string()));
+        let services = SharedServices::new(agent, config);
+
+        assert!(services.workstreams.is_none());
+        assert!(services.indexer.is_none());
+        assert!(services.hook_dispatcher.is_none());
+        assert!(services.mcp_manager.is_none());
+        assert!(services.directory_manager.is_none());
+        assert!(services.sandbox_manager.is_none());
+        assert!(services.file_watcher.is_none());
+        assert!(services.memory_store.is_none());
+        assert!(services.domain.is_none());
+        assert!(services.compressor.is_none());
+    }
+
+    // ── AppState builder tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_app_state_build_domain_services() {
+        let state = create_test_state().build_domain_services();
+        assert!(state.domain().is_some());
+    }
+
+    #[test]
+    fn test_app_state_convenience_accessors_optional_none() {
+        let state = create_test_state();
+        assert!(state.workstreams().is_none());
+        assert!(state.indexer().is_none());
+        assert!(state.hook_dispatcher().is_none());
+        assert!(state.mcp_manager().is_none());
+        assert!(state.directory_manager().is_none());
+        assert!(state.sandbox_manager().is_none());
+        assert!(state.file_watcher().is_none());
+        assert!(state.memory_store().is_none());
+        assert!(state.domain().is_none());
+        assert!(state.compressor().is_none());
+    }
+
+    #[test]
+    fn test_app_state_allowed_paths_no_directory_manager() {
+        let state = create_test_state();
+        assert!(state.allowed_paths("ws-1", "session-1").is_none());
+    }
+
+    #[test]
+    fn test_app_state_path_validator_no_directory_manager() {
+        let state = create_test_state();
+        assert!(state.path_validator("ws-1", "session-1").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_app_state_get_or_create_session_returns_existing() {
+        let state = create_test_state();
+        let session_id = state.get_or_create_session(None).await;
+
+        // Requesting same ID should return it
+        let same_id = state.get_or_create_session(Some(session_id)).await;
+        assert_eq!(session_id, same_id);
+    }
+
+    #[tokio::test]
+    async fn test_app_state_update_and_get_session() {
+        let state = create_test_state();
+        let session_id = state.get_or_create_session(None).await;
+
+        // Get session
+        let session = state.get_session(session_id, "scratch").await;
+        assert!(session.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_app_state_invalidate_session() {
+        let state = create_test_state();
+        let session_id = state.get_or_create_session(None).await;
+        assert!(state.runtime.session_cache.contains(&session_id).await);
+
+        state.invalidate_session(session_id).await;
+        assert!(!state.runtime.session_cache.contains(&session_id).await);
+    }
+
+    #[tokio::test]
+    async fn test_check_ws_connection_rate_delegates() {
+        let state = create_test_state();
+        let ip: IpAddr = "10.0.0.1".parse().unwrap();
+
+        // Default ws_connections_per_minute from ServerConfig
+        let result = state.check_ws_connection_rate(ip).await;
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_runtime_state_default_trait() {
+        let r1 = RuntimeState::new();
+        let r2 = RuntimeState::default();
+        // Both should have empty tasks
+        assert!(r1.tasks.try_read().unwrap().is_empty());
+        assert!(r2.tasks.try_read().unwrap().is_empty());
+    }
 }
