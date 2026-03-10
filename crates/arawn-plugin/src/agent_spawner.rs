@@ -294,7 +294,7 @@ impl AgentSpawner {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```text
 /// use arawn_plugin::PluginSubagentSpawner;
 ///
 /// // Collect agent configs from loaded plugins
