@@ -516,7 +516,8 @@ echo -ne "Content-Length: ${#response}\r\n\r\n${response}"
 
         // Use bash -c to avoid "Text file busy" issues with temp script files on Linux
         let mut transport =
-            McpTransport::spawn_stdio("bash", &["-c".to_string(), script.to_string()], None).unwrap();
+            McpTransport::spawn_stdio("bash", &["-c".to_string(), script.to_string()], None)
+                .unwrap();
 
         let request = JsonRpcRequest::new(1, "test/echo", None);
         let response = transport.send_request(&request).unwrap();
@@ -636,7 +637,8 @@ echo -ne "Content-Length: ${#response}\r\n\r\n${response}"
 
         // Use bash -c to avoid "Text file busy" issues with temp script files on Linux
         let mut transport =
-            McpTransport::spawn_stdio("bash", &["-c".to_string(), script.to_string()], None).unwrap();
+            McpTransport::spawn_stdio("bash", &["-c".to_string(), script.to_string()], None)
+                .unwrap();
 
         let request = JsonRpcRequest::new(1, "test", None);
         let result = transport.send_request(&request);

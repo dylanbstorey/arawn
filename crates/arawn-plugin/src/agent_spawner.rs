@@ -1263,9 +1263,7 @@ mod tests {
 
         let spawner = PluginSubagentSpawner::new(parent_tools, backend, configs);
         // Pass max_turns = 2, should override the config's 10
-        let outcome = spawner
-            .delegate("worker", "do work", None, Some(2))
-            .await;
+        let outcome = spawner.delegate("worker", "do work", None, Some(2)).await;
 
         match outcome {
             DelegationOutcome::Success(result) => {

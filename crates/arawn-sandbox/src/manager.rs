@@ -519,10 +519,25 @@ mod tests {
         let runtime_config = manager.build_runtime_config(&config).unwrap();
 
         assert_eq!(runtime_config.filesystem.allow_write.len(), 2);
-        assert!(runtime_config.filesystem.allow_write.contains(&"/tmp/work".to_string()));
-        assert!(runtime_config.filesystem.allow_write.contains(&"/tmp/output".to_string()));
+        assert!(
+            runtime_config
+                .filesystem
+                .allow_write
+                .contains(&"/tmp/work".to_string())
+        );
+        assert!(
+            runtime_config
+                .filesystem
+                .allow_write
+                .contains(&"/tmp/output".to_string())
+        );
         assert_eq!(runtime_config.filesystem.deny_read.len(), 1);
-        assert!(runtime_config.filesystem.deny_read.contains(&"/etc/shadow".to_string()));
+        assert!(
+            runtime_config
+                .filesystem
+                .deny_read
+                .contains(&"/etc/shadow".to_string())
+        );
         assert_eq!(runtime_config.network.allowed_domains.len(), 1);
         assert_eq!(runtime_config.filesystem.allow_git_config, Some(true));
     }
@@ -555,8 +570,7 @@ mod tests {
         }
 
         let manager = SandboxManager::new().await.unwrap();
-        let config =
-            SandboxConfig::default().with_working_dir("/absolutely/nonexistent/path");
+        let config = SandboxConfig::default().with_working_dir("/absolutely/nonexistent/path");
 
         let result = manager.validate_config(&config);
         assert!(result.is_err());

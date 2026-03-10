@@ -640,12 +640,8 @@ mod tests {
         backends.insert(Provider::Ollama, Arc::new(mock_success("primary ok")));
         backends.insert(Provider::Groq, Arc::new(mock_success("fallback ok")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![Provider::Groq],
-            true,
-        );
+        let client =
+            LlmClient::from_backends(backends, Provider::Ollama, vec![Provider::Groq], true);
 
         let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
         let response = client.complete(request).await.unwrap();
@@ -659,12 +655,8 @@ mod tests {
         backends.insert(Provider::Ollama, Arc::new(mock_error("primary down")));
         backends.insert(Provider::Groq, Arc::new(mock_success("fallback ok")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![Provider::Groq],
-            true,
-        );
+        let client =
+            LlmClient::from_backends(backends, Provider::Ollama, vec![Provider::Groq], true);
 
         let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
         let response = client.complete(request).await.unwrap();
@@ -677,12 +669,8 @@ mod tests {
         backends.insert(Provider::Ollama, Arc::new(mock_error("primary down")));
         backends.insert(Provider::Groq, Arc::new(mock_error("fallback down")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![Provider::Groq],
-            true,
-        );
+        let client =
+            LlmClient::from_backends(backends, Provider::Ollama, vec![Provider::Groq], true);
 
         let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
         let result = client.complete(request).await;
@@ -717,12 +705,7 @@ mod tests {
         let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
         backends.insert(Provider::Ollama, Arc::new(mock_success("streamed")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![],
-            false,
-        );
+        let client = LlmClient::from_backends(backends, Provider::Ollama, vec![], false);
 
         let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
         let mut stream = client.complete_stream(request).await.unwrap();
@@ -732,7 +715,10 @@ mod tests {
             events.push(event.unwrap());
         }
         assert!(!events.is_empty());
-        assert!(matches!(events.last().unwrap(), crate::backend::StreamEvent::MessageStop));
+        assert!(matches!(
+            events.last().unwrap(),
+            crate::backend::StreamEvent::MessageStop
+        ));
     }
 
     #[tokio::test]
@@ -740,15 +726,12 @@ mod tests {
         let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
         backends.insert(Provider::Ollama, Arc::new(mock_success("ok")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![],
-            false,
-        );
+        let client = LlmClient::from_backends(backends, Provider::Ollama, vec![], false);
 
         let request = CompletionRequest::new("m", vec![Message::user("hi")], 100);
-        let result = client.complete_stream_with(Provider::Anthropic, request).await;
+        let result = client
+            .complete_stream_with(Provider::Anthropic, request)
+            .await;
         assert!(result.is_err());
     }
 
@@ -766,11 +749,13 @@ mod tests {
 
         assert!(client.should_fallback(&LlmError::Network("timeout".to_string())));
         assert!(client.should_fallback(&LlmError::Backend("500".to_string())));
-        assert!(client.should_fallback(&LlmError::RateLimit(crate::error::RateLimitInfo {
-            message: "429".to_string(),
-            retry_after: None,
-            limit_type: None,
-        })));
+        assert!(
+            client.should_fallback(&LlmError::RateLimit(crate::error::RateLimitInfo {
+                message: "429".to_string(),
+                retry_after: None,
+                limit_type: None,
+            }))
+        );
         assert!(!client.should_fallback(&LlmError::Auth("bad key".to_string())));
         assert!(!client.should_fallback(&LlmError::Config("missing".to_string())));
     }
@@ -782,12 +767,7 @@ mod tests {
         let mut backends: HashMap<Provider, SharedBackend> = HashMap::new();
         backends.insert(Provider::Ollama, Arc::new(mock_success("backend response")));
 
-        let client = LlmClient::from_backends(
-            backends,
-            Provider::Ollama,
-            vec![],
-            false,
-        );
+        let client = LlmClient::from_backends(backends, Provider::Ollama, vec![], false);
 
         assert_eq!(client.name(), "llm-client");
         // supports_native_tools delegates to primary backend (MockBackend returns false)

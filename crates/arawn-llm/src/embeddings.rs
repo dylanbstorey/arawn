@@ -1126,7 +1126,11 @@ mod tests {
         let result = build_embedder(&spec).await;
         assert!(result.is_err());
         let msg = result.err().unwrap().to_string();
-        assert!(msg.contains("nonexistent"), "Error should mention provider: {}", msg);
+        assert!(
+            msg.contains("nonexistent"),
+            "Error should mention provider: {}",
+            msg
+        );
     }
 
     #[tokio::test]
@@ -1145,7 +1149,11 @@ mod tests {
         let result = build_embedder(&spec).await;
         assert!(result.is_err());
         let msg = result.err().unwrap().to_string();
-        assert!(msg.contains("API key"), "Error should mention API key: {}", msg);
+        assert!(
+            msg.contains("API key"),
+            "Error should mention API key: {}",
+            msg
+        );
     }
 
     #[tokio::test]
@@ -1195,16 +1203,21 @@ mod tests {
 
     #[test]
     fn test_openai_embedder_embeddings_url() {
-        let config = OpenAiEmbedderConfig::new("key")
-            .with_base_url("http://localhost:8080/v1");
+        let config = OpenAiEmbedderConfig::new("key").with_base_url("http://localhost:8080/v1");
         let embedder = OpenAiEmbedder::new(config).unwrap();
-        assert_eq!(embedder.embeddings_url(), "http://localhost:8080/v1/embeddings");
+        assert_eq!(
+            embedder.embeddings_url(),
+            "http://localhost:8080/v1/embeddings"
+        );
     }
 
     #[test]
     fn test_openai_embedder_embeddings_url_default() {
         let embedder = OpenAiEmbedder::new(OpenAiEmbedderConfig::new("key")).unwrap();
-        assert_eq!(embedder.embeddings_url(), "https://api.openai.com/v1/embeddings");
+        assert_eq!(
+            embedder.embeddings_url(),
+            "https://api.openai.com/v1/embeddings"
+        );
     }
 
     // ── MockEmbedder tests ────────────────────────────────────────────────

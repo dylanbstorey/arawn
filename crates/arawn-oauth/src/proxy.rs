@@ -291,7 +291,9 @@ mod tests {
 
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         let addr = server
-            .run_with_shutdown(async move { rx.await.ok(); })
+            .run_with_shutdown(async move {
+                rx.await.ok();
+            })
             .await
             .unwrap();
 

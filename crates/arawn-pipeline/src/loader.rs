@@ -636,7 +636,9 @@ action = {{ type = "tool", name = "echo" }}
     #[test]
     fn test_is_workflow_file() {
         assert!(WorkflowLoader::is_workflow_file(Path::new("foo.toml")));
-        assert!(WorkflowLoader::is_workflow_file(Path::new("/path/to/wf.toml")));
+        assert!(WorkflowLoader::is_workflow_file(Path::new(
+            "/path/to/wf.toml"
+        )));
         assert!(!WorkflowLoader::is_workflow_file(Path::new("foo.json")));
         assert!(!WorkflowLoader::is_workflow_file(Path::new("foo.md")));
         assert!(!WorkflowLoader::is_workflow_file(Path::new("foo")));

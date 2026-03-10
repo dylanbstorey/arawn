@@ -355,8 +355,7 @@ mod tests {
 
     #[test]
     fn test_retry_after_via_agent_error() {
-        let llm_err =
-            arawn_llm::LlmError::rate_limit_with_retry("limited", Duration::from_secs(5));
+        let llm_err = arawn_llm::LlmError::rate_limit_with_retry("limited", Duration::from_secs(5));
         let agent_err = arawn_agent::AgentError::Llm(llm_err);
         let err = ServerError::Agent(agent_err);
         assert_eq!(err.retry_after(), Some(Duration::from_secs(5)));

@@ -721,7 +721,10 @@ mod tests {
         assert_eq!(link.entity_id, "person-1");
         assert_eq!(link.label, "Person");
         assert_eq!(link.properties.len(), 2);
-        assert_eq!(link.properties[0], ("name".to_string(), "Alice".to_string()));
+        assert_eq!(
+            link.properties[0],
+            ("name".to_string(), "Alice".to_string())
+        );
     }
 
     #[test]

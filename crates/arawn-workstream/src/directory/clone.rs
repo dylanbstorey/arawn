@@ -428,11 +428,7 @@ mod tests {
         manager.create_workstream("my-ws").unwrap();
 
         let result = manager
-            .clone_repo(
-                "my-ws",
-                source_path.to_str().unwrap(),
-                Some("cloned"),
-            )
+            .clone_repo("my-ws", source_path.to_str().unwrap(), Some("cloned"))
             .unwrap();
 
         assert!(result.path.exists());
@@ -509,9 +505,6 @@ mod tests {
             DirectoryManager::repo_name_from_url("my-repo.git"),
             "my-repo"
         );
-        assert_eq!(
-            DirectoryManager::repo_name_from_url("my-repo"),
-            "my-repo"
-        );
+        assert_eq!(DirectoryManager::repo_name_from_url("my-repo"), "my-repo");
     }
 }

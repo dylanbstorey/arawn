@@ -1295,7 +1295,8 @@ mod tests {
     #[test]
     fn test_extract_text_content_class() {
         let tool = WebFetchTool::new();
-        let html = r#"<html><body><div class="content"><p>Content class text</p></div></body></html>"#;
+        let html =
+            r#"<html><body><div class="content"><p>Content class text</p></div></body></html>"#;
         let text = tool.extract_text_from_html(html);
         assert!(text.contains("Content class text"));
     }

@@ -1384,9 +1384,7 @@ mod tests {
                     .uri(&format!("/sessions/{}", session_id))
                     .header("Authorization", "Bearer test-token")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(
-                        r#"{"metadata": {"new_key": "new_value"}}"#,
-                    ))
+                    .body(Body::from(r#"{"metadata": {"new_key": "new_value"}}"#))
                     .unwrap(),
             )
             .await
@@ -1415,9 +1413,7 @@ mod tests {
                     .uri(&format!("/sessions/{}", session_id))
                     .header("Authorization", "Bearer test-token")
                     .header("Content-Type", "application/json")
-                    .body(Body::from(
-                        r#"{"workstream_id": "my-workstream"}"#,
-                    ))
+                    .body(Body::from(r#"{"workstream_id": "my-workstream"}"#))
                     .unwrap(),
             )
             .await
@@ -1483,10 +1479,7 @@ mod tests {
         );
         assert_eq!(detail.workstream_id, Some("ws-1".to_string()));
         assert_eq!(detail.files_migrated, Some(5));
-        assert_eq!(
-            detail.allowed_paths,
-            Some(vec!["/tmp/work".to_string()])
-        );
+        assert_eq!(detail.allowed_paths, Some(vec!["/tmp/work".to_string()]));
     }
 
     #[test]
@@ -1497,7 +1490,10 @@ mod tests {
         let detail = session_to_detail(&session);
         assert_eq!(detail.turns.len(), 1);
         assert_eq!(detail.turns[0].user_message, "Hello");
-        assert_eq!(detail.turns[0].assistant_response, Some("World".to_string()));
+        assert_eq!(
+            detail.turns[0].assistant_response,
+            Some("World".to_string())
+        );
     }
 
     // ── Type serialization tests ───────────────────────────────────────────

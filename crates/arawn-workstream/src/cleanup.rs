@@ -507,9 +507,7 @@ mod tests {
         assert!(!session_path.exists());
     }
 
-    fn test_workstream_manager(
-        dir: &std::path::Path,
-    ) -> crate::manager::WorkstreamManager {
+    fn test_workstream_manager(dir: &std::path::Path) -> crate::manager::WorkstreamManager {
         let store = crate::store::WorkstreamStore::open_in_memory().unwrap();
         let msg_store = crate::message_store::MessageStore::new(dir);
         crate::manager::WorkstreamManager::from_parts(store, msg_store, 30)
@@ -616,9 +614,7 @@ mod tests {
         let ws_manager = test_workstream_manager(dir.path());
 
         // Create a workstream with small data
-        ws_manager
-            .create_workstream("test-ws", None, &[])
-            .unwrap();
+        ws_manager.create_workstream("test-ws", None, &[]).unwrap();
         dir_manager.create_workstream("test-ws").unwrap();
 
         let config = CleanupConfig::default();

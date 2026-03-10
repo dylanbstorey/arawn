@@ -648,8 +648,7 @@ mod tests {
         let cache = SessionCache::new(None);
 
         let (id, _) = cache.create_session("ws-1").await;
-        let (returned_id, _session, created) =
-            cache.get_or_create(Some(id), "ws-1").await.unwrap();
+        let (returned_id, _session, created) = cache.get_or_create(Some(id), "ws-1").await.unwrap();
 
         assert!(!created);
         assert_eq!(returned_id, id);
@@ -661,8 +660,7 @@ mod tests {
         let id = SessionId::new();
 
         // With no WorkstreamManager, loads an empty session
-        let (returned_id, session, created) =
-            cache.get_or_create(Some(id), "ws-1").await.unwrap();
+        let (returned_id, session, created) = cache.get_or_create(Some(id), "ws-1").await.unwrap();
 
         assert!(!created);
         assert_eq!(returned_id, id);
@@ -677,10 +675,7 @@ mod tests {
         session.start_turn("Hello").complete("Hi!");
         cache.update(id, session).await.unwrap();
 
-        let turn_count = cache
-            .with_session(&id, |s| s.turn_count())
-            .await
-            .unwrap();
+        let turn_count = cache.with_session(&id, |s| s.turn_count()).await.unwrap();
         assert_eq!(turn_count, 1);
     }
 
@@ -697,10 +692,7 @@ mod tests {
             .await
             .unwrap();
 
-        let turn_count = cache
-            .with_session(&id, |s| s.turn_count())
-            .await
-            .unwrap();
+        let turn_count = cache.with_session(&id, |s| s.turn_count()).await.unwrap();
         assert_eq!(turn_count, 1);
     }
 

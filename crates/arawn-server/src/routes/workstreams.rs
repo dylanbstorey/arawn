@@ -1142,15 +1142,24 @@ mod tests {
 
     fn create_test_router(state: AppState) -> Router {
         Router::new()
-            .route("/workstreams", post(create_workstream_handler).get(list_workstreams_handler))
+            .route(
+                "/workstreams",
+                post(create_workstream_handler).get(list_workstreams_handler),
+            )
             .route(
                 "/workstreams/{id}",
                 get(get_workstream_handler)
                     .patch(update_workstream_handler)
                     .delete(delete_workstream_handler),
             )
-            .route("/workstreams/{id}/sessions", get(list_workstream_sessions_handler))
-            .route("/workstreams/{id}/messages", post(send_message_handler).get(list_messages_handler))
+            .route(
+                "/workstreams/{id}/sessions",
+                get(list_workstream_sessions_handler),
+            )
+            .route(
+                "/workstreams/{id}/messages",
+                post(send_message_handler).get(list_messages_handler),
+            )
             .route("/workstreams/{id}/promote", post(promote_handler))
             .layer(middleware::from_fn_with_state(
                 state.clone(),

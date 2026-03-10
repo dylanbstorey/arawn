@@ -380,10 +380,11 @@ mod tests {
 
         let gate = WorkstreamFsGate::path_only(&dm, "scratch", "sess-x");
 
-        assert!(gate
-            .working_dir()
-            .to_string_lossy()
-            .contains("scratch/sessions/sess-x"));
+        assert!(
+            gate.working_dir()
+                .to_string_lossy()
+                .contains("scratch/sessions/sess-x")
+        );
     }
 
     #[tokio::test]

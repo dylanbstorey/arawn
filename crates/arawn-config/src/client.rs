@@ -709,8 +709,8 @@ contexts:
 
     #[test]
     fn test_load_client_config_from_nonexistent() {
-        let config = load_client_config_from(Some(Path::new("/nonexistent/path/client.yaml")))
-            .unwrap();
+        let config =
+            load_client_config_from(Some(Path::new("/nonexistent/path/client.yaml"))).unwrap();
         assert_eq!(config.api_version, API_VERSION);
         assert!(config.contexts.is_empty());
     }

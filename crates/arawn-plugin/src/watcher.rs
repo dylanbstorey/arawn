@@ -710,10 +710,7 @@ mod tests {
 
     #[test]
     fn test_find_plugin_dir_multiple_search_dirs() {
-        let dirs = vec![
-            PathBuf::from("/plugins"),
-            PathBuf::from("/extra-plugins"),
-        ];
+        let dirs = vec![PathBuf::from("/plugins"), PathBuf::from("/extra-plugins")];
 
         // File in first search dir
         assert_eq!(
@@ -780,7 +777,10 @@ mod tests {
         let event = reload_from_dir(&state, &plugin_dir).await;
 
         match event {
-            PluginEvent::Reloaded { name, plugin_dir: dir } => {
+            PluginEvent::Reloaded {
+                name,
+                plugin_dir: dir,
+            } => {
                 assert_eq!(name, "direct-reload");
                 assert_eq!(dir, plugin_dir);
             }
@@ -824,7 +824,14 @@ mod tests {
         // Load initially
         reload_from_dir(&state, &plugin_dir).await;
         assert_eq!(
-            state.read().await.get_by_name("replace-me").unwrap().manifest.version.as_deref(),
+            state
+                .read()
+                .await
+                .get_by_name("replace-me")
+                .unwrap()
+                .manifest
+                .version
+                .as_deref(),
             Some("0.1.0")
         );
 
@@ -838,7 +845,14 @@ mod tests {
         // Reload should replace
         reload_from_dir(&state, &plugin_dir).await;
         assert_eq!(
-            state.read().await.get_by_name("replace-me").unwrap().manifest.version.as_deref(),
+            state
+                .read()
+                .await
+                .get_by_name("replace-me")
+                .unwrap()
+                .manifest
+                .version
+                .as_deref(),
             Some("3.0.0")
         );
 

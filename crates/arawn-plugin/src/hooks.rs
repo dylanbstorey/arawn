@@ -1409,10 +1409,7 @@ mod tests {
 
         let mut dispatcher = HookDispatcher::new();
         dispatcher.register(
-            make_hook(
-                HookEvent::PreToolUse,
-                PathBuf::from("/nonexistent/command"),
-            ),
+            make_hook(HookEvent::PreToolUse, PathBuf::from("/nonexistent/command")),
             tmp.path().to_path_buf(),
         );
 
@@ -1455,10 +1452,7 @@ mod tests {
         );
 
         let mut dispatcher = HookDispatcher::new();
-        dispatcher.register(
-            make_hook(HookEvent::Stop, script),
-            tmp.path().to_path_buf(),
-        );
+        dispatcher.register(make_hook(HookEvent::Stop, script), tmp.path().to_path_buf());
 
         // Call via trait object
         let dispatch: &dyn HookDispatch = &dispatcher;
@@ -1480,16 +1474,12 @@ mod tests {
     async fn test_pre_tool_use_hook_error_does_not_block() {
         let tmp = TempDir::new().unwrap();
         // First hook errors (spawn failure), second hook allows
-        let script_good =
-            create_hook_script(tmp.path(), "good.sh", "#!/bin/bash\nexit 0\n");
+        let script_good = create_hook_script(tmp.path(), "good.sh", "#!/bin/bash\nexit 0\n");
 
         let mut dispatcher = HookDispatcher::new();
         // Register a bad hook first
         dispatcher.register(
-            make_hook(
-                HookEvent::PreToolUse,
-                PathBuf::from("/nonexistent/command"),
-            ),
+            make_hook(HookEvent::PreToolUse, PathBuf::from("/nonexistent/command")),
             tmp.path().to_path_buf(),
         );
         // Register a good hook second
@@ -1510,16 +1500,10 @@ mod tests {
     #[tokio::test]
     async fn test_post_tool_use_info_hooks_combined_output() {
         let tmp = TempDir::new().unwrap();
-        let script1 = create_hook_script(
-            tmp.path(),
-            "hook1.sh",
-            "#!/bin/bash\necho 'output-one'\n",
-        );
-        let script2 = create_hook_script(
-            tmp.path(),
-            "hook2.sh",
-            "#!/bin/bash\necho 'output-two'\n",
-        );
+        let script1 =
+            create_hook_script(tmp.path(), "hook1.sh", "#!/bin/bash\necho 'output-one'\n");
+        let script2 =
+            create_hook_script(tmp.path(), "hook2.sh", "#!/bin/bash\necho 'output-two'\n");
 
         let mut dispatcher = HookDispatcher::new();
         dispatcher.register(
@@ -1532,11 +1516,7 @@ mod tests {
         );
 
         let outcome = dispatcher
-            .dispatch_post_tool_use(
-                "shell",
-                &serde_json::json!({}),
-                &serde_json::json!({}),
-            )
+            .dispatch_post_tool_use("shell", &serde_json::json!({}), &serde_json::json!({}))
             .await;
         match outcome {
             HookOutcome::Info { output } => {
